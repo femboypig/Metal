@@ -308,26 +308,30 @@ extension ViewController {
     func updateNowPlayingInfo() {
         guard let index = currentTrackIndex, index < filteredTracks.count else { return }
         let track = filteredTracks[index]
+        let duration = audioPlayer?.duration ?? track.duration
+        let isPlaying = audioPlayer?.isPlaying == true
         
         var info = [String: Any]()
         info[MPMediaItemPropertyTitle] = track.title
-        info[MPMediaItemPropertyArtist] = track.artist
-        info[MPMediaItemPropertyPlaybackDuration] = track.duration
+        if track.artist != "Unknown Artist" && !track.artist.isEmpty {
+            info[MPMediaItemPropertyArtist] = track.artist
+        }
+        info[MPMediaItemPropertyPlaybackDuration] = duration
+        info[MPMediaItemPropertyAssetURL] = track.url
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = audioPlayer?.currentTime ?? 0
-        info[MPNowPlayingInfoPropertyPlaybackRate] = audioPlayer?.isPlaying == true ? 1.0 : 0.0
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
+        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+        info[MPNowPlayingInfoPropertyExternalContentIdentifier] = track.url.lastPathComponent
         
-        if let artwork = track.artwork {
+        if let artwork = track.artwork ?? UIImage(named: "logo") {
             let squaredArtwork = artwork.squared()
             info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: squaredArtwork.size, requestHandler: { _ in squaredArtwork })
         }
         
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-    }
-    
-    func updateNowPlayingInfoElapsedTimeOnly() {
-        var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = audioPlayer?.currentTime ?? 0
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        let nowPlayingCenter = MPNowPlayingInfoCenter.default()
+        nowPlayingCenter.nowPlayingInfo = info
+        nowPlayingCenter.playbackState = isPlaying ? .playing : .paused
     }
     
     // MARK: - Persistence state

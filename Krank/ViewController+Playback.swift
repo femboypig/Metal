@@ -15,6 +15,7 @@ extension ViewController {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
             try AVAudioSession.sharedInstance().setActive(true)
+            UIApplication.shared.beginReceivingRemoteControlEvents()
         } catch {
             print("Failed to configure Audio Session: \(error)")
         }
@@ -22,21 +23,51 @@ extension ViewController {
     
     func setupRemoteCommands() {
         let commandCenter = MPRemoteCommandCenter.shared()
-        
+
+        commandCenter.playCommand.removeTarget(nil)
+        commandCenter.pauseCommand.removeTarget(nil)
+        commandCenter.togglePlayPauseCommand.removeTarget(nil)
+        commandCenter.nextTrackCommand.removeTarget(nil)
+        commandCenter.previousTrackCommand.removeTarget(nil)
+        commandCenter.changePlaybackPositionCommand.removeTarget(nil)
+
         commandCenter.playCommand.addTarget { [weak self] _ in
-            self?.playOrPause()
+            guard let self else { return .commandFailed }
+            DispatchQueue.main.async {
+                if self.audioPlayer?.isPlaying != true { self.playOrPause() }
+            }
             return .success
         }
         commandCenter.pauseCommand.addTarget { [weak self] _ in
-            self?.playOrPause()
+            guard let self, self.audioPlayer != nil else { return .noSuchContent }
+            DispatchQueue.main.async {
+                if self.audioPlayer?.isPlaying == true { self.playOrPause() }
+            }
+            return .success
+        }
+        commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            DispatchQueue.main.async { self.playOrPause() }
             return .success
         }
         commandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            self?.playNextTrack()
+            guard let self, !self.filteredTracks.isEmpty else { return .noSuchContent }
+            DispatchQueue.main.async { self.playNextTrack() }
             return .success
         }
         commandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            self?.playPreviousTrack()
+            guard let self, !self.filteredTracks.isEmpty else { return .noSuchContent }
+            DispatchQueue.main.async { self.playPreviousTrack() }
+            return .success
+        }
+        commandCenter.changePlaybackPositionCommand.isEnabled = true
+        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let self,
+                  let positionEvent = event as? MPChangePlaybackPositionCommandEvent,
+                  self.audioPlayer != nil else { return .noSuchContent }
+            DispatchQueue.main.async {
+                self.seek(to: positionEvent.positionTime)
+            }
             return .success
         }
     }
@@ -47,7 +78,8 @@ extension ViewController {
         guard !filteredTracks.isEmpty, let index = currentTrackIndex, index < filteredTracks.count else { return }
         
         let track = filteredTracks[index]
-        
+
+        if aidj.isTransitioning { aidj.cancel(keeping: nil) }
         audioPlayer?.stop()
         audioPlayer = nil
         
@@ -56,6 +88,7 @@ extension ViewController {
             audioPlayer?.delegate = self
             audioPlayer?.prepareToPlay()
             audioPlayer?.play()
+            aidj.prepare(track: track.url)
             
             let playbackImpact = UIImpactFeedbackGenerator(style: .medium)
             playbackImpact.prepare()
@@ -118,10 +151,7 @@ extension ViewController {
         impact.prepare()
         impact.impactOccurred()
         
-        if aidj.isTransitioning {
-            aidj.primaryPlayer?.stop()
-            aidj.isTransitioning = false
-        }
+        if aidj.isTransitioning { aidj.cancel(keeping: player) }
         
         if player.isPlaying {
             player.pause()
@@ -160,11 +190,8 @@ extension ViewController {
     
     @objc func playNextTrack() {
         guard !filteredTracks.isEmpty else { return }
-        
-        if aidj.isTransitioning {
-            aidj.primaryPlayer?.stop()
-            aidj.isTransitioning = false
-        }
+
+        if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
         
         forcePlayNextTrack()
     }
@@ -230,17 +257,8 @@ extension ViewController {
         
         let nextTrack = filteredTracks[nextIndex]
         
-        // Start transition background tasks (tempo mapping & volume ramping)
-        aidj.startTransition(from: currentPlayer, toTrack: nextTrack.url, onPlayStarted: { [weak self] _ in
-            guard let self = self else { return }
-            self.playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 52, weight: .bold)), for: .normal)
-            self.updateMiniPlayerUI()
-        }, completion: { _ in
-            // Done transitioning
-        })
-        
-        // Immediately swap active reference to new player B, so timer & UI update instantly!
-        if let playerB = aidj.secondaryPlayer {
+        let didStart = aidj.startTransition(from: currentPlayer, toTrack: nextTrack.url, onPlayStarted: { [weak self] playerB in
+            guard let self else { return }
             self.audioPlayer = playerB
             self.audioPlayer?.delegate = self
             self.currentTrackIndex = nextIndex
@@ -280,16 +298,21 @@ extension ViewController {
             
             self.updateMiniPlayerUI()
             self.updatePlayerFavoriteButton()
+            self.aidj.prepare(track: nextTrack.url)
+        }, completion: { [weak self] playerB in
+            guard let self, self.audioPlayer === playerB else { return }
+            self.updateNowPlayingInfo()
+        })
+
+        if !didStart {
+            forcePlayNextTrack()
         }
     }
     
     @objc func playPreviousTrack() {
         guard !filteredTracks.isEmpty else { return }
         
-        if aidj.isTransitioning {
-            aidj.primaryPlayer?.stop()
-            aidj.isTransitioning = false
-        }
+        if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
         
         if isShuffleEnabled {
             if shuffledIndices.isEmpty {
@@ -335,11 +358,12 @@ extension ViewController {
         elapsedLabel.text = formatTime(player.currentTime)
         remainingLabel.text = "-" + formatTime(player.duration - player.currentTime)
         
-        updateNowPlayingInfoElapsedTimeOnly()
-        
-        // Smart DJ Transition trigger: 6 seconds before natural completion
+        // The system extrapolates its timeline from elapsed time + playback rate.
+        // Re-publishing it at 10 Hz makes the lock-screen scrubber fight the user.
+
+        // Start early enough to align to a beat and perform an eight-beat fade.
         let aidjEnabled = UserDefaults.standard.bool(forKey: "Krank_AIDJEnabled")
-        if aidjEnabled && !isRepeatEnabled && player.duration - player.currentTime <= 6.0 && player.duration > 12.0 && !aidj.isTransitioning {
+        if aidjEnabled && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
             transitionToNextTrack()
         }
     }
@@ -352,7 +376,18 @@ extension ViewController {
     }
     
     @objc func sliderFinishedChanging(_ sender: UISlider) {
-        audioPlayer?.currentTime = TimeInterval(sender.value)
+        seek(to: TimeInterval(sender.value))
+    }
+
+    func seek(to requestedTime: TimeInterval) {
+        guard let player = audioPlayer, player.duration > 0 else { return }
+        if aidj.isTransitioning { aidj.cancel(keeping: player) }
+
+        let position = min(max(0, requestedTime), player.duration)
+        player.currentTime = position
+        progressSlider.value = Float(position)
+        elapsedLabel.text = formatTime(position)
+        remainingLabel.text = "-" + formatTime(max(0, player.duration - position))
         updateNowPlayingInfo()
     }
     

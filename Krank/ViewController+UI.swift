@@ -157,7 +157,7 @@ extension ViewController {
         descLabel.font = UIFont.systemFont(ofSize: 12)
         descLabel.textColor = .secondaryLabel
         descLabel.numberOfLines = 0
-        descLabel.text = "Beat-matches and crossfades songs smoothly 6 seconds before they end."
+        descLabel.text = "Analyzes tempo locally, aligns the next song to the beat, and blends it with an adaptive crossfade."
         card.addSubview(descLabel)
         
         let toggle = UISwitch()

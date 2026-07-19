@@ -117,9 +117,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         super.viewDidLoad()
         
         loadLocalUserData()
+        setupUI()
         setupAudioSession()
         setupRemoteCommands()
-        setupUI()
         loadLocalTracks()
         loadPlaybackState()
         
