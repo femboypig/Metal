@@ -55,6 +55,8 @@ class TrackCell: UITableViewCell {
         mainHorizontalStack.addArrangedSubview(leftStack)
         
         indexLabel.font = UIFont(name: "Georgia-Italic", size: 14)
+        indexLabel.translatesAutoresizingMaskIntoConstraints = false
+        indexLabel.widthAnchor.constraint(equalToConstant: 20).isActive = true
         indexLabel.setContentHuggingPriority(.required, for: .horizontal)
         leftStack.addArrangedSubview(indexLabel)
         
@@ -87,7 +89,7 @@ class TrackCell: UITableViewCell {
         
         dividerLine.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(dividerLine)
-        
+
         NSLayoutConstraint.activate([
             mainHorizontalStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             mainHorizontalStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
@@ -132,12 +134,15 @@ class TrackCell: UITableViewCell {
         }
         
         if isPlaying {
-            titleLabel.textColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-            indexLabel.textColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-            contentView.backgroundColor = colors.activeRowColor()
+            titleLabel.textColor = UIColor(red: 0.93, green: 0.47, blue: 0.31, alpha: 1.0)
+            playingThumbnail.layer.borderWidth = 0.5
+            playingThumbnail.layer.borderColor = colors.cardBorderColor().cgColor
+            contentView.backgroundColor = .clear
         } else {
             titleLabel.textColor = colors.primaryTextColor()
             indexLabel.textColor = colors.secondaryTextColor()
+            playingThumbnail.layer.borderWidth = 0.5
+            playingThumbnail.layer.borderColor = colors.cardBorderColor().cgColor
             contentView.backgroundColor = .clear
         }
     }

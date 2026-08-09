@@ -10,7 +10,7 @@ import MediaPlayer
 extension ViewController {
 
     // MARK: - Core Audio Setup
-    
+
     func setupAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
@@ -20,7 +20,7 @@ extension ViewController {
             print("Failed to configure Audio Session: \(error)")
         }
     }
-    
+
     func setupRemoteCommands() {
         let commandCenter = MPRemoteCommandCenter.shared()
 
@@ -71,35 +71,35 @@ extension ViewController {
             return .success
         }
     }
-    
+
     // MARK: - Playback Core Engine
-    
+
     func playCurrentTrack() {
         guard !filteredTracks.isEmpty, let index = currentTrackIndex, index < filteredTracks.count else { return }
-        
+
         let track = filteredTracks[index]
 
         if aidj.isTransitioning { aidj.cancel(keeping: nil) }
         audioPlayer?.stop()
         audioPlayer = nil
-        
+
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: track.url)
             audioPlayer?.delegate = self
             audioPlayer?.prepareToPlay()
             audioPlayer?.play()
             aidj.prepare(track: track.url)
-            
+
             let playbackImpact = UIImpactFeedbackGenerator(style: .medium)
             playbackImpact.prepare()
             playbackImpact.impactOccurred()
-            
+
             startTimer()
-            
+
             // Full UI updating
-            playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 52, weight: .bold)), for: .normal)
+            playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
             trackTitleLabel.text = track.title
-            
+
             // Artist label handling (hiding if empty or unknown)
             if track.artist != "Unknown Artist" && !track.artist.isEmpty {
                 artistLabel.text = track.artist
@@ -108,36 +108,37 @@ extension ViewController {
                 artistLabel.text = ""
                 artistLabel.isHidden = true
             }
-            
+
             if let artwork = track.artwork {
                 coverImageView.image = artwork
             } else {
                 coverImageView.image = UIImage(named: "logo")
             }
-            
+
             progressSlider.maximumValue = Float(track.duration)
             progressSlider.value = 0
-            
+
             startArtworkAnimation()
             updateNowPlayingInfo()
             tableView.reloadData()
-            
+
             updateMiniPlayerUI()
             updatePlayerFavoriteButton()
-            
+            updatePlayerTheme(with: track.artwork)
+
             // Scroll to full player page ONLY if we are not already on the player page
             let width = scrollView.frame.size.width
             let currentPage = Int(round(scrollView.contentOffset.x / width))
             if currentPage != 2 {
                 scrollView.setContentOffset(CGPoint(x: width * 2, y: 0), animated: true)
             }
-            
+
         } catch {
             print("Audio Player playback error: \(error)")
             showToast(message: "Playback failed", success: false)
         }
     }
-    
+
     func playOrPause() {
         guard let player = audioPlayer else {
             if !filteredTracks.isEmpty {
@@ -146,35 +147,35 @@ extension ViewController {
             }
             return
         }
-        
+
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.prepare()
         impact.impactOccurred()
-        
+
         if aidj.isTransitioning { aidj.cancel(keeping: player) }
-        
+
         if player.isPlaying {
             player.pause()
             updateTimer?.invalidate()
             stopArtworkAnimation()
-            playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 52, weight: .bold)), for: .normal)
+            playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
         } else {
             player.play()
             startTimer()
             startArtworkAnimation()
-            playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 52, weight: .bold)), for: .normal)
+            playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
         }
-        
+
         updateNowPlayingInfo()
         updateMiniPlayerUI()
     }
-    
+
     // MARK: - Playback Queue Navigation
-    
+
     func rebuildShuffleQueue() {
         let count = filteredTracks.count
         guard count > 0 else { return }
-        
+
         var indices = Array(0..<count)
         if let currentIdx = currentTrackIndex, currentIdx < count {
             indices.remove(at: currentIdx)
@@ -187,21 +188,21 @@ extension ViewController {
             shuffledPosition = 0
         }
     }
-    
+
     @objc func playNextTrack() {
         guard !filteredTracks.isEmpty else { return }
 
         if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
-        
+
         forcePlayNextTrack()
     }
-    
+
     func forcePlayNextTrack() {
         if isShuffleEnabled {
             if shuffledIndices.isEmpty {
                 rebuildShuffleQueue()
             }
-            
+
             if shuffledPosition >= shuffledIndices.count - 1 {
                 if isRepeatEnabled {
                     rebuildShuffleQueue()
@@ -211,7 +212,7 @@ extension ViewController {
             } else {
                 shuffledPosition += 1
             }
-            
+
             if shuffledPosition < shuffledIndices.count {
                 currentTrackIndex = shuffledIndices[shuffledPosition]
                 playCurrentTrack()
@@ -225,15 +226,15 @@ extension ViewController {
             playCurrentTrack()
         }
     }
-    
+
     func transitionToNextTrack() {
         guard !filteredTracks.isEmpty, let currentPlayer = audioPlayer else {
             forcePlayNextTrack()
             return
         }
-        
+
         currentPlayer.delegate = nil // Stop delegating so old player stops quietly
-        
+
         // Find next track index
         let nextIndex: Int
         if isShuffleEnabled {
@@ -254,15 +255,15 @@ extension ViewController {
                 nextIndex = 0
             }
         }
-        
+
         let nextTrack = filteredTracks[nextIndex]
-        
+
         let didStart = aidj.startTransition(from: currentPlayer, toTrack: nextTrack.url, onPlayStarted: { [weak self] playerB in
             guard let self else { return }
             self.audioPlayer = playerB
             self.audioPlayer?.delegate = self
             self.currentTrackIndex = nextIndex
-            
+
             if self.isShuffleEnabled {
                 if self.shuffledPosition >= self.shuffledIndices.count - 1 {
                     self.shuffledPosition = 0
@@ -270,11 +271,11 @@ extension ViewController {
                     self.shuffledPosition += 1
                 }
             }
-            
+
             // Full UI updating
-            self.playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 52, weight: .bold)), for: .normal)
+            self.playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
             self.trackTitleLabel.text = nextTrack.title
-            
+
             if nextTrack.artist != "Unknown Artist" && !nextTrack.artist.isEmpty {
                 self.artistLabel.text = nextTrack.artist
                 self.artistLabel.isHidden = false
@@ -282,22 +283,23 @@ extension ViewController {
                 self.artistLabel.text = ""
                 self.artistLabel.isHidden = true
             }
-            
+
             if let artwork = nextTrack.artwork {
                 self.coverImageView.image = artwork
             } else {
                 self.coverImageView.image = UIImage(named: "logo")
             }
-            
+
             self.progressSlider.maximumValue = Float(nextTrack.duration)
             self.progressSlider.value = 0
-            
+
             self.startArtworkAnimation()
             self.updateNowPlayingInfo()
             self.tableView.reloadData()
-            
+
             self.updateMiniPlayerUI()
             self.updatePlayerFavoriteButton()
+            self.updatePlayerTheme(with: nextTrack.artwork)
             self.aidj.prepare(track: nextTrack.url)
         }, completion: { [weak self] playerB in
             guard let self, self.audioPlayer === playerB else { return }
@@ -308,23 +310,23 @@ extension ViewController {
             forcePlayNextTrack()
         }
     }
-    
+
     @objc func playPreviousTrack() {
         guard !filteredTracks.isEmpty else { return }
-        
+
         if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
-        
+
         if isShuffleEnabled {
             if shuffledIndices.isEmpty {
                 rebuildShuffleQueue()
             }
-            
+
             if shuffledPosition > 0 {
                 shuffledPosition -= 1
             } else {
                 shuffledPosition = shuffledIndices.count - 1
             }
-            
+
             if shuffledPosition < shuffledIndices.count {
                 currentTrackIndex = shuffledIndices[shuffledPosition]
                 playCurrentTrack()
@@ -338,43 +340,39 @@ extension ViewController {
             playCurrentTrack()
         }
     }
-    
+
     // MARK: - Playback Timer & Actions
-    
+
     func startTimer() {
         updateTimer?.invalidate()
         updateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             self?.updatePlaybackProgress()
         }
     }
-    
+
     func updatePlaybackProgress() {
         guard let player = audioPlayer, player.duration > 0 else { return }
-        
+
         if !progressSlider.isTracking {
             progressSlider.value = Float(player.currentTime)
         }
-        
+
         elapsedLabel.text = formatTime(player.currentTime)
         remainingLabel.text = "-" + formatTime(player.duration - player.currentTime)
-        
-        // The system extrapolates its timeline from elapsed time + playback rate.
-        // Re-publishing it at 10 Hz makes the lock-screen scrubber fight the user.
 
-        // Start early enough to align to a beat and perform an eight-beat fade.
         let aidjEnabled = UserDefaults.standard.bool(forKey: "Krank_AIDJEnabled")
         if aidjEnabled && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
             transitionToNextTrack()
         }
     }
-    
+
     @objc func sliderValueChanging(_ sender: UISlider) {
         elapsedLabel.text = formatTime(TimeInterval(sender.value))
         if let player = audioPlayer {
             remainingLabel.text = "-" + formatTime(player.duration - TimeInterval(sender.value))
         }
     }
-    
+
     @objc func sliderFinishedChanging(_ sender: UISlider) {
         seek(to: TimeInterval(sender.value))
     }
@@ -390,41 +388,120 @@ extension ViewController {
         remainingLabel.text = "-" + formatTime(max(0, player.duration - position))
         updateNowPlayingInfo()
     }
-    
+
     @objc func playPauseTapped() {
         playOrPause()
     }
-    
+
     @objc func shuffleTapped() {
         isShuffleEnabled.toggle()
         let impact = UIImpactFeedbackGenerator(style: .light)
         impact.impactOccurred()
     }
-    
+
     @objc func repeatTapped() {
         isRepeatEnabled.toggle()
         let impact = UIImpactFeedbackGenerator(style: .light)
         impact.impactOccurred()
     }
-    
+
+    @objc func dismissPlayerTapped() {
+        let width = scrollView.frame.size.width
+        scrollView.setContentOffset(CGPoint(x: width, y: 0), animated: true)
+    }
+
+    @objc func dislikeTapped() {
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+        playNextTrack()
+        showToast(message: "Skipped song", success: true)
+    }
+
+    @objc func deviceButtonTapped() {
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+        showToast(message: "Output: iPhone Speaker / AirPlay", success: true)
+    }
+
+    @objc func shareButtonTapped() {
+        guard let index = currentTrackIndex, index < filteredTracks.count else { return }
+        let track = filteredTracks[index]
+        let shareVC = UIActivityViewController(activityItems: [track.url], applicationActivities: nil)
+        present(shareVC, animated: true)
+    }
+
+    @objc func queueButtonTapped() {
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+        let items = filteredTracks.prefix(15).map { tr in
+            BottomSheetItem(title: tr.title, iconName: "music.note", isDestructive: false, action: { [weak self] in
+                if let idx = self?.filteredTracks.firstIndex(where: { $0.url == tr.url }) {
+                    self?.currentTrackIndex = idx
+                    self?.playCurrentTrack()
+                }
+            })
+        }
+        presentCustomBottomSheet(title: "Up Next Queue", subtitle: "\(filteredTracks.count) songs in filter", items: Array(items))
+    }
+
     @objc func volumeSliderChanged(_ sender: UISlider) {
         audioPlayer?.volume = sender.value
     }
-    
+
     func updatePlaybackButtons() {
-        let activeColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-        let inactiveColor = secondaryTextColor()
-        shuffleButton.tintColor = isShuffleEnabled ? activeColor : inactiveColor
-        repeatButton.tintColor = isRepeatEnabled ? activeColor : inactiveColor
+        let activeColor = UIColor.white
+        let inactiveColor = UIColor.white.withAlphaComponent(0.4)
+        shuffleButton?.tintColor = isShuffleEnabled ? activeColor : inactiveColor
+        repeatButton?.tintColor = isRepeatEnabled ? activeColor : inactiveColor
     }
-    
+
+    func updatePlayerTheme(with artwork: UIImage?) {
+        let dominantColor = artwork?.averageColor() ?? UIColor(red: 0.28, green: 0.08, blue: 0.08, alpha: 1.0)
+        let bottomColor = UIColor(red: 0.08, green: 0.04, blue: 0.04, alpha: 1.0)
+
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.5)
+        playerGradientLayer?.colors = [dominantColor.cgColor, bottomColor.cgColor]
+        CATransaction.commit()
+    }
+
     // MARK: - AVAudioPlayerDelegate
-    
+
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         if isRepeatEnabled {
             playCurrentTrack()
         } else {
             playNextTrack()
         }
+    }
+}
+
+fileprivate extension UIImage {
+    func averageColor() -> UIColor? {
+        guard let inputImage = CIImage(image: self) else { return nil }
+        let extentVector = CIVector(x: inputImage.extent.origin.x,
+                                    y: inputImage.extent.origin.y,
+                                    z: inputImage.extent.size.width,
+                                    w: inputImage.extent.size.height)
+        guard let filter = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: inputImage, kCIInputExtentKey: extentVector]) else { return nil }
+        guard let outputImage = filter.outputImage else { return nil }
+
+        var bitmap = [UInt8](repeating: 0, count: 4)
+        let context = CIContext(options: [.workingColorSpace: kCFNull as Any])
+        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+
+        var r = CGFloat(bitmap[0]) / 255.0
+        var g = CGFloat(bitmap[1]) / 255.0
+        var b = CGFloat(bitmap[2]) / 255.0
+
+        let maxComp = max(r, max(g, b))
+        if maxComp > 0.45 {
+            let factor = 0.45 / maxComp
+            r *= factor
+            g *= factor
+            b *= factor
+        }
+
+        return UIColor(red: r, green: g, blue: b, alpha: 1.0)
     }
 }

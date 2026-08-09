@@ -41,11 +41,14 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var miniCoverView: UIImageView!
     var miniTitleLabel: UILabel!
     var miniArtistLabel: UILabel!
+    var miniPreviousButton: UIButton!
     var miniPlayPauseButton: UIButton!
     var miniNextButton: UIButton!
     
     // Page 2 (Now Playing) Subviews
     var page2: UIView!
+    var playerGradientLayer: CAGradientLayer!
+    var playerHeaderLabel: UILabel!
     var coverArtCard: UIView!
     var coverImageView: UIImageView!
     var trackTitleLabel: UILabel!
@@ -57,7 +60,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var shuffleButton: UIButton!
     var repeatButton: UIButton!
     var playerFavoriteButton: UIButton!
-    var volumeSlider: UISlider!
+    var playerDislikeButton: UIButton!
     
     // Playback State & Audio Player
     var tracks: [Track] = []
@@ -157,7 +160,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         updateMiniPlayerUI()
         if let player = audioPlayer {
             let playIcon = player.isPlaying ? "pause.fill" : "play.fill"
-            playPauseButton.setImage(UIImage(systemName: playIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 52, weight: .bold)), for: .normal)
+            playPauseButton.setImage(UIImage(systemName: playIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
         }
     }
 }

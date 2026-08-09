@@ -141,11 +141,11 @@ extension ViewController {
     func applyCylinderEffect() {
         let tableHeight = tableView.bounds.height
         guard tableHeight > 0 else { return }
-        
-        // Half-height is the "equator" of the drum
-        let centerY = tableView.contentOffset.y + tableHeight / 2
-        
-        // Mathematical offset-based haptic triggering (works for any number of tracks and sizes)
+
+        let centerY = tableView.contentOffset.y + tableHeight / 2.0
+        let radius: CGFloat = tableHeight * 0.48
+        let maxAngle: CGFloat = .pi * 0.36
+
         let rowHeight: CGFloat = 56.0
         let currentOffset = tableView.contentOffset.y
         let roundedRow = Int(round(currentOffset / rowHeight))
@@ -154,54 +154,30 @@ extension ViewController {
         if roundedRow >= 0 && roundedRow <= maxRow {
             if lastCenterRow != roundedRow {
                 lastCenterRow = roundedRow
-                // Instantly trigger light impact feedback
                 scrollFeedbackGenerator.impactOccurred()
             }
         }
         
-        // Calculate transition scales for top and bottom of the table
-        // As currentOffset approaches 0, topEffectScale decreases to 0 (making cells flat/opaque)
-        // 56pt (one row height) is the range over which the effect fades in/out.
-        let transitionLimit: CGFloat = 56.0
-        let topEffectScale = min(max(currentOffset / transitionLimit, 0.0), 1.0)
-        
-        let maxScrollY = tableView.contentSize.height - tableHeight
-        let bottomEffectScale: CGFloat
-        if maxScrollY <= 0 {
-            bottomEffectScale = 0.0
-        } else {
-            let distFromBottom = maxScrollY - currentOffset
-            bottomEffectScale = min(max(distFromBottom / transitionLimit, 0.0), 1.0)
-        }
-        
         for cell in tableView.visibleCells {
             let cellMidY = cell.frame.midY
-            
-            // Normalized distance from center: 0 = center, 1 = edge
-            let rawDist = abs(cellMidY - centerY) / (tableHeight / 2)
-            let dist = min(rawDist, 1.0)
-            
-            // Choose the scaling factor based on whether the cell is above or below the equator
-            let cellScale = cellMidY < centerY ? topEffectScale : bottomEffectScale
-            
-            // Scale the distance (tilt & fade) by the cellScale
-            let effectiveDist = dist * cellScale
-            
-            // Alpha: full opacity (1.0) in center, fades to 0.3 at the very edge (scaled by effectiveDist)
-            let alpha = 1.0 - effectiveDist * 0.7
-            
-            // Scale: 1.0 at center, shrinks slightly at edges (scaled by effectiveDist)
-            let scale = 1.0 - effectiveDist * 0.06
-            
-            // Subtle 3D tilt: rows "roll away" on the cylinder surface (scaled by effectiveDist)
+            let deltaY = cellMidY - centerY
+
+            let normY = max(min(deltaY / (tableHeight / 2.0), 1.0), -1.0)
+            let theta = normY * maxAngle
+
+            let tz = -radius * (1.0 - cos(theta)) * 0.25
+            let projectedY = radius * sin(theta)
+            let ty = (projectedY - deltaY) * 0.20
+            let angle = -theta * 0.35
+            let scale = 1.0 - abs(normY) * 0.04
+            let alpha = max(0.42, cos(theta))
+
             var transform = CATransform3DIdentity
-            transform.m34 = -1.0 / 600   // perspective
-            let angle = effectiveDist * .pi * 0.18  // max ~32° rotation
-            let direction: CGFloat = cellMidY < centerY ? -1 : 1
-            transform = CATransform3DRotate(transform, angle * direction, 1, 0, 0)
+            transform.m34 = -1.0 / 1000.0
+            transform = CATransform3DTranslate(transform, 0, ty, tz)
+            transform = CATransform3DRotate(transform, angle, 1, 0, 0)
             transform = CATransform3DScale(transform, scale, scale, 1)
-            
-            // Apply to contentView so UITableView's internal layouts don't override it
+
             cell.contentView.layer.transform = transform
             cell.contentView.alpha = alpha
         }
@@ -210,30 +186,11 @@ extension ViewController {
     // MARK: - Artwork Animations
     
     func startArtworkAnimation() {
-        coverArtCard.layer.removeAllAnimations()
-        
-        let scale = CABasicAnimation(keyPath: "transform.scale")
-        scale.duration = 4.0
-        scale.fromValue = 1.0
-        scale.toValue = 1.04
-        scale.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        scale.autoreverses = true
-        scale.repeatCount = .infinity
-        
-        let glow = CABasicAnimation(keyPath: "shadowOpacity")
-        glow.duration = 4.0
-        glow.fromValue = 0.08
-        glow.toValue = 0.22
-        glow.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        glow.autoreverses = true
-        glow.repeatCount = .infinity
-        
-        coverArtCard.layer.add(scale, forKey: "artworkScale")
-        coverArtCard.layer.add(glow, forKey: "artworkGlow")
+        coverArtCard?.layer.removeAllAnimations()
     }
     
     func stopArtworkAnimation() {
-        coverArtCard.layer.removeAllAnimations()
+        coverArtCard?.layer.removeAllAnimations()
     }
     
     // MARK: - Toast Notifications
