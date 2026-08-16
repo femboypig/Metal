@@ -16,7 +16,7 @@
 		04C749222FEFF60C00B62262 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C749212FEFF60C00B62262 /* SceneDelegate.swift */; };
 		04C749242FEFF60C00B62262 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C749232FEFF60C00B62262 /* ViewController.swift */; };
 		04C749272FEFF60C00B62262 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04C749252FEFF60C00B62262 /* Main.storyboard */; };
-		04C7492A2FEFF60C00B62262 /* Krank.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 04C749282FEFF60C00B62262 /* Krank.xcdatamodeld */; };
+		04C7492A2FEFF60C00B62262 /* Metal.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 04C749282FEFF60C00B62262 /* Metal.xcdatamodeld */; };
 		04C7492C2FEFF60E00B62262 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 04C7492B2FEFF60E00B62262 /* Assets.xcassets */; };
 		04C7492F2FEFF60E00B62262 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04C7492D2FEFF60E00B62262 /* LaunchScreen.storyboard */; };
 		04C7504596FA5DF98520F8F2 /* AIDJEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C766D736C95B5AB14A99E4 /* AIDJEngine.swift */; };
@@ -28,15 +28,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		04157E5330246C69006395B8 /* Krank.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Krank.entitlements; sourceTree = "<group>"; };
+		04157E5330246C69006395B8 /* Metal.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Metal.entitlements; sourceTree = "<group>"; };
 		04C7198F9E735671A38FC88E /* ViewController+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+UI.swift"; sourceTree = "<group>"; };
 		04C7248444DF5125817B6D4B /* ViewController+TableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+TableView.swift"; sourceTree = "<group>"; };
-		04C7491C2FEFF60C00B62262 /* Krank.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Krank.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		04C7491C2FEFF60C00B62262 /* Metal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Metal.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		04C7491F2FEFF60C00B62262 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		04C749212FEFF60C00B62262 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		04C749232FEFF60C00B62262 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		04C749262FEFF60C00B62262 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
-		04C749292FEFF60C00B62262 /* Krank.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Krank.xcdatamodel; sourceTree = "<group>"; };
+		04C749292FEFF60C00B62262 /* Metal.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Metal.xcdatamodel; sourceTree = "<group>"; };
 		04C7492B2FEFF60E00B62262 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		04C7492E2FEFF60E00B62262 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		04C749302FEFF60E00B62262 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -65,7 +65,7 @@
 		04C749132FEFF60C00B62262 = {
 			isa = PBXGroup;
 			children = (
-				04C7491E2FEFF60C00B62262 /* Krank */,
+				04C7491E2FEFF60C00B62262 /* Metal */,
 				04C7491D2FEFF60C00B62262 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -73,15 +73,15 @@
 		04C7491D2FEFF60C00B62262 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				04C7491C2FEFF60C00B62262 /* Krank.app */,
+				04C7491C2FEFF60C00B62262 /* Metal.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		04C7491E2FEFF60C00B62262 /* Krank */ = {
+		04C7491E2FEFF60C00B62262 /* Metal */ = {
 			isa = PBXGroup;
 			children = (
-				04157E5330246C69006395B8 /* Krank.entitlements */,
+				04157E5330246C69006395B8 /* Metal.entitlements */,
 				04C766D736C95B5AB14A99E4 /* AIDJEngine.swift */,
 				04C7BAD1435D5DFEB64C61A0 /* Track.swift */,
 				04C7B9DF903C58FF8783CA0D /* BottomSheetItem.swift */,
@@ -100,17 +100,17 @@
 				04C7492B2FEFF60E00B62262 /* Assets.xcassets */,
 				04C7492D2FEFF60E00B62262 /* LaunchScreen.storyboard */,
 				04C749302FEFF60E00B62262 /* Info.plist */,
-				04C749282FEFF60C00B62262 /* Krank.xcdatamodeld */,
+				04C749282FEFF60C00B62262 /* Metal.xcdatamodeld */,
 			);
-			path = Krank;
+			path = Metal;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		04C7491B2FEFF60C00B62262 /* Krank */ = {
+		04C7491B2FEFF60C00B62262 /* Metal */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 04C749332FEFF60E00B62262 /* Build configuration list for PBXNativeTarget "Krank" */;
+			buildConfigurationList = 04C749332FEFF60E00B62262 /* Build configuration list for PBXNativeTarget "Metal" */;
 			buildPhases = (
 				04C749182FEFF60C00B62262 /* Sources */,
 				04C749192FEFF60C00B62262 /* Frameworks */,
@@ -120,9 +120,9 @@
 			);
 			dependencies = (
 			);
-			name = Krank;
-			productName = Krank;
-			productReference = 04C7491C2FEFF60C00B62262 /* Krank.app */;
+			name = Metal;
+			productName = Metal;
+			productReference = 04C7491C2FEFF60C00B62262 /* Metal.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -140,7 +140,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 04C749172FEFF60C00B62262 /* Build configuration list for PBXProject "Krank" */;
+			buildConfigurationList = 04C749172FEFF60C00B62262 /* Build configuration list for PBXProject "Metal" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -153,7 +153,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				04C7491B2FEFF60C00B62262 /* Krank */,
+				04C7491B2FEFF60C00B62262 /* Metal */,
 			);
 		};
 /* End PBXProject section */
@@ -188,7 +188,7 @@
 				04C70E9B52FD56029627DD4A /* ViewController+TableView.swift in Sources */,
 				04C73A70623B584C9196D8A9 /* ViewController+Gestures.swift in Sources */,
 				04C749242FEFF60C00B62262 /* ViewController.swift in Sources */,
-				04C7492A2FEFF60C00B62262 /* Krank.xcdatamodeld in Sources */,
+				04C7492A2FEFF60C00B62262 /* Metal.xcdatamodeld in Sources */,
 				04C749202FEFF60C00B62262 /* AppDelegate.swift in Sources */,
 				04C749222FEFF60C00B62262 /* SceneDelegate.swift in Sources */,
 			);
@@ -335,13 +335,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Krank/Krank.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Metal/Metal.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = V24Z4G9S3A;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Krank/Info.plist;
+				INFOPLIST_FILE = Metal/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -352,7 +352,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.femboypig.Krank;
+				PRODUCT_BUNDLE_IDENTIFIER = ru.femboypig.Metal;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -366,13 +366,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Krank/Krank.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Metal/Metal.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = V24Z4G9S3A;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Krank/Info.plist;
+				INFOPLIST_FILE = Metal/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -383,7 +383,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.femboypig.Krank;
+				PRODUCT_BUNDLE_IDENTIFIER = ru.femboypig.Metal;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -395,7 +395,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		04C749172FEFF60C00B62262 /* Build configuration list for PBXProject "Krank" */ = {
+		04C749172FEFF60C00B62262 /* Build configuration list for PBXProject "Metal" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				04C749312FEFF60E00B62262 /* Debug */,
@@ -404,7 +404,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		04C749332FEFF60E00B62262 /* Build configuration list for PBXNativeTarget "Krank" */ = {
+		04C749332FEFF60E00B62262 /* Build configuration list for PBXNativeTarget "Metal" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				04C749342FEFF60E00B62262 /* Debug */,
@@ -416,13 +416,13 @@
 /* End XCConfigurationList section */
 
 /* Begin XCVersionGroup section */
-		04C749282FEFF60C00B62262 /* Krank.xcdatamodeld */ = {
+		04C749282FEFF60C00B62262 /* Metal.xcdatamodeld */ = {
 			isa = XCVersionGroup;
 			children = (
-				04C749292FEFF60C00B62262 /* Krank.xcdatamodel */,
+				04C749292FEFF60C00B62262 /* Metal.xcdatamodel */,
 			);
-			currentVersion = 04C749292FEFF60C00B62262 /* Krank.xcdatamodel */;
-			path = Krank.xcdatamodeld;
+			currentVersion = 04C749292FEFF60C00B62262 /* Metal.xcdatamodel */;
+			path = Metal.xcdatamodeld;
 			sourceTree = "<group>";
 			versionGroupType = wrapper.xcdatamodel;
 		};
