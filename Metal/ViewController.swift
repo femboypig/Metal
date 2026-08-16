@@ -1,6 +1,6 @@
 //
 //  ViewController.swift
-//  Krank
+//  Metal
 //
 //  Created by Mac on 27.06.2026.
 //
@@ -97,7 +97,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     var isShuffleEnabled = false {
         didSet {
-            UserDefaults.standard.set(isShuffleEnabled, forKey: "Krank_Shuffle")
+            UserDefaults.standard.set(isShuffleEnabled, forKey: "Metal_Shuffle")
             updatePlaybackButtons()
             if isShuffleEnabled {
                 rebuildShuffleQueue()
@@ -107,7 +107,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     var isRepeatEnabled = false {
         didSet {
-            UserDefaults.standard.set(isRepeatEnabled, forKey: "Krank_Repeat")
+            UserDefaults.standard.set(isRepeatEnabled, forKey: "Metal_Repeat")
             updatePlaybackButtons()
         }
     }
