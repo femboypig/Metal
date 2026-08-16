@@ -1,13 +1,13 @@
 //
 //  ViewController+UI.swift
-//  Krank
+//  Metal
 //
 
 import UIKit
 
 extension ViewController {
 
-    // MARK: - Krank Dark Palette
+    // MARK: - Metal Dark Palette
 
     func primaryBackgroundColor() -> UIColor {
         UIColor(red: 0.055, green: 0.055, blue: 0.063, alpha: 1.0)
@@ -171,10 +171,10 @@ extension ViewController {
         let toggle = UISwitch()
         toggle.translatesAutoresizingMaskIntoConstraints = false
 
-        if UserDefaults.standard.object(forKey: "Krank_AIDJEnabled") == nil {
-            UserDefaults.standard.set(true, forKey: "Krank_AIDJEnabled")
+        if UserDefaults.standard.object(forKey: "Metal_AIDJEnabled") == nil {
+            UserDefaults.standard.set(true, forKey: "Metal_AIDJEnabled")
         }
-        toggle.isOn = UserDefaults.standard.bool(forKey: "Krank_AIDJEnabled")
+        toggle.isOn = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
         toggle.onTintColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
         toggle.addTarget(self, action: #selector(aidjToggleChanged(_:)), for: .valueChanged)
         card.addSubview(toggle)
@@ -218,7 +218,7 @@ extension ViewController {
     }
 
     @objc func aidjToggleChanged(_ sender: UISwitch) {
-        UserDefaults.standard.set(sender.isOn, forKey: "Krank_AIDJEnabled")
+        UserDefaults.standard.set(sender.isOn, forKey: "Metal_AIDJEnabled")
 
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.prepare()
@@ -232,7 +232,7 @@ extension ViewController {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = UIFont(name: "Georgia-Bold", size: 42)
         titleLabel.textColor = primaryTextColor()
-        titleLabel.text = "Krank."
+        titleLabel.text = "Metal."
         page1.addSubview(titleLabel)
 
         let subtitleLabel = UILabel()
