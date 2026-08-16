@@ -1,6 +1,6 @@
 //
 //  ViewController+Library.swift
-//  Krank
+//  Metal
 //
 
 import UIKit
@@ -11,12 +11,12 @@ extension ViewController {
     // MARK: - Local Persistence Loading
 
     func loadLocalUserData() {
-        favoriteTracks = Set(UserDefaults.standard.stringArray(forKey: "Krank_Favorites") ?? [])
-        playlists = UserDefaults.standard.dictionary(forKey: "Krank_Playlists") as? [String: [String]] ?? [:]
+        favoriteTracks = Set(UserDefaults.standard.stringArray(forKey: "Metal_Favorites") ?? [])
+        playlists = UserDefaults.standard.dictionary(forKey: "Metal_Playlists") as? [String: [String]] ?? [:]
     }
 
     func savePlaylists() {
-        UserDefaults.standard.set(playlists, forKey: "Krank_Playlists")
+        UserDefaults.standard.set(playlists, forKey: "Metal_Playlists")
     }
 
     // MARK: - Playlists Pill Selector Generator
@@ -217,7 +217,7 @@ extension ViewController {
         } else {
             favoriteTracks.insert(filename)
         }
-        UserDefaults.standard.set(Array(favoriteTracks), forKey: "Krank_Favorites")
+        UserDefaults.standard.set(Array(favoriteTracks), forKey: "Metal_Favorites")
         tableView.reloadData()
 
         if activeFilter == .favorites {
