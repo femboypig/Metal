@@ -1,6 +1,6 @@
 //
 //  ViewController+Gestures.swift
-//  Krank
+//  Metal
 //
 
 import UIKit
@@ -295,15 +295,15 @@ extension ViewController {
     
     func savePlaybackState() {
         if let index = currentTrackIndex, index < filteredTracks.count {
-            UserDefaults.standard.set(filteredTracks[index].url.lastPathComponent, forKey: "Krank_LastTrackFile")
+            UserDefaults.standard.set(filteredTracks[index].url.lastPathComponent, forKey: "Metal_LastTrackFile")
         }
     }
     
     func loadPlaybackState() {
-        isShuffleEnabled = UserDefaults.standard.bool(forKey: "Krank_Shuffle")
-        isRepeatEnabled = UserDefaults.standard.bool(forKey: "Krank_Repeat")
+        isShuffleEnabled = UserDefaults.standard.bool(forKey: "Metal_Shuffle")
+        isRepeatEnabled = UserDefaults.standard.bool(forKey: "Metal_Repeat")
         
-        if let lastFile = UserDefaults.standard.string(forKey: "Krank_LastTrackFile") {
+        if let lastFile = UserDefaults.standard.string(forKey: "Metal_LastTrackFile") {
             if let index = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == lastFile }) {
                 currentTrackIndex = index
                 let track = filteredTracks[index]
