@@ -1,6 +1,6 @@
 //
 //  AIDJEngine.swift
-//  Krank
+//  Metal
 //
 
 import AVFoundation
@@ -9,8 +9,8 @@ import QuartzCore
 // MARK: - Local beat analysis
 
 final class BeatDetector {
-    private let analysisQueue = DispatchQueue(label: "net.femboypig.Krank.beat-analysis", qos: .utility)
-    private let cacheQueue = DispatchQueue(label: "net.femboypig.Krank.beat-cache", attributes: .concurrent)
+    private let analysisQueue = DispatchQueue(label: "net.femboypig.Metal.beat-analysis", qos: .utility)
+    private let cacheQueue = DispatchQueue(label: "net.femboypig.Metal.beat-cache", attributes: .concurrent)
     private var bpmCache: [URL: Double] = [:]
 
     func prepare(_ url: URL) {
