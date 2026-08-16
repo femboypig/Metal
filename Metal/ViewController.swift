@@ -151,6 +151,12 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
         if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            guard isViewLoaded else { return }
+            view.backgroundColor = primaryBackgroundColor()
+            page0?.backgroundColor = primaryBackgroundColor()
+            page1?.backgroundColor = primaryBackgroundColor()
+            tableView?.reloadData()
+            updateCardBorders()
             updateTableGradientMaskFrame()
             updateFilterPillBorders()
         }
