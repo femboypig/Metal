@@ -398,7 +398,8 @@ extension ViewController {
             miniPlayPauseButton?.isEnabled = false
             miniPreviousButton?.isEnabled = false
             miniNextButton?.isEnabled = false
-            miniPlayerView?.backgroundColor = UIColor(red: 0.105, green: 0.105, blue: 0.118, alpha: 0.98)
+            applyMiniPlayerColors(useArtworkBackground: false)
+            miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
             miniCoverView?.image = UIImage(named: "logo")
             return
         }
@@ -411,7 +412,8 @@ extension ViewController {
             miniTitleLabel?.text = "No Track Selected"
             miniArtistLabel?.text = "Select a song below"
             miniPlayPauseButton?.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
-            miniPlayerView?.backgroundColor = UIColor(red: 0.105, green: 0.105, blue: 0.118, alpha: 0.98)
+            applyMiniPlayerColors(useArtworkBackground: false)
+            miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
             miniCoverView?.image = UIImage(named: "logo")
             return
         }
@@ -431,18 +433,31 @@ extension ViewController {
         miniPlayPauseButton?.setImage(UIImage(systemName: playIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
 
         if let artwork = track.artwork {
+            applyMiniPlayerColors(useArtworkBackground: true)
             miniCoverView?.image = artwork
             miniPlayerView?.backgroundColor = artwork.spotifyPanelColor
         } else {
+            applyMiniPlayerColors(useArtworkBackground: false)
             miniCoverView?.image = UIImage(named: "logo")
-            miniPlayerView?.backgroundColor = UIColor(red: 0.105, green: 0.105, blue: 0.118, alpha: 0.98)
+            miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
         }
 
     }
 
+    private func applyMiniPlayerColors(useArtworkBackground: Bool) {
+        miniTitleLabel?.textColor = useArtworkBackground ? .white : primaryTextColor()
+        miniArtistLabel?.textColor = useArtworkBackground
+            ? UIColor.white.withAlphaComponent(0.68)
+            : secondaryTextColor()
+        let controlsColor = useArtworkBackground ? UIColor.white : primaryTextColor()
+        miniPreviousButton?.tintColor = controlsColor
+        miniPlayPauseButton?.tintColor = controlsColor
+        miniNextButton?.tintColor = controlsColor
+    }
+
     @objc func updateFilterPillBorders() {
         let borderCol = cardBorderColor().resolvedColor(with: self.view.traitCollection).cgColor
-        for subview in filtersStackView.arrangedSubviews {
+        for subview in filtersStackView?.arrangedSubviews ?? [] {
             if let button = subview as? UIButton {
                 if button.layer.borderWidth > 0 {
                     button.layer.borderColor = borderCol
