@@ -1,6 +1,6 @@
 //
 //  ViewController+Playback.swift
-//  Krank
+//  Metal
 //
 
 import UIKit
@@ -360,7 +360,7 @@ extension ViewController {
         elapsedLabel.text = formatTime(player.currentTime)
         remainingLabel.text = "-" + formatTime(player.duration - player.currentTime)
 
-        let aidjEnabled = UserDefaults.standard.bool(forKey: "Krank_AIDJEnabled")
+        let aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
         if aidjEnabled && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
             transitionToNextTrack()
         }
