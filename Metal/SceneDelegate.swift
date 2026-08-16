@@ -1,6 +1,6 @@
 //
 //  SceneDelegate.swift
-//  Krank
+//  Metal
 //
 //  Created by Mac on 27.06.2026.
 //
