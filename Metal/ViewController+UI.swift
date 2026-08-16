@@ -7,30 +7,54 @@ import UIKit
 
 extension ViewController {
 
-    // MARK: - Metal Dark Palette
+    // MARK: - Adaptive Metal Palette
 
     func primaryBackgroundColor() -> UIColor {
-        UIColor(red: 0.055, green: 0.055, blue: 0.063, alpha: 1.0)
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.055, green: 0.055, blue: 0.063, alpha: 1.0)
+                : UIColor(red: 0.965, green: 0.965, blue: 0.975, alpha: 1.0)
+        }
     }
 
     func cardBackgroundColor() -> UIColor {
-        UIColor(red: 0.095, green: 0.095, blue: 0.108, alpha: 1.0)
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.095, green: 0.095, blue: 0.108, alpha: 1.0)
+                : .white
+        }
     }
 
     func cardBorderColor() -> UIColor {
-        UIColor.white.withAlphaComponent(0.09)
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(0.09)
+                : UIColor.black.withAlphaComponent(0.10)
+        }
     }
 
     func primaryTextColor() -> UIColor {
-        UIColor(red: 0.957, green: 0.945, blue: 0.914, alpha: 1.0)
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.957, green: 0.945, blue: 0.914, alpha: 1.0)
+                : UIColor(red: 0.08, green: 0.08, blue: 0.095, alpha: 1.0)
+        }
     }
 
     func secondaryTextColor() -> UIColor {
-        UIColor(red: 0.57, green: 0.57, blue: 0.59, alpha: 1.0)
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.57, green: 0.57, blue: 0.59, alpha: 1.0)
+                : UIColor(red: 0.38, green: 0.38, blue: 0.42, alpha: 1.0)
+        }
     }
 
     func progressTrackColor() -> UIColor {
-        UIColor.white.withAlphaComponent(0.12)
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(0.12)
+                : UIColor.black.withAlphaComponent(0.12)
+        }
     }
 
     func primaryButtonColor() -> UIColor {
@@ -45,10 +69,17 @@ extension ViewController {
         UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 0.10)
     }
 
+    func miniPlayerBackgroundColor() -> UIColor {
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.105, green: 0.105, blue: 0.118, alpha: 0.98)
+                : UIColor.white.withAlphaComponent(0.98)
+        }
+    }
+
     // MARK: - UI Layout Setup
 
     func setupUI() {
-        overrideUserInterfaceStyle = .dark
         view.backgroundColor = primaryBackgroundColor()
 
         // Paging ScrollView - Edge-to-Edge full screen
@@ -125,7 +156,7 @@ extension ViewController {
         eyebrowLabel.translatesAutoresizingMaskIntoConstraints = false
         eyebrowLabel.font = UIFont.systemFont(ofSize: 11, weight: .bold)
         eyebrowLabel.textColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-        eyebrowLabel.text = "KRANK"
+        eyebrowLabel.text = "METAL"
         eyebrowLabel.letterSpacing(1.8)
         page0.addSubview(eyebrowLabel)
 
@@ -296,10 +327,10 @@ extension ViewController {
 
         miniPlayerView = UIView()
         miniPlayerView.translatesAutoresizingMaskIntoConstraints = false
-        miniPlayerView.backgroundColor = UIColor(red: 0.105, green: 0.105, blue: 0.118, alpha: 0.98)
+        miniPlayerView.backgroundColor = miniPlayerBackgroundColor()
         miniPlayerView.layer.cornerRadius = 29
         miniPlayerView.layer.borderWidth = 1
-        miniPlayerView.layer.borderColor = UIColor.white.withAlphaComponent(0.10).cgColor
+        miniPlayerView.layer.borderColor = cardBorderColor().resolvedColor(with: traitCollection).cgColor
         miniPlayerView.isUserInteractionEnabled = true
 
         miniPlayerView.layer.shadowColor = UIColor.black.cgColor
@@ -714,14 +745,15 @@ extension ViewController {
     }
 
     func updateCardBorders() {
-        let border = cardBorderColor().cgColor
-        miniPlayerView.layer.borderColor = border
-        miniCoverCard.layer.borderColor = border
-        miniPlayPauseButton.layer.borderColor = border
+        let border = cardBorderColor().resolvedColor(with: traitCollection).cgColor
+        miniPlayerView?.layer.borderColor = border
+        miniCoverCard?.layer.borderColor = border
+        miniPlayPauseButton?.layer.borderColor = border
+        activeSheetView?.layer.borderColor = border
 
-        playerGradientLayer?.frame = page2.bounds
+        playerGradientLayer?.frame = page2?.bounds ?? .zero
 
-        progressSlider.setThumbImage(makeThumbImage(size: 10), for: .normal)
+        progressSlider?.setThumbImage(makeThumbImage(size: 10), for: .normal)
     }
 
     func makeThumbImage(size: CGFloat) -> UIImage? {
