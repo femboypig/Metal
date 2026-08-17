@@ -22,6 +22,7 @@ extension ViewController {
 
     func loadLocalUserData() {
         _ = songsDirectoryURL
+        migrateNestedMetalLayoutIfNeeded()
 
         if let data = try? Data(contentsOf: settingsFileURL),
            let savedSettings = try? JSONDecoder().decode(MetalSettingsDocument.self, from: data) {
@@ -344,11 +345,7 @@ extension ViewController {
         guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
             fatalError("Documents directory not available")
         }
-        let metalFolder = documentsURL.appendingPathComponent("Metal", isDirectory: true)
-        if !fileManager.fileExists(atPath: metalFolder.path) {
-            try? fileManager.createDirectory(at: metalFolder, withIntermediateDirectories: true, attributes: nil)
-        }
-        return metalFolder
+        return documentsURL
     }
 
     var settingsFileURL: URL {
@@ -359,16 +356,35 @@ extension ViewController {
         metalRootDirectoryURL.appendingPathComponent("playlists.json")
     }
 
+    private func migrateNestedMetalLayoutIfNeeded() {
+        let fileManager = FileManager.default
+        let nestedRoot = metalRootDirectoryURL.appendingPathComponent("Metal", isDirectory: true)
+        let nestedAll = nestedRoot.appendingPathComponent("All", isDirectory: true)
+        let audioExtensions = ["mp3", "m4a", "wav", "aac", "flac", "ogg", "wma", "aiff", "alac"]
+
+        migrateAudioFiles(from: nestedAll, to: songsDirectoryURL, extensions: audioExtensions)
+
+        for filename in ["settings.json", "playlists.json"] {
+            let sourceURL = nestedRoot.appendingPathComponent(filename)
+            let destinationURL = metalRootDirectoryURL.appendingPathComponent(filename)
+            if fileManager.fileExists(atPath: sourceURL.path),
+               !fileManager.fileExists(atPath: destinationURL.path) {
+                try? fileManager.moveItem(at: sourceURL, to: destinationURL)
+            }
+        }
+    }
+
     func loadLocalTracks() {
         let fileManager = FileManager.default
         let songsDir = songsDirectoryURL
         let audioExtensions = ["mp3", "m4a", "wav", "aac", "flac", "ogg", "wma", "aiff", "alac"]
 
-        // Migrate tracks from earlier layouts into Documents/Metal/All.
+        // Documents is shown as the Metal app folder in Files, so this becomes Metal/All.
         if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
             let legacyDirectories = [
                 documentsURL.appendingPathComponent("Songs", isDirectory: true),
-                documentsURL.appendingPathComponent("MetalSongs", isDirectory: true)
+                documentsURL.appendingPathComponent("MetalSongs", isDirectory: true),
+                documentsURL.appendingPathComponent("Metal/All", isDirectory: true)
             ]
 
             for directory in legacyDirectories {
