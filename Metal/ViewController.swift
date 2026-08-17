@@ -73,6 +73,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var audioPlayer: AVAudioPlayer?
     var updateTimer: Timer?
     var sleepTimer: Timer?
+    var persistedSettings = MetalSettingsDocument()
+    var isRestoringPersistentState = false
+    var lastSavedPlaybackBucket = -1
     
     // Shuffle Queue State
     var shuffledIndices: [Int] = []
@@ -102,6 +105,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             if isShuffleEnabled {
                 rebuildShuffleQueue()
             }
+            saveSettings()
         }
     }
     
@@ -109,6 +113,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         didSet {
             UserDefaults.standard.set(isRepeatEnabled, forKey: "Metal_Repeat")
             updatePlaybackButtons()
+            saveSettings()
         }
     }
     
@@ -131,6 +136,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         
         // Listen for app foregrounding to refresh UI state
         NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
     }
     
     override func viewDidLayoutSubviews() {
@@ -168,5 +174,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             let playIcon = player.isPlaying ? "pause.fill" : "play.fill"
             playPauseButton.setImage(UIImage(systemName: playIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
         }
+    }
+
+    @objc func appWillResignActive() {
+        savePlaybackState()
     }
 }
