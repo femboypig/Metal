@@ -30,6 +30,7 @@ extension ViewController {
     // MARK: - UITableViewDelegate
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        recordManualSelection(for: filteredTracks[indexPath.row])
         currentTrackIndex = indexPath.row
         if isShuffleEnabled {
             rebuildShuffleQueue()
