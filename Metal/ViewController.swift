@@ -76,6 +76,10 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var persistedSettings = MetalSettingsDocument()
     var isRestoringPersistentState = false
     var lastSavedPlaybackBucket = -1
+    var listeningTelemetry = ListeningTelemetryDocument()
+    var telemetrySessionFilename: String?
+    var telemetryLastPlaybackTime: TimeInterval = 0
+    var telemetrySessionListeningSeconds: TimeInterval = 0
     
     // Shuffle Queue State
     var shuffledIndices: [Int] = []
@@ -94,6 +98,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     enum FilterCategory: Equatable {
         case all
         case favorites
+        case lovely
         case playlist(String)
     }
     var activeFilter: FilterCategory = .all
@@ -125,6 +130,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         super.viewDidLoad()
         
         loadLocalUserData()
+        loadListeningTelemetry()
         setupUI()
         setupAudioSession()
         setupRemoteCommands()
@@ -177,6 +183,10 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     @objc func appWillResignActive() {
+        if let player = audioPlayer {
+            updateListeningTelemetry(with: player)
+        }
+        saveListeningTelemetry()
         savePlaybackState()
     }
 }
