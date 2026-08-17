@@ -297,13 +297,15 @@ extension ViewController {
         if let index = currentTrackIndex, index < filteredTracks.count {
             UserDefaults.standard.set(filteredTracks[index].url.lastPathComponent, forKey: "Metal_LastTrackFile")
         }
+        saveSettings()
     }
     
     func loadPlaybackState() {
-        isShuffleEnabled = UserDefaults.standard.bool(forKey: "Metal_Shuffle")
-        isRepeatEnabled = UserDefaults.standard.bool(forKey: "Metal_Repeat")
+        isRestoringPersistentState = true
+        isShuffleEnabled = persistedSettings.shuffleEnabled
+        isRepeatEnabled = persistedSettings.repeatEnabled
         
-        if let lastFile = UserDefaults.standard.string(forKey: "Metal_LastTrackFile") {
+        if let lastFile = persistedSettings.lastTrackFile {
             if let index = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == lastFile }) {
                 currentTrackIndex = index
                 let track = filteredTracks[index]
@@ -324,10 +326,15 @@ extension ViewController {
                     coverImageView.image = UIImage(named: "logo")
                 }
                 
+                let restoredPosition = min(max(0, persistedSettings.playbackPosition), track.duration)
                 progressSlider.maximumValue = Float(track.duration)
-                progressSlider.value = 0
+                progressSlider.value = Float(restoredPosition)
+                elapsedLabel.text = formatTime(restoredPosition)
+                remainingLabel.text = "-" + formatTime(max(0, track.duration - restoredPosition))
+                updatePlayerTheme(with: track.artwork)
             }
         }
+        isRestoringPersistentState = false
         updatePlaybackButtons()
         updateMiniPlayerUI()
         updatePlayerFavoriteButton()
