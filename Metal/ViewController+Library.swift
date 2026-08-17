@@ -6,17 +6,90 @@
 import UIKit
 import CoreImage
 
+struct MetalSettingsDocument: Codable {
+    var version: Int = 1
+    var favoriteTracks: [String] = []
+    var aidjEnabled: Bool = true
+    var shuffleEnabled: Bool = false
+    var repeatEnabled: Bool = false
+    var lastTrackFile: String?
+    var playbackPosition: TimeInterval = 0
+}
+
 extension ViewController {
 
     // MARK: - Local Persistence Loading
 
     func loadLocalUserData() {
-        favoriteTracks = Set(UserDefaults.standard.stringArray(forKey: "Metal_Favorites") ?? [])
-        playlists = UserDefaults.standard.dictionary(forKey: "Metal_Playlists") as? [String: [String]] ?? [:]
+        _ = songsDirectoryURL
+
+        if let data = try? Data(contentsOf: settingsFileURL),
+           let savedSettings = try? JSONDecoder().decode(MetalSettingsDocument.self, from: data) {
+            persistedSettings = savedSettings
+        } else {
+            let defaults = UserDefaults.standard
+            persistedSettings = MetalSettingsDocument(
+                favoriteTracks: defaults.stringArray(forKey: "Metal_Favorites") ?? [],
+                aidjEnabled: defaults.object(forKey: "Metal_AIDJEnabled") == nil
+                    ? true
+                    : defaults.bool(forKey: "Metal_AIDJEnabled"),
+                shuffleEnabled: defaults.bool(forKey: "Metal_Shuffle"),
+                repeatEnabled: defaults.bool(forKey: "Metal_Repeat"),
+                lastTrackFile: defaults.string(forKey: "Metal_LastTrackFile"),
+                playbackPosition: 0
+            )
+            writeSettingsDocument()
+        }
+
+        favoriteTracks = Set(persistedSettings.favoriteTracks)
+        UserDefaults.standard.set(persistedSettings.aidjEnabled, forKey: "Metal_AIDJEnabled")
+
+        if let data = try? Data(contentsOf: playlistsFileURL),
+           let savedPlaylists = try? JSONDecoder().decode([String: [String]].self, from: data) {
+            playlists = savedPlaylists
+        } else {
+            playlists = UserDefaults.standard.dictionary(forKey: "Metal_Playlists") as? [String: [String]] ?? [:]
+            savePlaylists()
+        }
     }
 
     func savePlaylists() {
         UserDefaults.standard.set(playlists, forKey: "Metal_Playlists")
+        writeJSON(playlists, to: playlistsFileURL)
+    }
+
+    func saveSettings() {
+        guard !isRestoringPersistentState else { return }
+
+        persistedSettings.favoriteTracks = favoriteTracks.sorted()
+        persistedSettings.aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
+        persistedSettings.shuffleEnabled = isShuffleEnabled
+        persistedSettings.repeatEnabled = isRepeatEnabled
+
+        if let index = currentTrackIndex, index < filteredTracks.count {
+            let filename = filteredTracks[index].url.lastPathComponent
+            let isCurrentPlayer = audioPlayer?.url?.lastPathComponent == filename
+
+            if persistedSettings.lastTrackFile != filename {
+                persistedSettings.playbackPosition = 0
+            } else if isCurrentPlayer, let player = audioPlayer {
+                persistedSettings.playbackPosition = player.currentTime
+            }
+            persistedSettings.lastTrackFile = filename
+        }
+
+        writeSettingsDocument()
+    }
+
+    private func writeSettingsDocument() {
+        writeJSON(persistedSettings, to: settingsFileURL)
+    }
+
+    private func writeJSON<T: Encodable>(_ value: T, to url: URL) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(value) else { return }
+        try? data.write(to: url, options: .atomic)
     }
 
     // MARK: - Playlists Pill Selector Generator
@@ -218,6 +291,7 @@ extension ViewController {
             favoriteTracks.insert(filename)
         }
         UserDefaults.standard.set(Array(favoriteTracks), forKey: "Metal_Favorites")
+        saveSettings()
         tableView.reloadData()
 
         if activeFilter == .favorites {
@@ -258,14 +332,31 @@ extension ViewController {
 
     var songsDirectoryURL: URL {
         let fileManager = FileManager.default
+        let allFolder = metalRootDirectoryURL.appendingPathComponent("All", isDirectory: true)
+        if !fileManager.fileExists(atPath: allFolder.path) {
+            try? fileManager.createDirectory(at: allFolder, withIntermediateDirectories: true, attributes: nil)
+        }
+        return allFolder
+    }
+
+    var metalRootDirectoryURL: URL {
+        let fileManager = FileManager.default
         guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
             fatalError("Documents directory not available")
         }
-        let songsFolder = documentsURL.appendingPathComponent("Songs", isDirectory: true)
-        if !fileManager.fileExists(atPath: songsFolder.path) {
-            try? fileManager.createDirectory(at: songsFolder, withIntermediateDirectories: true, attributes: nil)
+        let metalFolder = documentsURL.appendingPathComponent("Metal", isDirectory: true)
+        if !fileManager.fileExists(atPath: metalFolder.path) {
+            try? fileManager.createDirectory(at: metalFolder, withIntermediateDirectories: true, attributes: nil)
         }
-        return songsFolder
+        return metalFolder
+    }
+
+    var settingsFileURL: URL {
+        metalRootDirectoryURL.appendingPathComponent("settings.json")
+    }
+
+    var playlistsFileURL: URL {
+        metalRootDirectoryURL.appendingPathComponent("playlists.json")
     }
 
     func loadLocalTracks() {
@@ -273,8 +364,17 @@ extension ViewController {
         let songsDir = songsDirectoryURL
         let audioExtensions = ["mp3", "m4a", "wav", "aac", "flac", "ogg", "wma", "aiff", "alac"]
 
-        // Migrate legacy loose audio files from root Documents directory to Songs directory
+        // Migrate tracks from earlier layouts into Documents/Metal/All.
         if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let legacyDirectories = [
+                documentsURL.appendingPathComponent("Songs", isDirectory: true),
+                documentsURL.appendingPathComponent("MetalSongs", isDirectory: true)
+            ]
+
+            for directory in legacyDirectories {
+                migrateAudioFiles(from: directory, to: songsDir, extensions: audioExtensions)
+            }
+
             if let rootFiles = try? fileManager.contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: nil) {
                 for fileURL in rootFiles {
                     if audioExtensions.contains(fileURL.pathExtension.lowercased()) {
@@ -299,6 +399,20 @@ extension ViewController {
             filterTracks()
         } catch {
             print("Failed to scan songs directory: \(error)")
+        }
+    }
+
+    private func migrateAudioFiles(from sourceDirectory: URL, to destinationDirectory: URL, extensions: [String]) {
+        let fileManager = FileManager.default
+        guard sourceDirectory.standardizedFileURL != destinationDirectory.standardizedFileURL,
+              let files = try? fileManager.contentsOfDirectory(at: sourceDirectory, includingPropertiesForKeys: nil) else {
+            return
+        }
+
+        for fileURL in files where extensions.contains(fileURL.pathExtension.lowercased()) {
+            let targetURL = destinationDirectory.appendingPathComponent(fileURL.lastPathComponent)
+            guard !fileManager.fileExists(atPath: targetURL.path) else { continue }
+            try? fileManager.moveItem(at: fileURL, to: targetURL)
         }
     }
 
