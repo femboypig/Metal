@@ -152,14 +152,6 @@ extension ViewController {
         backButton.addTarget(self, action: #selector(showLibraryTapped), for: .touchUpInside)
         page0.addSubview(backButton)
 
-        let eyebrowLabel = UILabel()
-        eyebrowLabel.translatesAutoresizingMaskIntoConstraints = false
-        eyebrowLabel.font = UIFont.systemFont(ofSize: 11, weight: .bold)
-        eyebrowLabel.textColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-        eyebrowLabel.text = "METAL"
-        eyebrowLabel.letterSpacing(1.8)
-        page0.addSubview(eyebrowLabel)
-
         let titleLabel = UILabel()
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = UIFont(name: "Georgia-Bold", size: 34)
@@ -216,10 +208,7 @@ extension ViewController {
             backButton.widthAnchor.constraint(equalToConstant: 40),
             backButton.heightAnchor.constraint(equalToConstant: 40),
 
-            eyebrowLabel.topAnchor.constraint(equalTo: page0.safeAreaLayoutGuide.topAnchor, constant: 14),
-            eyebrowLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-
-            titleLabel.topAnchor.constraint(equalTo: eyebrowLabel.bottomAnchor, constant: 5),
+            titleLabel.topAnchor.constraint(equalTo: page0.safeAreaLayoutGuide.topAnchor, constant: 14),
             titleLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
 
             sectionLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 34),
@@ -250,6 +239,7 @@ extension ViewController {
 
     @objc func aidjToggleChanged(_ sender: UISwitch) {
         UserDefaults.standard.set(sender.isOn, forKey: "Metal_AIDJEnabled")
+        saveSettings()
 
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.prepare()
