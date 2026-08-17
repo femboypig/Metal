@@ -78,6 +78,9 @@ extension ViewController {
         guard !filteredTracks.isEmpty, let index = currentTrackIndex, index < filteredTracks.count else { return }
 
         let track = filteredTracks[index]
+        let savedPosition = persistedSettings.lastTrackFile == track.url.lastPathComponent
+            ? persistedSettings.playbackPosition
+            : 0
 
         if aidj.isTransitioning { aidj.cancel(keeping: nil) }
         audioPlayer?.stop()
@@ -87,6 +90,12 @@ extension ViewController {
             audioPlayer = try AVAudioPlayer(contentsOf: track.url)
             audioPlayer?.delegate = self
             audioPlayer?.prepareToPlay()
+            if let player = audioPlayer {
+                player.currentTime = savedPosition < player.duration - 1
+                    ? min(max(0, savedPosition), player.duration)
+                    : 0
+                lastSavedPlaybackBucket = Int(player.currentTime) / 5
+            }
             audioPlayer?.play()
             aidj.prepare(track: track.url)
 
@@ -116,7 +125,9 @@ extension ViewController {
             }
 
             progressSlider.maximumValue = Float(track.duration)
-            progressSlider.value = 0
+            progressSlider.value = Float(audioPlayer?.currentTime ?? 0)
+            elapsedLabel.text = formatTime(audioPlayer?.currentTime ?? 0)
+            remainingLabel.text = "-" + formatTime(max(0, track.duration - (audioPlayer?.currentTime ?? 0)))
 
             startArtworkAnimation()
             updateNowPlayingInfo()
@@ -142,7 +153,9 @@ extension ViewController {
     func playOrPause() {
         guard let player = audioPlayer else {
             if !filteredTracks.isEmpty {
-                currentTrackIndex = 0
+                if currentTrackIndex == nil {
+                    currentTrackIndex = 0
+                }
                 playCurrentTrack()
             }
             return
@@ -157,6 +170,7 @@ extension ViewController {
         if player.isPlaying {
             player.pause()
             updateTimer?.invalidate()
+            savePlaybackState()
             stopArtworkAnimation()
             playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
         } else {
@@ -360,6 +374,12 @@ extension ViewController {
         elapsedLabel.text = formatTime(player.currentTime)
         remainingLabel.text = "-" + formatTime(player.duration - player.currentTime)
 
+        let playbackBucket = Int(player.currentTime) / 5
+        if playbackBucket != lastSavedPlaybackBucket {
+            lastSavedPlaybackBucket = playbackBucket
+            savePlaybackState()
+        }
+
         let aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
         if aidjEnabled && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
             transitionToNextTrack()
@@ -386,6 +406,7 @@ extension ViewController {
         progressSlider.value = Float(position)
         elapsedLabel.text = formatTime(position)
         remainingLabel.text = "-" + formatTime(max(0, player.duration - position))
+        savePlaybackState()
         updateNowPlayingInfo()
     }
 
@@ -469,6 +490,8 @@ extension ViewController {
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         if isRepeatEnabled {
+            player.currentTime = 0
+            savePlaybackState()
             playCurrentTrack()
         } else {
             playNextTrack()
