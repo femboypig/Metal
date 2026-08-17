@@ -106,7 +106,11 @@ extension ViewController {
         let favPill = createPillButton(title: "Favorites", category: .favorites)
         filtersStackView.addArrangedSubview(favPill)
 
-        // 3. Custom Playlist Pills
+        // 3. Local smart playlist based on listening behavior
+        let lovelyPill = createPillButton(title: "Lovely", category: .lovely)
+        filtersStackView.addArrangedSubview(lovelyPill)
+
+        // 4. Custom Playlist Pills
         for name in playlists.keys.sorted() {
             let pill = createPillButton(title: name, category: .playlist(name))
 
@@ -117,7 +121,7 @@ extension ViewController {
             filtersStackView.addArrangedSubview(pill)
         }
 
-        // 4. "+ Playlist" Pill
+        // 5. "+ Playlist" Pill
         let newPill = UIButton(type: .system)
         newPill.translatesAutoresizingMaskIntoConstraints = false
         newPill.setTitle("＋ Playlist", for: .normal)
@@ -197,7 +201,7 @@ extension ViewController {
     @objc func filterPillTapped(_ sender: UIButton) {
         guard let category = objc_getAssociatedObject(sender, &ViewController.categoryAssociationKey) as? FilterCategory else { return }
 
-        let categories: [FilterCategory] = [.all, .favorites] + playlists.keys.sorted().map { .playlist($0) }
+        let categories: [FilterCategory] = [.all, .favorites, .lovely] + playlists.keys.sorted().map { .playlist($0) }
         guard let oldIdx = categories.firstIndex(of: activeFilter),
               let newIdx = categories.firstIndex(of: category) else { return }
 
@@ -257,6 +261,9 @@ extension ViewController {
         case .favorites:
             categoryTracks = tracks.filter { favoriteTracks.contains($0.url.lastPathComponent) }
             headerText = "FAVORITES"
+        case .lovely:
+            categoryTracks = lovelyTracks(from: tracks)
+            headerText = "LOVELY"
         case .playlist(let name):
             let filenames = playlists[name] ?? []
             categoryTracks = tracks.filter { filenames.contains($0.url.lastPathComponent) }
@@ -364,7 +371,7 @@ extension ViewController {
 
         migrateAudioFiles(from: nestedAll, to: songsDirectoryURL, extensions: audioExtensions)
 
-        for filename in ["settings.json", "playlists.json"] {
+        for filename in ["settings.json", "playlists.json", "telemetry.json"] {
             let sourceURL = nestedRoot.appendingPathComponent(filename)
             let destinationURL = metalRootDirectoryURL.appendingPathComponent(filename)
             if fileManager.fileExists(atPath: sourceURL.path),
