@@ -83,6 +83,17 @@ extension ViewController {
             : 0
 
         if aidj.isTransitioning { aidj.cancel(keeping: nil) }
+        if let previousPlayer = audioPlayer, telemetrySessionFilename != nil {
+            updateListeningTelemetry(with: previousPlayer)
+            let progress = previousPlayer.duration > 0
+                ? previousPlayer.currentTime / previousPlayer.duration
+                : 0
+            finishListeningTelemetry(
+                completed: progress >= 0.85,
+                skipped: progress < 0.85 && previousPlayer.currentTime > 1,
+                progress: progress
+            )
+        }
         audioPlayer?.stop()
         audioPlayer = nil
 
@@ -97,6 +108,7 @@ extension ViewController {
                 lastSavedPlaybackBucket = Int(player.currentTime) / 5
             }
             audioPlayer?.play()
+            startListeningTelemetry(for: track, resumed: (audioPlayer?.currentTime ?? 0) > 1)
             aidj.prepare(track: track.url)
 
             let playbackImpact = UIImpactFeedbackGenerator(style: .medium)
@@ -168,6 +180,7 @@ extension ViewController {
         if aidj.isTransitioning { aidj.cancel(keeping: player) }
 
         if player.isPlaying {
+            updateListeningTelemetry(with: player)
             player.pause()
             updateTimer?.invalidate()
             savePlaybackState()
@@ -274,9 +287,15 @@ extension ViewController {
 
         let didStart = aidj.startTransition(from: currentPlayer, toTrack: nextTrack.url, onPlayStarted: { [weak self] playerB in
             guard let self else { return }
+            self.updateListeningTelemetry(with: currentPlayer)
+            let completedProgress = currentPlayer.duration > 0
+                ? currentPlayer.currentTime / currentPlayer.duration
+                : 1
+            self.finishListeningTelemetry(completed: true, skipped: false, progress: completedProgress)
             self.audioPlayer = playerB
             self.audioPlayer?.delegate = self
             self.currentTrackIndex = nextIndex
+            self.startListeningTelemetry(for: nextTrack, resumed: false)
 
             if self.isShuffleEnabled {
                 if self.shuffledPosition >= self.shuffledIndices.count - 1 {
@@ -367,6 +386,8 @@ extension ViewController {
     func updatePlaybackProgress() {
         guard let player = audioPlayer, player.duration > 0 else { return }
 
+        updateListeningTelemetry(with: player)
+
         if !progressSlider.isTracking {
             progressSlider.value = Float(player.currentTime)
         }
@@ -377,6 +398,7 @@ extension ViewController {
         let playbackBucket = Int(player.currentTime) / 5
         if playbackBucket != lastSavedPlaybackBucket {
             lastSavedPlaybackBucket = playbackBucket
+            saveListeningTelemetry()
             savePlaybackState()
         }
 
@@ -400,6 +422,8 @@ extension ViewController {
     func seek(to requestedTime: TimeInterval) {
         guard let player = audioPlayer, player.duration > 0 else { return }
         if aidj.isTransitioning { aidj.cancel(keeping: player) }
+
+        updateListeningTelemetry(with: player)
 
         let position = min(max(0, requestedTime), player.duration)
         player.currentTime = position
@@ -457,6 +481,7 @@ extension ViewController {
         let items = filteredTracks.prefix(15).map { tr in
             BottomSheetItem(title: tr.title, iconName: "music.note", isDestructive: false, action: { [weak self] in
                 if let idx = self?.filteredTracks.firstIndex(where: { $0.url == tr.url }) {
+                    self?.recordManualSelection(for: tr)
                     self?.currentTrackIndex = idx
                     self?.playCurrentTrack()
                 }
@@ -489,6 +514,8 @@ extension ViewController {
     // MARK: - AVAudioPlayerDelegate
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        updateListeningTelemetry(with: player)
+        finishListeningTelemetry(completed: true, skipped: false, progress: 1)
         if isRepeatEnabled {
             player.currentTime = 0
             savePlaybackState()
