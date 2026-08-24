@@ -65,47 +65,47 @@ struct MetalTimelineProvider: TimelineProvider {
 
 private struct MetalArtwork: View {
     let data: Data?
+    var cornerRadius: CGFloat = 16
 
+    private var image: Image {
+        if let data, let image = UIImage(data: data) {
+            return Image(uiImage: image)
+        }
+        return Image("PlaceholderArtwork")
+    }
+
+    @ViewBuilder
     var body: some View {
-        Group {
-            if let data, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-            } else {
-                Image("PlaceholderArtwork")
-                    .resizable()
-            }
+        if #available(iOS 18.0, *) {
+            styled(image.resizable().widgetAccentedRenderingMode(.fullColor))
+        } else {
+            styled(image.resizable())
         }
-        .scaledToFill()
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.white.opacity(0.13), lineWidth: 0.8)
-        }
+    }
+
+    private func styled<Content: View>(_ content: Content) -> some View {
+        content
+            .scaledToFill()
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
 private struct MetalWidgetBackdrop: View {
+    let data: Data?
+
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.08, green: 0.08, blue: 0.09), Color(red: 0.17, green: 0.12, blue: 0.14)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            Color.black
 
-            Image("PlaceholderArtwork")
-                .resizable()
-                .scaledToFill()
+            MetalArtwork(data: data, cornerRadius: 0)
                 .scaleEffect(1.18)
-                .blur(radius: 24)
-                .opacity(0.24)
+                .blur(radius: 30)
+                .opacity(0.38)
 
-            RadialGradient(
-                colors: [Color(red: 0.85, green: 0.36, blue: 0.22).opacity(0.18), .clear],
-                center: .bottomTrailing,
-                startRadius: 4,
-                endRadius: 180
+            LinearGradient(
+                colors: [.black.opacity(0.14), .black.opacity(0.72)],
+                startPoint: .top,
+                endPoint: .bottom
             )
         }
     }
@@ -113,13 +113,13 @@ private struct MetalWidgetBackdrop: View {
 
 private extension View {
     @ViewBuilder
-    func metalWidgetBackground() -> some View {
+    func metalWidgetBackground(artworkData: Data?) -> some View {
         if #available(iOS 17.0, *) {
             containerBackground(for: .widget) {
-                MetalWidgetBackdrop()
+                MetalWidgetBackdrop(data: artworkData)
             }
         } else {
-            background(MetalWidgetBackdrop())
+            background(MetalWidgetBackdrop(data: artworkData))
         }
     }
 }
@@ -128,32 +128,29 @@ struct MetalSquareWidgetView: View {
     let entry: MetalWidgetEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: entry.isPlaying ? "waveform" : "waveform.path")
-                    .foregroundStyle(Color(red: 0.93, green: 0.47, blue: 0.31))
-                Text("METAL")
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .tracking(1.2)
-                Spacer(minLength: 0)
-            }
+        ZStack(alignment: .bottomLeading) {
+            MetalArtwork(data: entry.artworkData, cornerRadius: 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            MetalArtwork(data: entry.artworkData)
-                .frame(width: 72, height: 72)
-                .frame(maxWidth: .infinity)
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.12), .black.opacity(0.88)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title)
-                    .font(.system(size: 13, weight: .bold, design: .serif))
+                    .font(.system(size: 14, weight: .bold))
                     .lineLimit(1)
-                Text(entry.artist.isEmpty ? (entry.isPlaying ? "Now playing" : "Paused") : entry.artist)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                Text(entry.artist.isEmpty ? "Metal" : entry.artist)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.74))
                     .lineLimit(1)
             }
+            .padding(14)
         }
         .foregroundStyle(.white)
-        .metalWidgetBackground()
+        .metalWidgetBackground(artworkData: entry.artworkData)
     }
 }
 
@@ -161,46 +158,49 @@ struct MetalWideWidgetView: View {
     let entry: MetalWidgetEntry
 
     var body: some View {
-        HStack(spacing: 15) {
+        HStack(spacing: 16) {
             MetalArtwork(data: entry.artworkData)
-                .frame(width: 116, height: 116)
+                .frame(width: 128, height: 128)
 
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(entry.isPlaying ? Color(red: 0.93, green: 0.47, blue: 0.31) : .white.opacity(0.35))
-                        .frame(width: 6, height: 6)
-                    Text(entry.isPlaying ? "NOW PLAYING" : "METAL LIBRARY")
-                        .font(.system(size: 9, weight: .black, design: .rounded))
-                        .tracking(1.1)
-                }
-
+            VStack(alignment: .leading, spacing: 5) {
                 Text(entry.title)
-                    .font(.system(size: 20, weight: .bold, design: .serif))
+                    .font(.headline.weight(.bold))
                     .lineLimit(2)
-                    .minimumScaleFactor(0.78)
 
-                Text(entry.artist.isEmpty ? "Your auditory shelf." : entry.artist)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                Text(entry.artist.isEmpty ? "Metal" : entry.artist)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
 
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(.white.opacity(0.14))
-                        Capsule()
-                            .fill(Color(red: 0.93, green: 0.47, blue: 0.31))
-                            .frame(width: proxy.size.width * entry.progress)
+                HStack(spacing: 9) {
+                    ZStack {
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 29, height: 29)
+                        Image(systemName: entry.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.black)
+                            .offset(x: entry.isPlaying ? 0 : 1)
                     }
+
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white.opacity(0.18))
+                            Capsule()
+                                .fill(.white.opacity(0.9))
+                                .frame(width: proxy.size.width * entry.progress)
+                        }
+                    }
+                    .frame(height: 3)
                 }
-                .frame(height: 3)
             }
-            .padding(.vertical, 3)
+            .padding(.vertical, 9)
         }
+        .padding(16)
         .foregroundStyle(.white)
-        .metalWidgetBackground()
+        .metalWidgetBackground(artworkData: entry.artworkData)
     }
 }
 
@@ -211,9 +211,11 @@ struct MetalSquareWidget: Widget {
         StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
             MetalSquareWidgetView(entry: entry)
         }
-        .configurationDisplayName("Metal Cover")
-        .description("Your current track in a compact square.")
+        .configurationDisplayName("Now Playing")
+        .description("Your current track and its artwork.")
         .supportedFamilies([.systemSmall])
+        .contentMarginsDisabled()
+        .containerBackgroundRemovable(false)
     }
 }
 
@@ -224,9 +226,11 @@ struct MetalWideWidget: Widget {
         StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
             MetalWideWidgetView(entry: entry)
         }
-        .configurationDisplayName("Metal Shelf")
-        .description("Current track, artist, and listening progress.")
+        .configurationDisplayName("Now Playing Wide")
+        .description("Artwork and current playback at a glance.")
         .supportedFamilies([.systemMedium])
+        .contentMarginsDisabled()
+        .containerBackgroundRemovable(false)
     }
 }
 

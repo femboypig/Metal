@@ -502,8 +502,12 @@ extension ViewController {
     }
 
     func updatePlayerTheme(with artwork: UIImage?) {
-        let dominantColor = artwork?.averageColor() ?? UIColor(red: 0.28, green: 0.08, blue: 0.08, alpha: 1.0)
-        let bottomColor = UIColor(red: 0.08, green: 0.04, blue: 0.04, alpha: 1.0)
+        // The player displays PlaceholderArtwork for tracks without embedded art, so
+        // derive the ambient color from that same image instead of a red fallback.
+        let displayedArtwork = artwork ?? UIImage(named: "PlaceholderArtwork")
+        let dominantColor = displayedArtwork?.averageColor()
+            ?? UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1.0)
+        let bottomColor = UIColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0)
 
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.5)

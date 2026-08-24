@@ -130,8 +130,9 @@ extension ViewController {
 
         if #available(iOS 26.0, *) {
             var config = UIButton.Configuration.glass()
-            config.image = UIImage(systemName: "plus")
-            config.imagePadding = 5
+            let plusConfiguration = UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+            config.image = UIImage(systemName: "plus", withConfiguration: plusConfiguration)
+            config.imagePadding = 3
             config.title = "Playlist"
             config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
             config.baseForegroundColor = secondaryTextColor()

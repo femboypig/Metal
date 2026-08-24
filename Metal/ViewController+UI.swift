@@ -503,8 +503,8 @@ extension ViewController {
         // Full Edge-to-Edge Dynamic Ambient Gradient Background (Fills status bar notch & home indicator)
         playerGradientLayer = CAGradientLayer()
         playerGradientLayer.colors = [
-            UIColor(red: 0.24, green: 0.08, blue: 0.08, alpha: 1.0).cgColor,
-            UIColor(red: 0.07, green: 0.04, blue: 0.04, alpha: 1.0).cgColor
+            UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1.0).cgColor,
+            UIColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0).cgColor
         ]
         playerGradientLayer.locations = [0.0, 1.0]
         page2.layer.insertSublayer(playerGradientLayer, at: 0)
