@@ -133,7 +133,7 @@ extension ViewController {
             if let artwork = track.artwork {
                 coverImageView.image = artwork
             } else {
-                coverImageView.image = UIImage(named: "logo")
+                coverImageView.image = UIImage(named: "PlaceholderArtwork")
             }
 
             progressSlider.maximumValue = Float(track.duration)
@@ -320,7 +320,7 @@ extension ViewController {
             if let artwork = nextTrack.artwork {
                 self.coverImageView.image = artwork
             } else {
-                self.coverImageView.image = UIImage(named: "logo")
+                self.coverImageView.image = UIImage(named: "PlaceholderArtwork")
             }
 
             self.progressSlider.maximumValue = Float(nextTrack.duration)

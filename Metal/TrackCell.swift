@@ -128,7 +128,7 @@ class TrackCell: UITableViewCell {
             playingThumbnail.tintColor = nil
             playingThumbnail.backgroundColor = .clear
         } else {
-            playingThumbnail.image = UIImage(named: "logo")
+            playingThumbnail.image = UIImage(named: "PlaceholderArtwork")
             playingThumbnail.tintColor = nil
             playingThumbnail.backgroundColor = .clear
         }

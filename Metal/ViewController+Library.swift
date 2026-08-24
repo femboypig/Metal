@@ -124,7 +124,6 @@ extension ViewController {
         // 5. "+ Playlist" Pill
         let newPill = UIButton(type: .system)
         newPill.translatesAutoresizingMaskIntoConstraints = false
-        newPill.setTitle("＋ Playlist", for: .normal)
         newPill.backgroundColor = cardBackgroundColor()
         newPill.layer.cornerRadius = 15
         newPill.layer.borderWidth = 0
@@ -144,6 +143,7 @@ extension ViewController {
             newPill.configuration = config
         } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
+            config.title = "＋ Playlist"
             config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
             config.baseForegroundColor = secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
@@ -153,6 +153,7 @@ extension ViewController {
             }
             newPill.configuration = config
         } else {
+            newPill.setTitle("＋ Playlist", for: .normal)
             newPill.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
             newPill.setTitleColor(secondaryTextColor(), for: .normal)
             newPill.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
@@ -569,7 +570,7 @@ extension ViewController {
             miniNextButton?.isEnabled = false
             applyMiniPlayerColors(useArtworkBackground: false)
             miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
-            miniCoverView?.image = UIImage(named: "logo")
+            miniCoverView?.image = UIImage(named: "PlaceholderArtwork")
             return
         }
 
@@ -583,7 +584,7 @@ extension ViewController {
             miniPlayPauseButton?.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
             applyMiniPlayerColors(useArtworkBackground: false)
             miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
-            miniCoverView?.image = UIImage(named: "logo")
+            miniCoverView?.image = UIImage(named: "PlaceholderArtwork")
             return
         }
 
@@ -612,7 +613,7 @@ extension ViewController {
             }
         } else {
             applyMiniPlayerColors(useArtworkBackground: false)
-            miniCoverView?.image = UIImage(named: "logo")
+            miniCoverView?.image = UIImage(named: "PlaceholderArtwork")
             if #available(iOS 26.0, *) {
                 miniPlayerView?.backgroundColor = .clear
             } else {

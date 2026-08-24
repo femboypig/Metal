@@ -48,11 +48,15 @@ jobs:
           set -euo pipefail
 
           app_path="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/Metal.app"
+          widget_path="$app_path/PlugIns/MetalWidgetsExtension.appex"
           package_root="$RUNNER_TEMP/UnsignedIPA"
 
           test -d "$app_path"
           test -f "$app_path/Metal"
           test ! -d "$app_path/_CodeSignature"
+          test -d "$widget_path"
+          test -f "$widget_path/MetalWidgetsExtension"
+          test ! -d "$widget_path/_CodeSignature"
 
           mkdir -p "$package_root/Payload" "$GITHUB_WORKSPACE/dist"
           ditto "$app_path" "$package_root/Payload/Metal.app"
