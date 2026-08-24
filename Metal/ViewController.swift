@@ -176,6 +176,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     @objc func appWillEnterForeground() {
         updateMiniPlayerUI()
+        publishWidgetRecommendations()
         if let player = audioPlayer {
             let playIcon = player.isPlaying ? "pause.fill" : "play.fill"
             playPauseButton.setImage(UIImage(systemName: playIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)

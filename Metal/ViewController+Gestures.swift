@@ -5,7 +5,6 @@
 
 import UIKit
 import MediaPlayer
-import WidgetKit
 
 extension ViewController {
 
@@ -291,18 +290,6 @@ extension ViewController {
         nowPlayingCenter.nowPlayingInfo = info
         nowPlayingCenter.playbackState = isPlaying ? .playing : .paused
 
-        let widgetDefaults = UserDefaults(suiteName: "group.ru.femboypig.Metal")
-        widgetDefaults?.set(track.title, forKey: "widget.track.title")
-        widgetDefaults?.set(track.artist == "Unknown Artist" ? "" : track.artist, forKey: "widget.track.artist")
-        widgetDefaults?.set(duration, forKey: "widget.track.duration")
-        widgetDefaults?.set(audioPlayer?.currentTime ?? 0, forKey: "widget.track.elapsed")
-        widgetDefaults?.set(isPlaying, forKey: "widget.track.isPlaying")
-        if let artworkData = track.artwork?.jpegData(compressionQuality: 0.72) {
-            widgetDefaults?.set(artworkData, forKey: "widget.track.artwork")
-        } else {
-            widgetDefaults?.removeObject(forKey: "widget.track.artwork")
-        }
-        WidgetCenter.shared.reloadAllTimelines()
     }
     
     // MARK: - Persistence state

@@ -3,63 +3,78 @@ import WidgetKit
 import UIKit
 
 private let sharedSuiteName = "group.ru.femboypig.Metal"
+private let recommendationsKey = "widget.recommendations.v1"
+
+struct MetalWidgetRecommendation: Codable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let artist: String
+    let artworkData: Data?
+}
 
 struct MetalWidgetEntry: TimelineEntry {
     let date: Date
-    let title: String
-    let artist: String
-    let duration: TimeInterval
-    let elapsed: TimeInterval
-    let isPlaying: Bool
-    let artworkData: Data?
+    let recommendations: [MetalWidgetRecommendation]
 
-    static let placeholder = MetalWidgetEntry(
-        date: Date(),
-        title: "Your auditory shelf.",
-        artist: "Open Metal to start listening",
-        duration: 1,
-        elapsed: 0,
-        isPlaying: false,
-        artworkData: nil
-    )
+    static func placeholder(at date: Date = Date()) -> MetalWidgetEntry {
+        MetalWidgetEntry(
+            date: date,
+            recommendations: [
+                MetalWidgetRecommendation(
+                    id: "lovely-1",
+                    title: "Lovely Mix",
+                    artist: "Made from the music you love",
+                    artworkData: nil
+                ),
+                MetalWidgetRecommendation(
+                    id: "lovely-2",
+                    title: "Your next favorite",
+                    artist: "Chosen from your listening taste",
+                    artworkData: nil
+                ),
+                MetalWidgetRecommendation(
+                    id: "lovely-3",
+                    title: "Picked for you",
+                    artist: "Metal",
+                    artworkData: nil
+                )
+            ]
+        )
+    }
 
-    var progress: Double {
-        guard duration > 0 else { return 0 }
-        return min(max(elapsed / duration, 0), 1)
+    var primary: MetalWidgetRecommendation {
+        recommendations.first ?? Self.placeholder(at: date).recommendations[0]
     }
 }
 
 struct MetalTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> MetalWidgetEntry {
-        .placeholder
+        .placeholder()
     }
 
     func getSnapshot(in context: Context, completion: @escaping (MetalWidgetEntry) -> Void) {
-        completion(context.isPreview ? .placeholder : currentEntry())
+        completion(context.isPreview ? .placeholder() : entry(at: Date()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<MetalWidgetEntry>) -> Void) {
-        let entry = currentEntry()
-        let refresh = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(900)
-        completion(Timeline(entries: [entry], policy: .after(refresh)))
+        let start = Date()
+        let entries = (0..<8).map { offset in
+            entry(at: start.addingTimeInterval(TimeInterval(offset) * 30 * 60))
+        }
+        completion(Timeline(entries: entries, policy: .after(start.addingTimeInterval(4 * 60 * 60))))
     }
 
-    private func currentEntry() -> MetalWidgetEntry {
+    private func entry(at date: Date) -> MetalWidgetEntry {
         guard let defaults = UserDefaults(suiteName: sharedSuiteName),
-              let title = defaults.string(forKey: "widget.track.title"),
-              !title.isEmpty else {
-            return .placeholder
+              let encoded = defaults.data(forKey: recommendationsKey),
+              let stored = try? JSONDecoder().decode([MetalWidgetRecommendation].self, from: encoded),
+              !stored.isEmpty else {
+            return .placeholder(at: date)
         }
 
-        return MetalWidgetEntry(
-            date: Date(),
-            title: title,
-            artist: defaults.string(forKey: "widget.track.artist") ?? "",
-            duration: defaults.double(forKey: "widget.track.duration"),
-            elapsed: defaults.double(forKey: "widget.track.elapsed"),
-            isPlaying: defaults.bool(forKey: "widget.track.isPlaying"),
-            artworkData: defaults.data(forKey: "widget.track.artwork")
-        )
+        let offset = Int(date.timeIntervalSince1970 / (30 * 60)) % stored.count
+        let rotated = Array(stored[offset...]) + Array(stored[..<offset])
+        return MetalWidgetEntry(date: date, recommendations: rotated)
     }
 }
 
@@ -91,22 +106,16 @@ private struct MetalArtwork: View {
 }
 
 private struct MetalWidgetBackdrop: View {
-    let data: Data?
+    let artworkData: Data?
 
     var body: some View {
         ZStack {
             Color.black
-
-            MetalArtwork(data: data, cornerRadius: 0)
-                .scaleEffect(1.18)
-                .blur(radius: 30)
-                .opacity(0.38)
-
-            LinearGradient(
-                colors: [.black.opacity(0.14), .black.opacity(0.72)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            MetalArtwork(data: artworkData, cornerRadius: 0)
+                .scaleEffect(1.2)
+                .blur(radius: 32)
+                .opacity(0.34)
+            Color.black.opacity(0.48)
         }
     }
 }
@@ -116,11 +125,67 @@ private extension View {
     func metalWidgetBackground(artworkData: Data?) -> some View {
         if #available(iOS 17.0, *) {
             containerBackground(for: .widget) {
-                MetalWidgetBackdrop(data: artworkData)
+                MetalWidgetBackdrop(artworkData: artworkData)
             }
         } else {
-            background(MetalWidgetBackdrop(data: artworkData))
+            background(MetalWidgetBackdrop(artworkData: artworkData))
         }
+    }
+}
+
+private struct MetalRecommendationHero: View {
+    let recommendation: MetalWidgetRecommendation
+    var cornerRadius: CGFloat = 0
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            MetalArtwork(data: recommendation.artworkData, cornerRadius: cornerRadius)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.08), .black.opacity(0.9)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(recommendation.title)
+                    .font(.headline.weight(.bold))
+                    .lineLimit(1)
+                Text(recommendation.artist.isEmpty ? "Metal" : recommendation.artist)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.74))
+                    .lineLimit(1)
+            }
+            .padding(13)
+        }
+        .foregroundStyle(.white)
+    }
+}
+
+private struct MetalRecommendationRow: View {
+    let recommendation: MetalWidgetRecommendation
+
+    var body: some View {
+        HStack(spacing: 9) {
+            MetalArtwork(data: recommendation.artworkData, cornerRadius: 9)
+                .frame(width: 52, height: 52)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(recommendation.title)
+                    .font(.caption.weight(.bold))
+                    .lineLimit(2)
+                Text(recommendation.artist.isEmpty ? "Metal" : recommendation.artist)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(.black.opacity(0.26), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 }
 
@@ -128,79 +193,33 @@ struct MetalSquareWidgetView: View {
     let entry: MetalWidgetEntry
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            MetalArtwork(data: entry.artworkData, cornerRadius: 0)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.12), .black.opacity(0.88)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
-                    .font(.system(size: 14, weight: .bold))
-                    .lineLimit(1)
-                Text(entry.artist.isEmpty ? "Metal" : entry.artist)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.74))
-                    .lineLimit(1)
-            }
-            .padding(14)
-        }
-        .foregroundStyle(.white)
-        .metalWidgetBackground(artworkData: entry.artworkData)
+        MetalRecommendationHero(recommendation: entry.primary)
+            .metalWidgetBackground(artworkData: entry.primary.artworkData)
     }
 }
 
 struct MetalWideWidgetView: View {
     let entry: MetalWidgetEntry
 
+    private var secondaryRecommendations: [MetalWidgetRecommendation] {
+        Array(entry.recommendations.dropFirst().prefix(2))
+    }
+
     var body: some View {
-        HStack(spacing: 16) {
-            MetalArtwork(data: entry.artworkData)
-                .frame(width: 128, height: 128)
+        HStack(spacing: 10) {
+            MetalRecommendationHero(recommendation: entry.primary, cornerRadius: 16)
+                .frame(width: 132)
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text(entry.title)
-                    .font(.headline.weight(.bold))
-                    .lineLimit(2)
-
-                Text(entry.artist.isEmpty ? "Metal" : entry.artist)
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.62))
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                HStack(spacing: 9) {
-                    ZStack {
-                        Circle()
-                            .fill(.white)
-                            .frame(width: 29, height: 29)
-                        Image(systemName: entry.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.black)
-                            .offset(x: entry.isPlaying ? 0 : 1)
-                    }
-
-                    GeometryReader { proxy in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(.white.opacity(0.18))
-                            Capsule()
-                                .fill(.white.opacity(0.9))
-                                .frame(width: proxy.size.width * entry.progress)
-                        }
-                    }
-                    .frame(height: 3)
+            VStack(spacing: 8) {
+                ForEach(secondaryRecommendations) { recommendation in
+                    MetalRecommendationRow(recommendation: recommendation)
                 }
             }
-            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(16)
+        .padding(12)
         .foregroundStyle(.white)
-        .metalWidgetBackground(artworkData: entry.artworkData)
+        .metalWidgetBackground(artworkData: entry.primary.artworkData)
     }
 }
 
@@ -211,8 +230,8 @@ struct MetalSquareWidget: Widget {
         StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
             MetalSquareWidgetView(entry: entry)
         }
-        .configurationDisplayName("Now Playing")
-        .description("Your current track and its artwork.")
+        .configurationDisplayName("Lovely Pick")
+        .description("A track picked from the music you love.")
         .supportedFamilies([.systemSmall])
         .contentMarginsDisabled()
         .containerBackgroundRemovable(false)
@@ -226,8 +245,8 @@ struct MetalWideWidget: Widget {
         StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
             MetalWideWidgetView(entry: entry)
         }
-        .configurationDisplayName("Now Playing Wide")
-        .description("Artwork and current playback at a glance.")
+        .configurationDisplayName("Lovely Mix")
+        .description("A rotating mix of songs picked for you.")
         .supportedFamilies([.systemMedium])
         .contentMarginsDisabled()
         .containerBackgroundRemovable(false)

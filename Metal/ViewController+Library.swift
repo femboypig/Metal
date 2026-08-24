@@ -5,6 +5,14 @@
 
 import UIKit
 import CoreImage
+import WidgetKit
+
+private struct MetalWidgetRecommendation: Codable {
+    let id: String
+    let title: String
+    let artist: String
+    let artworkData: Data?
+}
 
 struct MetalSettingsDocument: Codable {
     var version: Int = 1
@@ -57,6 +65,7 @@ extension ViewController {
     func savePlaylists() {
         UserDefaults.standard.set(playlists, forKey: "Metal_Playlists")
         writeJSON(playlists, to: playlistsFileURL)
+        publishWidgetRecommendations()
     }
 
     func saveSettings() {
@@ -334,6 +343,7 @@ extension ViewController {
         }
         UserDefaults.standard.set(Array(favoriteTracks), forKey: "Metal_Favorites")
         saveSettings()
+        publishWidgetRecommendations()
         tableView.reloadData()
 
         if activeFilter == .favorites {
@@ -457,6 +467,56 @@ extension ViewController {
         } catch {
             print("Failed to scan songs directory: \(error)")
         }
+
+        publishWidgetRecommendations()
+    }
+
+    func publishWidgetRecommendations() {
+        guard !tracks.isEmpty else { return }
+
+        let lovely = lovelyTracks(from: tracks)
+        let favorites = tracks.filter { favoriteTracks.contains($0.url.lastPathComponent) }
+        let source = !lovely.isEmpty ? lovely : (!favorites.isEmpty ? favorites : tracks)
+        let selection = Array(source.shuffled().prefix(6))
+
+        let recommendations = selection.map { track in
+            MetalWidgetRecommendation(
+                id: track.url.lastPathComponent,
+                title: track.title,
+                artist: track.artist == "Unknown Artist" ? "" : track.artist,
+                artworkData: widgetArtworkData(for: track.artwork)
+            )
+        }
+
+        guard let encoded = try? JSONEncoder().encode(recommendations),
+              let defaults = UserDefaults(suiteName: "group.ru.femboypig.Metal") else { return }
+
+        defaults.set(encoded, forKey: "widget.recommendations.v1")
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private func widgetArtworkData(for artwork: UIImage?) -> Data? {
+        guard let artwork else { return nil }
+
+        let targetSize = CGSize(width: 360, height: 360)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        let thumbnail = renderer.image { context in
+            context.cgContext.setFillColor(UIColor.black.cgColor)
+            context.cgContext.fill(CGRect(origin: .zero, size: targetSize))
+
+            let scale = max(targetSize.width / artwork.size.width, targetSize.height / artwork.size.height)
+            let drawSize = CGSize(width: artwork.size.width * scale, height: artwork.size.height * scale)
+            let drawOrigin = CGPoint(
+                x: (targetSize.width - drawSize.width) / 2,
+                y: (targetSize.height - drawSize.height) / 2
+            )
+            artwork.draw(in: CGRect(origin: drawOrigin, size: drawSize))
+        }
+        return thumbnail.jpegData(compressionQuality: 0.68)
     }
 
     private func migrateAudioFiles(from sourceDirectory: URL, to destinationDirectory: URL, extensions: [String]) {

@@ -119,6 +119,7 @@ extension ViewController {
         telemetryLastPlaybackTime = 0
         telemetrySessionListeningSeconds = 0
         saveListeningTelemetry()
+        publishWidgetRecommendations()
     }
 
     func lovelyTracks(from source: [Track]) -> [Track] {
