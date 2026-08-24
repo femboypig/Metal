@@ -43,6 +43,29 @@ jobs:
             CODE_SIGN_IDENTITY= \
             clean build
 
+      - name: Embed entitlements for sideload resigners
+        run: |
+          set -euo pipefail
+
+          app_path="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/Metal.app"
+          widget_path="$app_path/PlugIns/MetalWidgetsExtension.appex"
+
+          # This is an ad-hoc metadata signature: no Apple identity and no
+          # provisioning profile. SideStore needs it to discover App Groups
+          # before replacing it with the user's real development signature.
+          /usr/bin/codesign --force --sign - \
+            --entitlements "$GITHUB_WORKSPACE/MetalWidgets/MetalWidgets.entitlements" \
+            "$widget_path"
+          /usr/bin/codesign --force --sign - \
+            --entitlements "$GITHUB_WORKSPACE/Metal/Metal.entitlements" \
+            "$app_path"
+
+          /usr/bin/codesign --verify --deep --strict "$app_path"
+          /usr/bin/codesign -d --entitlements :- "$app_path" 2>&1 \
+            | grep -F 'group.ru.femboypig.Metal'
+          /usr/bin/codesign -d --entitlements :- "$widget_path" 2>&1 \
+            | grep -F 'group.ru.femboypig.Metal'
+
       - name: Package app as unsigned IPA
         run: |
           set -euo pipefail
@@ -53,10 +76,10 @@ jobs:
 
           test -d "$app_path"
           test -f "$app_path/Metal"
-          test ! -d "$app_path/_CodeSignature"
+          test ! -f "$app_path/embedded.mobileprovision"
           test -d "$widget_path"
           test -f "$widget_path/MetalWidgetsExtension"
-          test ! -d "$widget_path/_CodeSignature"
+          test ! -f "$widget_path/embedded.mobileprovision"
 
           mkdir -p "$package_root/Payload" "$GITHUB_WORKSPACE/dist"
           ditto "$app_path" "$package_root/Payload/Metal.app"

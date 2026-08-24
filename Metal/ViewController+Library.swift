@@ -14,6 +14,16 @@ private struct MetalWidgetRecommendation: Codable {
     let artworkData: Data?
 }
 
+private let originalMetalAppGroup = "group.ru.femboypig.Metal"
+private let widgetRecommendationsFilename = "widget-recommendations.json"
+
+private var resolvedMetalAppGroup: String {
+    let resignedGroups = Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String]
+    return resignedGroups?.first(where: { $0.contains(originalMetalAppGroup) })
+        ?? resignedGroups?.first
+        ?? originalMetalAppGroup
+}
+
 struct MetalSettingsDocument: Codable {
     var version: Int = 1
     var favoriteTracks: [String] = []
@@ -489,9 +499,23 @@ extension ViewController {
         }
 
         guard let encoded = try? JSONEncoder().encode(recommendations),
-              let defaults = UserDefaults(suiteName: "group.ru.femboypig.Metal") else { return }
+              let containerURL = FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier: resolvedMetalAppGroup
+              ) else {
+            print("Widget recommendations: App Group container is unavailable for \(resolvedMetalAppGroup)")
+            return
+        }
 
-        defaults.set(encoded, forKey: "widget.recommendations.v1")
+        let fileURL = containerURL.appendingPathComponent(widgetRecommendationsFilename)
+        do {
+            try encoded.write(to: fileURL, options: .atomic)
+        } catch {
+            print("Widget recommendations: failed to write shared payload: \(error)")
+            return
+        }
+
+        // Keep a preferences copy for compatibility with earlier widget builds.
+        UserDefaults(suiteName: resolvedMetalAppGroup)?.set(encoded, forKey: "widget.recommendations.v1")
         WidgetCenter.shared.reloadAllTimelines()
     }
 

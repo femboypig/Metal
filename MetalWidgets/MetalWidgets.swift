@@ -2,8 +2,16 @@ import SwiftUI
 import WidgetKit
 import UIKit
 
-private let sharedSuiteName = "group.ru.femboypig.Metal"
+private let originalSharedSuiteName = "group.ru.femboypig.Metal"
 private let recommendationsKey = "widget.recommendations.v1"
+private let recommendationsFilename = "widget-recommendations.json"
+
+private var sharedSuiteName: String {
+    let resignedGroups = Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String]
+    return resignedGroups?.first(where: { $0.contains(originalSharedSuiteName) })
+        ?? resignedGroups?.first
+        ?? originalSharedSuiteName
+}
 
 struct MetalWidgetRecommendation: Codable, Identifiable, Hashable {
     let id: String
@@ -65,8 +73,7 @@ struct MetalTimelineProvider: TimelineProvider {
     }
 
     private func entry(at date: Date) -> MetalWidgetEntry {
-        guard let defaults = UserDefaults(suiteName: sharedSuiteName),
-              let encoded = defaults.data(forKey: recommendationsKey),
+        guard let encoded = recommendationsData(),
               let stored = try? JSONDecoder().decode([MetalWidgetRecommendation].self, from: encoded),
               !stored.isEmpty else {
             return .placeholder(at: date)
@@ -75,6 +82,19 @@ struct MetalTimelineProvider: TimelineProvider {
         let offset = Int(date.timeIntervalSince1970 / (30 * 60)) % stored.count
         let rotated = Array(stored[offset...]) + Array(stored[..<offset])
         return MetalWidgetEntry(date: date, recommendations: rotated)
+    }
+
+    private func recommendationsData() -> Data? {
+        if let containerURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: sharedSuiteName
+        ) {
+            let fileURL = containerURL.appendingPathComponent(recommendationsFilename)
+            if let data = try? Data(contentsOf: fileURL) {
+                return data
+            }
+        }
+
+        return UserDefaults(suiteName: sharedSuiteName)?.data(forKey: recommendationsKey)
     }
 }
 
