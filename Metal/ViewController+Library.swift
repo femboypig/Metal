@@ -129,7 +129,20 @@ extension ViewController {
         newPill.layer.cornerRadius = 15
         newPill.layer.borderWidth = 0
 
-        if #available(iOS 15.0, *) {
+        if #available(iOS 26.0, *) {
+            var config = UIButton.Configuration.glass()
+            config.image = UIImage(systemName: "plus")
+            config.imagePadding = 5
+            config.title = "Playlist"
+            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
+            config.baseForegroundColor = secondaryTextColor()
+            config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+                return outgoing
+            }
+            newPill.configuration = config
+        } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
             config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
             config.baseForegroundColor = secondaryTextColor()
@@ -162,7 +175,23 @@ extension ViewController {
 
         let isActive = (activeFilter == category)
 
-        if #available(iOS 15.0, *) {
+        if #available(iOS 26.0, *) {
+            var config = isActive
+                ? UIButton.Configuration.prominentGlass()
+                : UIButton.Configuration.glass()
+            config.title = title
+            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
+            config.baseForegroundColor = isActive ? .white : secondaryTextColor()
+            if isActive {
+                config.baseBackgroundColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
+            }
+            config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var outgoing = incoming
+                outgoing.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+                return outgoing
+            }
+            button.configuration = config
+        } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
             config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
             config.baseForegroundColor = isActive ? UIColor(red: 0.93, green: 0.47, blue: 0.31, alpha: 1.0) : secondaryTextColor()
@@ -183,7 +212,10 @@ extension ViewController {
         button.setContentHuggingPriority(.required, for: .horizontal)
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-        if isActive {
+        if #available(iOS 26.0, *) {
+            button.backgroundColor = .clear
+            button.layer.borderWidth = 0
+        } else if isActive {
             button.backgroundColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 0.13)
             button.layer.borderWidth = 0
         } else {
@@ -570,13 +602,22 @@ extension ViewController {
         miniPlayPauseButton?.setImage(UIImage(systemName: playIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
 
         if let artwork = track.artwork {
-            applyMiniPlayerColors(useArtworkBackground: true)
             miniCoverView?.image = artwork
-            miniPlayerView?.backgroundColor = artwork.spotifyPanelColor
+            if #available(iOS 26.0, *) {
+                applyMiniPlayerColors(useArtworkBackground: false)
+                miniPlayerView?.backgroundColor = .clear
+            } else {
+                applyMiniPlayerColors(useArtworkBackground: true)
+                miniPlayerView?.backgroundColor = artwork.spotifyPanelColor
+            }
         } else {
             applyMiniPlayerColors(useArtworkBackground: false)
             miniCoverView?.image = UIImage(named: "logo")
-            miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
+            if #available(iOS 26.0, *) {
+                miniPlayerView?.backgroundColor = .clear
+            } else {
+                miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
+            }
         }
 
     }

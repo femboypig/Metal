@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D4E5F6000000000003 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000004 /* AppIcon.icon */; };
 		04C70D28EB9353CEAF94EB5A /* ViewController+BottomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C794D74A945BAFB94C81CB /* ViewController+BottomSheet.swift */; };
 		04C70E9B52FD56029627DD4A /* ViewController+TableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C7248444DF5125817B6D4B /* ViewController+TableView.swift */; };
 		04C72DF3F9A85B2BB4D4A129 /* InputSubmitWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C791FFC8FB56E8AEAB06A7 /* InputSubmitWrapper.swift */; };
@@ -29,6 +30,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D4E5F6000000000004 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		04157E5330246C69006395B8 /* Metal.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Metal.entitlements; sourceTree = "<group>"; };
 		04C7198F9E735671A38FC88E /* ViewController+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+UI.swift"; sourceTree = "<group>"; };
 		04C7248444DF5125817B6D4B /* ViewController+TableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+TableView.swift"; sourceTree = "<group>"; };
@@ -83,6 +85,7 @@
 		04C7491E2FEFF60C00B62262 /* Metal */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F6000000000004 /* AppIcon.icon */,
 				04157E5330246C69006395B8 /* Metal.entitlements */,
 				04C766D736C95B5AB14A99E4 /* AIDJEngine.swift */,
 				A1B2C3D4E5F6000000000002 /* ListeningTelemetry.swift */,
@@ -166,6 +169,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D4E5F6000000000003 /* AppIcon.icon in Resources */,
 				04C7492F2FEFF60E00B62262 /* LaunchScreen.storyboard in Resources */,
 				04C7492C2FEFF60E00B62262 /* Assets.xcassets in Resources */,
 				04C749272FEFF60C00B62262 /* Main.storyboard in Resources */,

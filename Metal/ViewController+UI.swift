@@ -265,9 +265,17 @@ extension ViewController {
 
         importButton = UIButton(type: .system)
         importButton.translatesAutoresizingMaskIntoConstraints = false
-        importButton.setImage(UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold)), for: .normal)
-        importButton.tintColor = primaryTextColor()
-        importButton.backgroundColor = .clear
+        let importImage = UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold))
+        if #available(iOS 26.0, *) {
+            var configuration = UIButton.Configuration.glass()
+            configuration.image = importImage
+            configuration.baseForegroundColor = primaryTextColor()
+            importButton.configuration = configuration
+        } else {
+            importButton.setImage(importImage, for: .normal)
+            importButton.tintColor = primaryTextColor()
+            importButton.backgroundColor = .clear
+        }
         importButton.accessibilityLabel = "Import Music"
         importButton.addTarget(self, action: #selector(importMusicButtonTapped), for: .touchUpInside)
         page1.addSubview(importButton)
@@ -317,16 +325,35 @@ extension ViewController {
 
         miniPlayerView = UIView()
         miniPlayerView.translatesAutoresizingMaskIntoConstraints = false
-        miniPlayerView.backgroundColor = miniPlayerBackgroundColor()
         miniPlayerView.layer.cornerRadius = 29
-        miniPlayerView.layer.borderWidth = 1
-        miniPlayerView.layer.borderColor = cardBorderColor().resolvedColor(with: traitCollection).cgColor
         miniPlayerView.isUserInteractionEnabled = true
 
-        miniPlayerView.layer.shadowColor = UIColor.black.cgColor
-        miniPlayerView.layer.shadowOffset = CGSize(width: 0, height: 8)
-        miniPlayerView.layer.shadowOpacity = 0.20
-        miniPlayerView.layer.shadowRadius = 18
+        if #available(iOS 26.0, *) {
+            miniPlayerView.backgroundColor = .clear
+            miniPlayerView.layer.borderWidth = 0
+
+            let glassView = UIVisualEffectView(effect: UIGlassEffect())
+            glassView.translatesAutoresizingMaskIntoConstraints = false
+            glassView.isUserInteractionEnabled = false
+            glassView.clipsToBounds = true
+            glassView.layer.cornerRadius = 29
+            miniPlayerView.addSubview(glassView)
+
+            NSLayoutConstraint.activate([
+                glassView.topAnchor.constraint(equalTo: miniPlayerView.topAnchor),
+                glassView.leadingAnchor.constraint(equalTo: miniPlayerView.leadingAnchor),
+                glassView.trailingAnchor.constraint(equalTo: miniPlayerView.trailingAnchor),
+                glassView.bottomAnchor.constraint(equalTo: miniPlayerView.bottomAnchor)
+            ])
+        } else {
+            miniPlayerView.backgroundColor = miniPlayerBackgroundColor()
+            miniPlayerView.layer.borderWidth = 1
+            miniPlayerView.layer.borderColor = cardBorderColor().resolvedColor(with: traitCollection).cgColor
+            miniPlayerView.layer.shadowColor = UIColor.black.cgColor
+            miniPlayerView.layer.shadowOffset = CGSize(width: 0, height: 8)
+            miniPlayerView.layer.shadowOpacity = 0.20
+            miniPlayerView.layer.shadowRadius = 18
+        }
         page1.addSubview(miniPlayerView)
 
         let miniTap = UITapGestureRecognizer(target: self, action: #selector(miniPlayerTapped(_:)))
