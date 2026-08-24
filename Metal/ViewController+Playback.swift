@@ -74,6 +74,34 @@ extension ViewController {
 
     // MARK: - Playback Core Engine
 
+    func playTrackFromWidget(filename: String) {
+        activeFilter = .all
+        searchBar.text = ""
+        filterTracks()
+
+        guard let index = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == filename }) else {
+            showToast(message: "This song is no longer in your library", success: false)
+            return
+        }
+
+        recordManualSelection(for: filteredTracks[index])
+        currentTrackIndex = index
+        if isShuffleEnabled {
+            rebuildShuffleQueue()
+        }
+        playCurrentTrack()
+        rebuildFiltersRow()
+        tableView.reloadData()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.scrollView.bounds.width > 0 else { return }
+            self.scrollView.setContentOffset(
+                CGPoint(x: self.scrollView.bounds.width * 2, y: 0),
+                animated: true
+            )
+        }
+    }
+
     func playCurrentTrack() {
         guard !filteredTracks.isEmpty, let index = currentTrackIndex, index < filteredTracks.count else { return }
 

@@ -18,6 +18,14 @@ struct MetalWidgetRecommendation: Codable, Identifiable, Hashable {
     let title: String
     let artist: String
     let artworkData: Data?
+
+    var deepLinkURL: URL {
+        var components = URLComponents()
+        components.scheme = "metal"
+        components.host = "play"
+        components.queryItems = [URLQueryItem(name: "track", value: id)]
+        return components.url ?? URL(string: "metal://play")!
+    }
 }
 
 struct MetalWidgetEntry: TimelineEntry {
@@ -156,6 +164,13 @@ private extension View {
 private struct MetalRecommendationHero: View {
     let recommendation: MetalWidgetRecommendation
     var cornerRadius: CGFloat = 0
+    @Environment(\.widgetFamily) private var family
+
+    private var titleFont: Font {
+        family == .systemSmall
+            ? .system(size: 15, weight: .bold)
+            : .system(size: 12, weight: .bold)
+    }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -171,12 +186,15 @@ private struct MetalRecommendationHero: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(recommendation.title)
-                    .font(.headline.weight(.bold))
-                    .lineLimit(1)
+                    .font(titleFont)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.62)
+                    .allowsTightening(true)
                 Text(recommendation.artist.isEmpty ? "Metal" : recommendation.artist)
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(.white.opacity(0.74))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
             .padding(13)
         }
@@ -196,6 +214,8 @@ private struct MetalRecommendationRow: View {
                 Text(recommendation.title)
                     .font(.caption.weight(.bold))
                     .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .allowsTightening(true)
                 Text(recommendation.artist.isEmpty ? "Metal" : recommendation.artist)
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.58))
@@ -214,6 +234,7 @@ struct MetalSquareWidgetView: View {
 
     var body: some View {
         MetalRecommendationHero(recommendation: entry.primary)
+            .widgetURL(entry.primary.deepLinkURL)
             .metalWidgetBackground(artworkData: entry.primary.artworkData)
     }
 }
@@ -227,12 +248,18 @@ struct MetalWideWidgetView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            MetalRecommendationHero(recommendation: entry.primary, cornerRadius: 16)
-                .frame(width: 132)
+            Link(destination: entry.primary.deepLinkURL) {
+                MetalRecommendationHero(recommendation: entry.primary, cornerRadius: 16)
+                    .frame(width: 132)
+            }
+            .buttonStyle(.plain)
 
             VStack(spacing: 8) {
                 ForEach(secondaryRecommendations) { recommendation in
-                    MetalRecommendationRow(recommendation: recommendation)
+                    Link(destination: recommendation.deepLinkURL) {
+                        MetalRecommendationRow(recommendation: recommendation)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
