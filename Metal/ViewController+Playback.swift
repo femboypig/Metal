@@ -178,10 +178,12 @@ extension ViewController {
             updatePlayerTheme(with: track.artwork)
 
             // Scroll to full player page ONLY if we are not already on the player page
-            let width = scrollView.frame.size.width
-            let currentPage = Int(round(scrollView.contentOffset.x / width))
-            if currentPage != 2 {
-                scrollView.setContentOffset(CGPoint(x: width * 2, y: 0), animated: true)
+            let width = scrollView.bounds.width
+            if width > 0 {
+                let currentPage = Int(round(scrollView.contentOffset.x / width))
+                if currentPage != 2 {
+                    scrollView.setContentOffset(CGPoint(x: width * 2, y: 0), animated: true)
+                }
             }
 
         } catch {
