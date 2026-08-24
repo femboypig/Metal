@@ -1,0 +1,74 @@
+name: Build unsigned IPA with Xcode 27
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned IPA
+    runs-on: xcode-27
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify Xcode and SDK
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcodebuild -version | grep -E '^Xcode 27([.[:space:]]|$)'
+          xcrun --sdk iphoneos --show-sdk-version | grep -E '^27([.]|$)'
+
+      - name: Build unsigned app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Metal.xcodeproj \
+            -scheme Metal \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= \
+            clean build
+
+      - name: Package app as unsigned IPA
+        run: |
+          set -euo pipefail
+
+          app_path="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/Metal.app"
+          package_root="$RUNNER_TEMP/UnsignedIPA"
+
+          test -d "$app_path"
+          test -f "$app_path/Metal"
+          test ! -d "$app_path/_CodeSignature"
+
+          mkdir -p "$package_root/Payload" "$GITHUB_WORKSPACE/dist"
+          ditto "$app_path" "$package_root/Payload/Metal.app"
+          (
+            cd "$package_root"
+            ditto -c -k --sequesterRsrc --keepParent Payload \
+              "$GITHUB_WORKSPACE/dist/Metal-unsigned.ipa"
+          )
+
+          unzip -t "$GITHUB_WORKSPACE/dist/Metal-unsigned.ipa"
+          unzip -l "$GITHUB_WORKSPACE/dist/Metal-unsigned.ipa"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Metal-unsigned-${{ github.sha }}
+          path: dist/Metal-unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
