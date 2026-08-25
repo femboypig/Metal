@@ -74,7 +74,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
               let viewController = sceneDelegate.window?.rootViewController as? ViewController else { return }
 
         pendingDailyMixPresentation = false
-        viewController.presentDailyMix()
+        viewController.presentDailyMix(autoplayFirstTrack: true)
     }
 
     // MARK: UISceneSession Lifecycle

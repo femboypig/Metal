@@ -121,7 +121,7 @@ extension ViewController {
         let allPill = createPillButton(title: "All", category: .all)
         filtersStackView.addArrangedSubview(allPill)
 
-        // 2. Personalized mix (one-minute cadence while the feature is tested)
+        // 2. Personalized, vibe-matched mix rebuilt once per local calendar day
         let dailyMixPill = createPillButton(title: "Daily Mix", category: .dailyMix)
         filtersStackView.addArrangedSubview(dailyMixPill)
 
@@ -434,7 +434,7 @@ extension ViewController {
 
         migrateAudioFiles(from: nestedAll, to: songsDirectoryURL, extensions: audioExtensions)
 
-        for filename in ["settings.json", "playlists.json", "telemetry.json"] {
+        for filename in ["settings.json", "playlists.json", "telemetry.json", "daily-mix-vibes.json"] {
             let sourceURL = nestedRoot.appendingPathComponent(filename)
             let destinationURL = metalRootDirectoryURL.appendingPathComponent(filename)
             if fileManager.fileExists(atPath: sourceURL.path),
@@ -484,6 +484,7 @@ extension ViewController {
 
             refreshDailyMixIfNeeded(force: true)
             filterTracks()
+            prepareDailyMixVibes()
         } catch {
             print("Failed to scan songs directory: \(error)")
         }

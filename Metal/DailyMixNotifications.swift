@@ -20,7 +20,8 @@ final class DailyMixNotificationScheduler {
     static let destinationValue = "daily-mix"
 
     private let center = UNUserNotificationCenter.current()
-    private let identifierPrefix = "metal.daily-mix.minute."
+    private let dailyIdentifierPrefix = "metal.daily-mix.day."
+    private let legacyMinuteIdentifierPrefix = "metal.daily-mix.minute."
 
     private let messages: [(title: String, body: String)] = [
         ("This might hit today", "Open your daily mix."),
@@ -38,6 +39,7 @@ final class DailyMixNotificationScheduler {
     private init() {}
 
     func requestAuthorizationAndSchedule() {
+        removeLegacyMinuteNotifications()
         center.getNotificationSettings { [weak self] settings in
             guard let self else { return }
 
@@ -48,24 +50,25 @@ final class DailyMixNotificationScheduler {
                         print("Daily Mix notifications: authorization failed: \(error)")
                     }
                     if granted {
-                        self.scheduleEveryMinute()
+                        self.scheduleDailyNotification()
                     }
                 }
             case .authorized, .provisional, .ephemeral:
-                self.scheduleEveryMinute()
+                self.scheduleDailyNotification()
             case .denied:
-                self.removeScheduledNotifications()
+                self.removeDailyNotifications()
             @unknown default:
                 break
             }
         }
     }
 
-    private func scheduleEveryMinute() {
-        // Calendar triggers keep firing even while Metal is suspended or not
-        // running. Sixty requests cover every minute of the hour indefinitely.
-        for minute in 0..<60 {
-            let message = messages[minute % messages.count]
+    private func scheduleDailyNotification() {
+        // One repeating calendar request per possible day of the month keeps a
+        // different message rotating daily while still working when Metal is
+        // suspended. Every valid calendar date fires at 10:00 local time.
+        for day in 1...31 {
+            let message = messages[(day - 1) % messages.count]
             let content = UNMutableNotificationContent()
             content.title = message.title
             content.body = message.body
@@ -76,27 +79,34 @@ final class DailyMixNotificationScheduler {
 
             var dateComponents = DateComponents()
             dateComponents.calendar = .autoupdatingCurrent
-            dateComponents.minute = minute
+            dateComponents.day = day
+            dateComponents.hour = 10
+            dateComponents.minute = 0
 
             let trigger = UNCalendarNotificationTrigger(
                 dateMatching: dateComponents,
                 repeats: true
             )
             let request = UNNotificationRequest(
-                identifier: "\(identifierPrefix)\(minute)",
+                identifier: "\(dailyIdentifierPrefix)\(day)",
                 content: content,
                 trigger: trigger
             )
             center.add(request) { error in
                 if let error {
-                    print("Daily Mix notifications: failed to schedule minute \(minute): \(error)")
+                    print("Daily Mix notifications: failed to schedule day \(day): \(error)")
                 }
             }
         }
     }
 
-    private func removeScheduledNotifications() {
-        let identifiers = (0..<60).map { "\(identifierPrefix)\($0)" }
+    private func removeLegacyMinuteNotifications() {
+        let identifiers = (0..<60).map { "\(legacyMinuteIdentifierPrefix)\($0)" }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
+    private func removeDailyNotifications() {
+        let identifiers = (1...31).map { "\(dailyIdentifierPrefix)\($0)" }
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 }

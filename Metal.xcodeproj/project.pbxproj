@@ -28,6 +28,7 @@
 		D10000000000000000000001 /* DailyMixEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* DailyMixEngine.swift */; };
 		D10000000000000000000002 /* DailyMixNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000012 /* DailyMixNotifications.swift */; };
 		D10000000000000000000003 /* ViewController+DailyMix.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000013 /* ViewController+DailyMix.swift */; };
+		D10000000000000000000004 /* AudioVibeAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000014 /* AudioVibeAnalyzer.swift */; };
 		04C788C49DE35B4C95A22DD0 /* ViewController+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C756E07FB9583797B0D91A /* ViewController+Library.swift */; };
 		04C7931A17715DE793C71547 /* Track.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C7BAD1435D5DFEB64C61A0 /* Track.swift */; };
 		04C7BB17A1955B41AEF2413C /* ViewController+Playback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C76CB2BABD56EDA9449BF1 /* ViewController+Playback.swift */; };
@@ -84,6 +85,7 @@
 		D10000000000000000000011 /* DailyMixEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMixEngine.swift; sourceTree = "<group>"; };
 		D10000000000000000000012 /* DailyMixNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMixNotifications.swift; sourceTree = "<group>"; };
 		D10000000000000000000013 /* ViewController+DailyMix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+DailyMix.swift"; sourceTree = "<group>"; };
+		D10000000000000000000014 /* AudioVibeAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioVibeAnalyzer.swift; sourceTree = "<group>"; };
 		04C76CB2BABD56EDA9449BF1 /* ViewController+Playback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Playback.swift"; sourceTree = "<group>"; };
 		04C791FFC8FB56E8AEAB06A7 /* InputSubmitWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSubmitWrapper.swift; sourceTree = "<group>"; };
 		04C794D74A945BAFB94C81CB /* ViewController+BottomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+BottomSheet.swift"; sourceTree = "<group>"; };
@@ -139,6 +141,7 @@
 				D10000000000000000000011 /* DailyMixEngine.swift */,
 				D10000000000000000000012 /* DailyMixNotifications.swift */,
 				D10000000000000000000013 /* ViewController+DailyMix.swift */,
+				D10000000000000000000014 /* AudioVibeAnalyzer.swift */,
 				04C7BAD1435D5DFEB64C61A0 /* Track.swift */,
 				04C7B9DF903C58FF8783CA0D /* BottomSheetItem.swift */,
 				04C791FFC8FB56E8AEAB06A7 /* InputSubmitWrapper.swift */,
@@ -288,6 +291,7 @@
 				D10000000000000000000001 /* DailyMixEngine.swift in Sources */,
 				D10000000000000000000002 /* DailyMixNotifications.swift in Sources */,
 				D10000000000000000000003 /* ViewController+DailyMix.swift in Sources */,
+				D10000000000000000000004 /* AudioVibeAnalyzer.swift in Sources */,
 				04C7931A17715DE793C71547 /* Track.swift in Sources */,
 				04C7421C08465A9FA4875C44 /* BottomSheetItem.swift in Sources */,
 				04C72DF3F9A85B2BB4D4A129 /* InputSubmitWrapper.swift in Sources */,

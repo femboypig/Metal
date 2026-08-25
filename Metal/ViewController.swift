@@ -83,6 +83,8 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var dailyMixTracks: [Track] = []
     var dailyMixBucket: Int64?
     var dailyMixRefreshTimer: Timer?
+    var dailyMixVibeCache: [String: CachedAudioVibe] = [:]
+    let dailyMixVibeAnalyzer = AudioVibeAnalyzer()
     
     // Shuffle Queue State
     var shuffledIndices: [Int] = []
@@ -136,6 +138,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         
         loadLocalUserData()
         loadListeningTelemetry()
+        loadDailyMixVibeCache()
         setupUI()
         setupAudioSession()
         setupRemoteCommands()
@@ -188,6 +191,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     @objc func appWillEnterForeground() {
         refreshDailyMixIfNeeded()
+        startDailyMixRefreshTimer()
         updateMiniPlayerUI()
         publishWidgetRecommendations()
         if let player = audioPlayer {

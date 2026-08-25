@@ -78,7 +78,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                   let appDelegate = UIApplication.shared.delegate as? AppDelegate,
                   appDelegate.consumePendingDailyMixPresentation(),
                   let viewController = self.window?.rootViewController as? ViewController else { return }
-            viewController.presentDailyMix()
+            viewController.presentDailyMix(autoplayFirstTrack: true)
         }
     }
 
