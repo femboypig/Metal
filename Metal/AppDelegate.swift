@@ -7,15 +7,74 @@
 
 import UIKit
 import CoreData
+import UserNotifications
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
-
+    private var pendingDailyMixPresentation = false
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        let notificationCenter = UNUserNotificationCenter.current()
+        notificationCenter.delegate = self
+        DailyMixNotificationScheduler.shared.requestAuthorizationAndSchedule()
         return true
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        guard notification.request.content.categoryIdentifier
+                == DailyMixNotificationScheduler.categoryIdentifier else {
+            completionHandler([])
+            return
+        }
+        completionHandler([.banner, .list, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let content = response.notification.request.content
+        let isDailyMix = content.categoryIdentifier
+                == DailyMixNotificationScheduler.categoryIdentifier
+            || content.userInfo[DailyMixNotificationScheduler.destinationKey] as? String
+                == DailyMixNotificationScheduler.destinationValue
+
+        guard isDailyMix,
+              response.actionIdentifier != UNNotificationDismissActionIdentifier else {
+            completionHandler()
+            return
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.pendingDailyMixPresentation = true
+            self?.presentPendingDailyMixIfPossible()
+            NotificationCenter.default.post(name: .metalDailyMixNotificationTapped, object: nil)
+            completionHandler()
+        }
+    }
+
+    func consumePendingDailyMixPresentation() -> Bool {
+        guard pendingDailyMixPresentation else { return false }
+        pendingDailyMixPresentation = false
+        return true
+    }
+
+    private func presentPendingDailyMixIfPossible() {
+        guard pendingDailyMixPresentation,
+              let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+              let sceneDelegate = windowScene.delegate as? SceneDelegate,
+              let viewController = sceneDelegate.window?.rootViewController as? ViewController else { return }
+
+        pendingDailyMixPresentation = false
+        viewController.presentDailyMix()
     }
 
     // MARK: UISceneSession Lifecycle

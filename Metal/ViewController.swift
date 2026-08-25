@@ -80,6 +80,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var telemetrySessionFilename: String?
     var telemetryLastPlaybackTime: TimeInterval = 0
     var telemetrySessionListeningSeconds: TimeInterval = 0
+    var dailyMixTracks: [Track] = []
+    var dailyMixBucket: Int64?
+    var dailyMixRefreshTimer: Timer?
     
     // Shuffle Queue State
     var shuffledIndices: [Int] = []
@@ -97,6 +100,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     enum FilterCategory: Equatable {
         case all
+        case dailyMix
         case favorites
         case lovely
         case playlist(String)
@@ -123,6 +127,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
     
     deinit {
+        dailyMixRefreshTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
     
@@ -136,6 +141,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         setupRemoteCommands()
         loadLocalTracks()
         loadPlaybackState()
+        startDailyMixRefreshTimer()
         
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)), name: UIResponder.keyboardWillShowNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
@@ -143,6 +149,12 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         // Listen for app foregrounding to refresh UI state
         NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDailyMixNotificationTap),
+            name: .metalDailyMixNotificationTapped,
+            object: nil
+        )
     }
     
     override func viewDidLayoutSubviews() {
@@ -175,6 +187,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
     
     @objc func appWillEnterForeground() {
+        refreshDailyMixIfNeeded()
         updateMiniPlayerUI()
         publishWidgetRecommendations()
         if let player = audioPlayer {

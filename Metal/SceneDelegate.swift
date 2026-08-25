@@ -32,6 +32,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Called when the scene has moved from an inactive state to an active state.
         // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
         schedulePendingWidgetURLHandling()
+        schedulePendingDailyMixHandling()
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
@@ -51,16 +52,34 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
               windowScene.activationState == .foregroundActive,
               let url = pendingWidgetURL,
               url.scheme?.lowercased() == "metal",
-              url.host?.lowercased() == "play",
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let filename = components.queryItems?.first(where: { $0.name == "track" })?.value,
-              !filename.isEmpty,
               let viewController = window?.rootViewController as? ViewController else { return }
 
-        pendingWidgetURL = nil
         viewController.loadViewIfNeeded()
         viewController.view.layoutIfNeeded()
-        viewController.playTrackFromWidget(filename: filename)
+
+        switch url.host?.lowercased() {
+        case "play":
+            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let filename = components.queryItems?.first(where: { $0.name == "track" })?.value,
+                  !filename.isEmpty else { return }
+            pendingWidgetURL = nil
+            viewController.playTrackFromWidget(filename: filename)
+        case "daily-mix":
+            pendingWidgetURL = nil
+            viewController.presentDailyMix()
+        default:
+            pendingWidgetURL = nil
+        }
+    }
+
+    private func schedulePendingDailyMixHandling() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  let appDelegate = UIApplication.shared.delegate as? AppDelegate,
+                  appDelegate.consumePendingDailyMixPresentation(),
+                  let viewController = self.window?.rootViewController as? ViewController else { return }
+            viewController.presentDailyMix()
+        }
     }
 
     func sceneWillResignActive(_ scene: UIScene) {

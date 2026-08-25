@@ -121,15 +121,19 @@ extension ViewController {
         let allPill = createPillButton(title: "All", category: .all)
         filtersStackView.addArrangedSubview(allPill)
 
-        // 2. "Favorites" Pill
+        // 2. Personalized mix (one-minute cadence while the feature is tested)
+        let dailyMixPill = createPillButton(title: "Daily Mix", category: .dailyMix)
+        filtersStackView.addArrangedSubview(dailyMixPill)
+
+        // 3. "Favorites" Pill
         let favPill = createPillButton(title: "Favorites", category: .favorites)
         filtersStackView.addArrangedSubview(favPill)
 
-        // 3. Local smart playlist based on listening behavior
+        // 4. Local smart playlist based on listening behavior
         let lovelyPill = createPillButton(title: "Lovely", category: .lovely)
         filtersStackView.addArrangedSubview(lovelyPill)
 
-        // 4. Custom Playlist Pills
+        // 5. Custom Playlist Pills
         for name in playlists.keys.sorted() {
             let pill = createPillButton(title: name, category: .playlist(name))
 
@@ -140,7 +144,7 @@ extension ViewController {
             filtersStackView.addArrangedSubview(pill)
         }
 
-        // 5. "+ Playlist" Pill
+        // 6. "+ Playlist" Pill
         let newPill = UIButton(type: .system)
         newPill.translatesAutoresizingMaskIntoConstraints = false
         newPill.backgroundColor = cardBackgroundColor()
@@ -254,7 +258,8 @@ extension ViewController {
     @objc func filterPillTapped(_ sender: UIButton) {
         guard let category = objc_getAssociatedObject(sender, &ViewController.categoryAssociationKey) as? FilterCategory else { return }
 
-        let categories: [FilterCategory] = [.all, .favorites, .lovely] + playlists.keys.sorted().map { .playlist($0) }
+        let categories: [FilterCategory] = [.all, .dailyMix, .favorites, .lovely]
+            + playlists.keys.sorted().map { .playlist($0) }
         guard let oldIdx = categories.firstIndex(of: activeFilter),
               let newIdx = categories.firstIndex(of: category) else { return }
 
@@ -311,6 +316,10 @@ extension ViewController {
         case .all:
             categoryTracks = tracks
             headerText = "ALL SONGS"
+        case .dailyMix:
+            refreshDailyMixIfNeeded()
+            categoryTracks = dailyMixTracks
+            headerText = "DAILY MIX"
         case .favorites:
             categoryTracks = tracks.filter { favoriteTracks.contains($0.url.lastPathComponent) }
             headerText = "FAVORITES"
@@ -473,6 +482,7 @@ extension ViewController {
             tracks = audioFiles.map { Track(url: $0) }
             tracks.sort { $0.title.localizedCompare($1.title) == .orderedAscending }
 
+            refreshDailyMixIfNeeded(force: true)
             filterTracks()
         } catch {
             print("Failed to scan songs directory: \(error)")
@@ -484,10 +494,13 @@ extension ViewController {
     func publishWidgetRecommendations() {
         guard !tracks.isEmpty else { return }
 
+        refreshDailyMixIfNeeded()
         let lovely = lovelyTracks(from: tracks)
         let favorites = tracks.filter { favoriteTracks.contains($0.url.lastPathComponent) }
-        let source = !lovely.isEmpty ? lovely : (!favorites.isEmpty ? favorites : tracks)
-        let selection = Array(source.shuffled().prefix(6))
+        let source = !dailyMixTracks.isEmpty
+            ? dailyMixTracks
+            : (!lovely.isEmpty ? lovely : (!favorites.isEmpty ? favorites : tracks))
+        let selection = Array(source.prefix(6))
 
         let recommendations = selection.map { track in
             MetalWidgetRecommendation(

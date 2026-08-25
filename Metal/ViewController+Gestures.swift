@@ -11,7 +11,8 @@ extension ViewController {
     // MARK: - Gestures & Category Swipe Actions
     
     @objc func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
-        let categories: [FilterCategory] = [.all, .favorites, .lovely] + playlists.keys.sorted().map { .playlist($0) }
+        let categories: [FilterCategory] = [.all, .dailyMix, .favorites, .lovely]
+            + playlists.keys.sorted().map { .playlist($0) }
         guard let currentIndex = categories.firstIndex(of: activeFilter) else { return }
         
         if gesture.direction == .left {
