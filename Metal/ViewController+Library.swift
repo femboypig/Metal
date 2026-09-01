@@ -41,6 +41,7 @@ extension ViewController {
     func loadLocalUserData() {
         _ = songsDirectoryURL
         migrateNestedMetalLayoutIfNeeded()
+        loadTrackMetadataCache()
 
         if let data = try? Data(contentsOf: settingsFileURL),
            let savedSettings = try? JSONDecoder().decode(MetalSettingsDocument.self, from: data) {
@@ -369,6 +370,7 @@ extension ViewController {
             filterTracks()
         }
         updatePlayerFavoriteButton()
+        updateRemoteFavoriteCommand()
     }
 
     @objc func playerFavoriteTapped() {
@@ -426,6 +428,23 @@ extension ViewController {
         metalRootDirectoryURL.appendingPathComponent("playlists.json")
     }
 
+    var trackMetadataCacheFileURL: URL {
+        metalRootDirectoryURL.appendingPathComponent("track-metadata.json")
+    }
+
+    func loadTrackMetadataCache() {
+        guard let data = try? Data(contentsOf: trackMetadataCacheFileURL),
+              let cache = try? JSONDecoder().decode([String: TrackMetadataSnapshot].self, from: data) else {
+            trackMetadataCache = [:]
+            return
+        }
+        trackMetadataCache = cache
+    }
+
+    func saveTrackMetadataCache() {
+        writeJSON(trackMetadataCache, to: trackMetadataCacheFileURL)
+    }
+
     private func migrateNestedMetalLayoutIfNeeded() {
         let fileManager = FileManager.default
         let nestedRoot = metalRootDirectoryURL.appendingPathComponent("Metal", isDirectory: true)
@@ -434,7 +453,7 @@ extension ViewController {
 
         migrateAudioFiles(from: nestedAll, to: songsDirectoryURL, extensions: audioExtensions)
 
-        for filename in ["settings.json", "playlists.json", "telemetry.json", "daily-mix-vibes.json"] {
+        for filename in ["settings.json", "playlists.json", "telemetry.json", "daily-mix-vibes.json", "track-metadata.json"] {
             let sourceURL = nestedRoot.appendingPathComponent(filename)
             let destinationURL = metalRootDirectoryURL.appendingPathComponent(filename)
             if fileManager.fileExists(atPath: sourceURL.path),
@@ -479,17 +498,84 @@ extension ViewController {
             let files = try fileManager.contentsOfDirectory(at: songsDir, includingPropertiesForKeys: nil)
             let audioFiles = files.filter { audioExtensions.contains($0.pathExtension.lowercased()) }
 
-            tracks = audioFiles.map { Track(url: $0) }
+            libraryLoadGeneration += 1
+            let generation = libraryLoadGeneration
+            var uncachedURLs: [URL] = []
+            tracks = audioFiles.map { url in
+                let filename = url.lastPathComponent
+                let signature = Track.fileSignature(for: url)
+                if let cached = trackMetadataCache[filename], cached.matches(signature) {
+                    return Track(url: url, metadata: cached)
+                }
+                uncachedURLs.append(url)
+                return Track(url: url)
+            }
             tracks.sort { $0.title.localizedCompare($1.title) == .orderedAscending }
 
             refreshDailyMixIfNeeded(force: true)
             filterTracks()
-            prepareDailyMixVibes()
+            if !ProcessInfo.processInfo.isLowPowerModeEnabled {
+                prepareDailyMixVibes()
+            }
+            Track.preheatArtwork(for: Array(tracks.prefix(8).map(\.url)))
+
+            if !uncachedURLs.isEmpty {
+                Task.detached(priority: .utility) { [weak self] in
+                    var loaded: [String: TrackMetadataSnapshot] = [:]
+                    for url in uncachedURLs {
+                        loaded[url.lastPathComponent] = await Track.loadMetadata(for: url)
+                    }
+                    await MainActor.run {
+                        guard let self, generation == self.libraryLoadGeneration else { return }
+                        self.applyLoadedTrackMetadata(loaded)
+                    }
+                }
+            }
         } catch {
             print("Failed to scan songs directory: \(error)")
         }
 
-        publishWidgetRecommendations()
+        scheduleWidgetRecommendationsPublish()
+    }
+
+    func applyLoadedTrackMetadata(_ loaded: [String: TrackMetadataSnapshot]) {
+        guard !loaded.isEmpty else { return }
+        let playingFilename = audioPlayer?.url?.lastPathComponent
+        let selectedFilename = currentTrackIndex.flatMap { index in
+            filteredTracks.indices.contains(index) ? filteredTracks[index].url.lastPathComponent : nil
+        }
+
+        trackMetadataCache.merge(loaded) { _, new in new }
+        let liveFilenames = Set(tracks.map { $0.url.lastPathComponent })
+        trackMetadataCache = trackMetadataCache.filter { liveFilenames.contains($0.key) }
+        saveTrackMetadataCache()
+
+        tracks = tracks.map { track in
+            Track(url: track.url, metadata: trackMetadataCache[track.url.lastPathComponent])
+        }
+        tracks.sort { $0.title.localizedCompare($1.title) == .orderedAscending }
+        refreshDailyMixIfNeeded(force: true)
+        filterTracks()
+
+        if let currentFilename = playingFilename ?? selectedFilename,
+           let newIndex = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == currentFilename }) {
+            currentTrackIndex = newIndex
+        }
+        if playingFilename != nil {
+            updateMiniPlayerUI()
+            updateNowPlayingInfo()
+        }
+        tableView.reloadData()
+        scheduleWidgetRecommendationsPublish()
+    }
+
+    func scheduleWidgetRecommendationsPublish(delay: TimeInterval = 1.0) {
+        widgetPublishWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.publishWidgetRecommendations()
+        }
+        widgetPublishWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     func publishWidgetRecommendations() {

@@ -85,6 +85,14 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var dailyMixRefreshTimer: Timer?
     var dailyMixVibeCache: [String: CachedAudioVibe] = [:]
     let dailyMixVibeAnalyzer = AudioVibeAnalyzer()
+    var trackMetadataCache: [String: TrackMetadataSnapshot] = [:]
+    var libraryLoadGeneration = 0
+    var widgetPublishWorkItem: DispatchWorkItem?
+    var preparedPlayer: AVAudioPlayer?
+    var preparedPlayerURL: URL?
+    var playbackPreparationGeneration = 0
+    let playbackPreparationQueue = DispatchQueue(label: "net.femboypig.Metal.playback-preparation", qos: .userInitiated)
+    var isAudioSessionActive = false
     
     // Shuffle Queue State
     var shuffledIndices: [Int] = []
@@ -140,7 +148,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         loadListeningTelemetry()
         loadDailyMixVibeCache()
         setupUI()
-        setupAudioSession()
+        configureAudioSession()
         setupRemoteCommands()
         loadLocalTracks()
         loadPlaybackState()
@@ -156,6 +164,18 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             self,
             selector: #selector(handleDailyMixNotificationTap),
             name: .metalDailyMixNotificationTapped,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(trackArtworkDidLoad(_:)),
+            name: .metalTrackArtworkDidLoad,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(powerStateDidChange),
+            name: NSNotification.Name.NSProcessInfoPowerStateDidChange,
             object: nil
         )
     }
@@ -193,7 +213,8 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         refreshDailyMixIfNeeded()
         startDailyMixRefreshTimer()
         updateMiniPlayerUI()
-        publishWidgetRecommendations()
+        scheduleWidgetRecommendationsPublish()
+        if audioPlayer?.isPlaying == true { startTimer() }
         if let player = audioPlayer {
             let playIcon = player.isPlaying ? "pause.fill" : "play.fill"
             playPauseButton.setImage(UIImage(systemName: playIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
@@ -206,5 +227,18 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         }
         saveListeningTelemetry()
         savePlaybackState()
+        if audioPlayer?.isPlaying == true { startTimer() }
+    }
+
+    @objc func powerStateDidChange() {
+        if audioPlayer?.isPlaying == true { startTimer() }
+        if ProcessInfo.processInfo.isLowPowerModeEnabled {
+            playbackPreparationGeneration += 1
+            preparedPlayer = nil
+            preparedPlayerURL = nil
+        } else {
+            prepareDailyMixVibes()
+            prepareUpcomingTrack()
+        }
     }
 }

@@ -13,8 +13,14 @@ final class BeatDetector {
     private let cacheQueue = DispatchQueue(label: "net.femboypig.Metal.beat-cache", attributes: .concurrent)
     private var bpmCache: [URL: Double] = [:]
 
-    func prepare(_ url: URL) {
+    func prepare(_ url: URL, knownBPM: Double? = nil) {
         guard cachedBPM(for: url) == nil else { return }
+        if let knownBPM, knownBPM.isFinite, knownBPM > 0 {
+            cacheQueue.async(flags: .barrier) { [weak self] in
+                self?.bpmCache[url] = knownBPM
+            }
+            return
+        }
 
         analysisQueue.async { [weak self] in
             guard let self else { return }
@@ -36,7 +42,7 @@ final class BeatDetector {
     private static func estimateBPM(for url: URL) -> Double {
         guard let file = try? AVAudioFile(forReading: url) else { return 120 }
         let format = file.processingFormat
-        let framesToRead = min(file.length, Int64(format.sampleRate * 45))
+        let framesToRead = min(file.length, Int64(format.sampleRate * 20))
         guard framesToRead > 2_048,
               let buffer = AVAudioPCMBuffer(
                 pcmFormat: format,
@@ -118,8 +124,8 @@ final class AIDJTransitionCoordinator {
     private var fadeTimer: Timer?
     private var transitionVolume: Float = 1
 
-    func prepare(track url: URL) {
-        beatDetector.prepare(url)
+    func prepare(track url: URL, knownBPM: Double? = nil) {
+        beatDetector.prepare(url, knownBPM: knownBPM)
     }
 
     @discardableResult

@@ -56,7 +56,7 @@ final class AudioVibeAnalyzer {
     private static func profile(for url: URL) -> AudioVibeProfile? {
         guard let file = try? AVAudioFile(forReading: url) else { return nil }
         let format = file.processingFormat
-        let framesToRead = min(file.length, Int64(format.sampleRate * 30))
+        let framesToRead = min(file.length, Int64(format.sampleRate * 15))
         guard framesToRead > 4_096,
               framesToRead <= Int64(UInt32.max),
               let buffer = AVAudioPCMBuffer(

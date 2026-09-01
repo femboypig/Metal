@@ -11,13 +11,35 @@ extension ViewController {
 
     // MARK: - Core Audio Setup
 
-    func setupAudioSession() {
+    func configureAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
-            try AVAudioSession.sharedInstance().setActive(true)
             UIApplication.shared.beginReceivingRemoteControlEvents()
         } catch {
             print("Failed to configure Audio Session: \(error)")
+        }
+    }
+
+    @discardableResult
+    func activateAudioSessionIfNeeded() -> Bool {
+        guard !isAudioSessionActive else { return true }
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+            isAudioSessionActive = true
+            return true
+        } catch {
+            print("Failed to activate Audio Session: \(error)")
+            return false
+        }
+    }
+
+    func deactivateAudioSessionIfIdle() {
+        guard isAudioSessionActive, audioPlayer?.isPlaying != true else { return }
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            isAudioSessionActive = false
+        } catch {
+            print("Failed to deactivate Audio Session: \(error)")
         }
     }
 
@@ -30,6 +52,7 @@ extension ViewController {
         commandCenter.nextTrackCommand.removeTarget(nil)
         commandCenter.previousTrackCommand.removeTarget(nil)
         commandCenter.changePlaybackPositionCommand.removeTarget(nil)
+        commandCenter.likeCommand.removeTarget(nil)
 
         commandCenter.playCommand.addTarget { [weak self] _ in
             guard let self else { return .commandFailed }
@@ -70,6 +93,34 @@ extension ViewController {
             }
             return .success
         }
+
+        commandCenter.likeCommand.isEnabled = false
+        commandCenter.likeCommand.localizedTitle = "Favorite"
+        commandCenter.likeCommand.localizedShortTitle = "Favorite"
+        commandCenter.likeCommand.addTarget { [weak self] _ in
+            guard let self, self.currentPlaybackTrack() != nil else { return .noSuchContent }
+            DispatchQueue.main.async {
+                guard let track = self.currentPlaybackTrack() else { return }
+                self.toggleFavorite(track: track)
+            }
+            return .success
+        }
+    }
+
+    func currentPlaybackTrack() -> Track? {
+        guard let url = audioPlayer?.url else { return nil }
+        return tracks.first { $0.url == url }
+    }
+
+    func updateRemoteFavoriteCommand() {
+        let command = MPRemoteCommandCenter.shared().likeCommand
+        guard let track = currentPlaybackTrack() else {
+            command.isActive = false
+            command.isEnabled = false
+            return
+        }
+        command.isEnabled = true
+        command.isActive = favoriteTracks.contains(track.url.lastPathComponent)
     }
 
     // MARK: - Playback Core Engine
@@ -125,19 +176,31 @@ extension ViewController {
         audioPlayer?.stop()
         audioPlayer = nil
 
+        guard activateAudioSessionIfNeeded() else { return }
+
         do {
-            audioPlayer = try AVAudioPlayer(contentsOf: track.url)
+            if preparedPlayerURL == track.url, let readyPlayer = preparedPlayer {
+                audioPlayer = readyPlayer
+                preparedPlayer = nil
+                preparedPlayerURL = nil
+            } else {
+                playbackPreparationGeneration += 1
+                preparedPlayer = nil
+                preparedPlayerURL = nil
+                audioPlayer = try AVAudioPlayer(contentsOf: track.url)
+            }
             audioPlayer?.delegate = self
             audioPlayer?.prepareToPlay()
             if let player = audioPlayer {
                 player.currentTime = savedPosition < player.duration - 1
                     ? min(max(0, savedPosition), player.duration)
                     : 0
-                lastSavedPlaybackBucket = Int(player.currentTime) / 5
+                lastSavedPlaybackBucket = Int(player.currentTime) / 30
             }
             audioPlayer?.play()
             startListeningTelemetry(for: track, resumed: (audioPlayer?.currentTime ?? 0) > 1)
-            aidj.prepare(track: track.url)
+            aidj.prepare(track: track.url, knownBPM: dailyMixVibeCache[track.url.lastPathComponent]?.profile.bpm)
+            prepareUpcomingTrack()
 
             let playbackImpact = UIImpactFeedbackGenerator(style: .medium)
             playbackImpact.prepare()
@@ -175,6 +238,7 @@ extension ViewController {
 
             updateMiniPlayerUI()
             updatePlayerFavoriteButton()
+            updateRemoteFavoriteCommand()
             updatePlayerTheme(with: track.artwork)
 
             // Scroll to full player page ONLY if we are not already on the player page
@@ -216,7 +280,9 @@ extension ViewController {
             savePlaybackState()
             stopArtworkAnimation()
             playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+            deactivateAudioSessionIfIdle()
         } else {
+            guard activateAudioSessionIfNeeded() else { return }
             player.play()
             startTimer()
             startArtworkAnimation()
@@ -362,8 +428,10 @@ extension ViewController {
 
             self.updateMiniPlayerUI()
             self.updatePlayerFavoriteButton()
+            self.updateRemoteFavoriteCommand()
             self.updatePlayerTheme(with: nextTrack.artwork)
-            self.aidj.prepare(track: nextTrack.url)
+            self.aidj.prepare(track: nextTrack.url, knownBPM: self.dailyMixVibeCache[nextTrack.url.lastPathComponent]?.profile.bpm)
+            self.prepareUpcomingTrack()
         }, completion: { [weak self] playerB in
             guard let self, self.audioPlayer === playerB else { return }
             self.updateNowPlayingInfo()
@@ -408,9 +476,12 @@ extension ViewController {
 
     func startTimer() {
         updateTimer?.invalidate()
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        let interval: TimeInterval = UIApplication.shared.applicationState == .active ? 0.1 : 1.0
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.updatePlaybackProgress()
         }
+        timer.tolerance = interval * 0.12
+        updateTimer = timer
     }
 
     func updatePlaybackProgress() {
@@ -418,14 +489,15 @@ extension ViewController {
 
         updateListeningTelemetry(with: player)
 
-        if !progressSlider.isTracking {
-            progressSlider.value = Float(player.currentTime)
+        if UIApplication.shared.applicationState == .active {
+            if !progressSlider.isTracking {
+                progressSlider.value = Float(player.currentTime)
+            }
+            elapsedLabel.text = formatTime(player.currentTime)
+            remainingLabel.text = "-" + formatTime(player.duration - player.currentTime)
         }
 
-        elapsedLabel.text = formatTime(player.currentTime)
-        remainingLabel.text = "-" + formatTime(player.duration - player.currentTime)
-
-        let playbackBucket = Int(player.currentTime) / 5
+        let playbackBucket = Int(player.currentTime) / 30
         if playbackBucket != lastSavedPlaybackBucket {
             lastSavedPlaybackBucket = playbackBucket
             saveListeningTelemetry()
@@ -557,6 +629,51 @@ extension ViewController {
         } else {
             playNextTrack()
         }
+    }
+
+    func prepareUpcomingTrack() {
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled,
+              let index = currentTrackIndex,
+              !filteredTracks.isEmpty else { return }
+
+        let nextIndex: Int
+        if isShuffleEnabled, !shuffledIndices.isEmpty, shuffledPosition + 1 < shuffledIndices.count {
+            nextIndex = shuffledIndices[shuffledPosition + 1]
+        } else {
+            nextIndex = (index + 1) % filteredTracks.count
+        }
+        guard nextIndex < filteredTracks.count else { return }
+        let url = filteredTracks[nextIndex].url
+        Track.preheatArtwork(for: [url])
+        guard preparedPlayerURL != url else { return }
+
+        playbackPreparationGeneration += 1
+        let generation = playbackPreparationGeneration
+        playbackPreparationQueue.async { [weak self] in
+            guard let player = try? AVAudioPlayer(contentsOf: url) else { return }
+            player.prepareToPlay()
+            DispatchQueue.main.async {
+                guard let self,
+                      generation == self.playbackPreparationGeneration,
+                      self.audioPlayer?.url != url else { return }
+                self.preparedPlayer = player
+                self.preparedPlayerURL = url
+            }
+        }
+    }
+
+    @objc func trackArtworkDidLoad(_ notification: Notification) {
+        guard let url = notification.userInfo?["url"] as? URL else { return }
+        tableView.reloadData()
+        guard audioPlayer?.url == url, let track = currentPlaybackTrack(), let artwork = track.artwork else {
+            scheduleWidgetRecommendationsPublish()
+            return
+        }
+        coverImageView.image = artwork
+        miniCoverView.image = artwork
+        updatePlayerTheme(with: artwork)
+        updateNowPlayingInfo()
+        scheduleWidgetRecommendationsPublish()
     }
 }
 

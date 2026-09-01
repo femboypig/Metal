@@ -20,6 +20,7 @@ extension ViewController {
     }
 
     func prepareDailyMixVibes() {
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
         let urls = tracks.map(\.url)
         dailyMixVibeAnalyzer.analyze(urls: urls, cached: dailyMixVibeCache) { [weak self] result in
             guard let self else { return }
@@ -28,7 +29,7 @@ extension ViewController {
             self.saveDailyMixVibeCache()
             guard changed else { return }
             self.refreshDailyMixIfNeeded(force: true)
-            self.publishWidgetRecommendations()
+            self.scheduleWidgetRecommendationsPublish()
         }
     }
 
@@ -106,6 +107,7 @@ extension ViewController {
             userInfo: nil,
             repeats: false
         )
+        timer.tolerance = 1
         dailyMixRefreshTimer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
