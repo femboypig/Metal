@@ -25,6 +25,17 @@ struct TrackListeningTelemetry: Codable {
 struct ListeningTelemetryDocument: Codable {
     var version = 1
     var tracks: [String: TrackListeningTelemetry] = [:]
+    var sessions: [ListeningSessionEvent]?
+}
+
+struct ListeningSessionEvent: Codable {
+    let filename: String
+    let timestamp: TimeInterval
+    let hour: Int
+    let weekday: Int
+    let listenedSeconds: TimeInterval
+    let progress: Double
+    let skipped: Bool
 }
 
 extension ViewController {
@@ -115,6 +126,20 @@ extension ViewController {
 
         stats.longestListeningSession = max(stats.longestListeningSession, telemetrySessionListeningSeconds)
         listeningTelemetry.tracks[filename] = stats
+        let date = Date()
+        let started = date.addingTimeInterval(-telemetrySessionListeningSeconds)
+        let event = ListeningSessionEvent(
+            filename: filename, timestamp: date.timeIntervalSince1970,
+            hour: Calendar.current.component(.hour, from: started),
+            weekday: Calendar.current.component(.weekday, from: started),
+            listenedSeconds: telemetrySessionListeningSeconds,
+            progress: min(1, max(0, progress)), skipped: skipped
+        )
+        var sessions = listeningTelemetry.sessions ?? []
+        if telemetrySessionListeningSeconds >= 5 { sessions.append(event) }
+        listeningTelemetry.sessions = Array(sessions.filter {
+            date.timeIntervalSince1970 - $0.timestamp < 90 * 86_400
+        }.suffix(1000))
         telemetrySessionFilename = nil
         telemetryLastPlaybackTime = 0
         telemetrySessionListeningSeconds = 0

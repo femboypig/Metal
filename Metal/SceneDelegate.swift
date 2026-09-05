@@ -66,7 +66,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             viewController.playTrackFromWidget(filename: filename)
         case "daily-mix":
             pendingWidgetURL = nil
-            viewController.presentDailyMix()
+            let autoplay = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.contains { $0.name == "autoplay" && $0.value == "1" } == true
+            viewController.presentDailyMix(autoplayFirstTrack: autoplay)
         default:
             pendingWidgetURL = nil
         }

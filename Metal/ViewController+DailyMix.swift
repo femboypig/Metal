@@ -44,11 +44,45 @@ extension ViewController {
     func refreshDailyMixIfNeeded(force: Bool = false, now: Date = Date()) {
         let dayKey = DailyMixEngine.dayKey(for: now)
         guard force || dailyMixBucket != dayKey else { return }
+        // Background analysis must not replace a queue that is being played.
+        if activeFilter == .dailyMix, audioPlayer?.isPlaying == true,
+           dailyMixBucket == dayKey { return }
 
         let timestamp = now.timeIntervalSince1970
+        let calendar = Calendar.autoupdatingCurrent
+        let hour = calendar.component(.hour, from: now)
+        let weekday = calendar.component(.weekday, from: now)
+        let events = Dictionary(grouping: listeningTelemetry.sessions ?? [], by: \.filename)
         let candidates = tracks.map { track -> DailyMixCandidate in
             let filename = track.url.lastPathComponent
             let telemetry = listeningTelemetry.tracks[filename] ?? TrackListeningTelemetry()
+            var affinity = 0.0
+            var rejection = 0.0
+            for event in events[filename] ?? [] {
+                let ageDays = max(0, timestamp - event.timestamp) / 86_400
+                let recency = exp(-ageDays / 14)
+                let hourDelta = abs(hour - event.hour)
+                let distance = min(hourDelta, 24 - hourDelta)
+                let timeFit = exp(-Double(distance * distance) / 18)
+                let dayFit = (weekday == event.weekday) ? 1.0 : 0.65
+                let positive = min(1, event.listenedSeconds / 90) * event.progress
+                affinity += positive * recency * (0.25 + 0.75 * timeFit * dayFit)
+                if event.skipped && event.progress < 0.35 {
+                    rejection += exp(-ageDays / 3) * (1 - event.progress)
+                }
+            }
+            // Existing installations can learn time-of-day preferences before
+            // the richer session journal has accumulated enough observations.
+            if events[filename] == nil {
+                for playedAt in telemetry.recentPlayTimestamps {
+                    let pastHour = calendar.component(.hour, from: Date(timeIntervalSince1970: playedAt))
+                    let delta = abs(hour - pastHour)
+                    let distance = min(delta, 24 - delta)
+                    affinity += exp(-max(0, timestamp - playedAt) / (14 * 86_400))
+                        * exp(-Double(distance * distance) / 18)
+                        * dailyMixTaste(for: track, telemetry: telemetry) * 0.4
+                }
+            }
             let vibe = dailyMixVibeCache[filename]?.profile
                 ?? DailyMixEngine.fallbackVibe(
                     id: filename,
@@ -62,7 +96,10 @@ extension ViewController {
                 taste: dailyMixTaste(for: track, telemetry: telemetry),
                 isUnheard: telemetry.playStarts == 0,
                 lastPlayedAt: telemetry.lastPlayedAt,
-                vibe: vibe
+                vibe: vibe,
+                contextAffinity: 1 - exp(-affinity / 2),
+                hasAnalyzedVibe: dailyMixVibeCache[filename] != nil,
+                recentRejection: min(1, rejection)
             )
         }
 
@@ -127,7 +164,7 @@ extension ViewController {
     func presentDailyMix(autoplayFirstTrack: Bool = false) {
         loadViewIfNeeded()
         view.layoutIfNeeded()
-        refreshDailyMixIfNeeded()
+        refreshDailyMixIfNeeded(force: true)
         activeFilter = .dailyMix
         searchBar.text = ""
         filterTracks()

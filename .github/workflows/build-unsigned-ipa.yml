@@ -28,6 +28,12 @@ jobs:
           xcodebuild -version | grep -E '^Xcode 27([.[:space:]]|$)'
           xcrun --sdk iphoneos --show-sdk-version | grep -E '^27([.]|$)'
 
+      - name: Verify Daily Mix behavior
+        run: |
+          set -euo pipefail
+          xcrun swiftc Metal/DailyMixEngine.swift Tests/DailyMixEngineChecks.swift -o "$RUNNER_TEMP/daily-mix-checks"
+          "$RUNNER_TEMP/daily-mix-checks"
+
       - name: Build unsigned app
         run: |
           set -euo pipefail

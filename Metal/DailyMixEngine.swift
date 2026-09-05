@@ -20,6 +20,9 @@ struct DailyMixCandidate: Equatable {
     let isUnheard: Bool
     let lastPlayedAt: TimeInterval?
     let vibe: AudioVibeProfile
+    var contextAffinity: Double = 0
+    var hasAnalyzedVibe: Bool = true
+    var recentRejection: Double = 0
 }
 
 enum DailyMixEngine {
@@ -37,18 +40,9 @@ enum DailyMixEngine {
         artist: String,
         duration: TimeInterval
     ) -> AudioVibeProfile {
-        // Real audio analysis replaces this profile as soon as it is available.
-        // Grouping the fallback by artist still makes the first launch coherent.
-        let artistKey = artist.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let baseKey = artistKey.isEmpty || artistKey == "unknown artist" ? id : artistKey
-        let artistEnergy = stableUnitValue(for: "energy|\(baseKey)")
-        let trackVariation = stableUnitValue(for: "variation|\(id)") - 0.5
-
+        // Unknown audio is neutral, never a fabricated artist/filename mood.
         return AudioVibeProfile(
-            bpm: clamp(82 + stableUnitValue(for: "tempo|\(baseKey)") * 70 + trackVariation * 8, 70, 180),
-            energy: clamp(0.22 + artistEnergy * 0.62 + trackVariation * 0.12, 0, 1),
-            brightness: clamp(0.18 + stableUnitValue(for: "brightness|\(baseKey)") * 0.68, 0, 1),
-            dynamics: clamp(0.2 + stableUnitValue(for: "dynamics|\(id)") * 0.65, 0, 1)
+            bpm: 120, energy: 0.5, brightness: 0.5, dynamics: 0.5
         )
     }
 
@@ -60,24 +54,34 @@ enum DailyMixEngine {
     ) -> [String] {
         guard limit > 0, !candidates.isEmpty else { return [] }
 
-        let anchor = candidates.max { lhs, rhs in
+        let eligible = candidates.filter { $0.recentRejection < 0.7 }
+        let pool = eligible.isEmpty ? candidates : eligible
+        let anchor = pool.max { lhs, rhs in
             anchorScore(lhs, dayKey: dayKey, now: now)
                 < anchorScore(rhs, dayKey: dayKey, now: now)
         } ?? candidates[0]
-        let theme = dailyTheme(from: anchor.vibe, dayKey: dayKey)
+        // Learn a coherent neighborhood around the strongest contextual seed,
+        // rather than averaging incompatible calm/energetic listening sessions.
+        let neighbors = pool.filter {
+            $0.hasAnalyzedVibe && vibeDistance($0.vibe, anchor.vibe, duration: $0.duration) < 0.22
+        }
+        let theme = learnedTheme(neighbors, fallback: anchor.vibe)
 
-        let ranked = candidates.map { candidate in
-            let similarity = 1 - vibeDistance(candidate.vibe, theme, duration: candidate.duration)
-            let discovery = candidate.isUnheard ? 0.10 : 0
-            let jitter = stableUnitValue(for: "pick|\(dayKey)|\(candidate.id)") * 0.10
+        let ranked = pool.map { candidate in
+            let similarity = candidate.hasAnalyzedVibe
+                ? 1 - vibeDistance(candidate.vibe, theme, duration: candidate.duration) : 0.45
+            let discovery = candidate.isUnheard ? 0.06 : 0
+            let jitter = stableUnitValue(for: "pick|\(dayKey)|\(candidate.id)") * 0.035
             let recentPenalty = recencyPenalty(candidate.lastPlayedAt, now: now)
             return RankedCandidate(
                 candidate: candidate,
-                score: similarity * 0.52
-                    + clamp(candidate.taste, 0, 1) * 0.28
+                score: similarity * 0.48
+                    + clamp(candidate.taste, 0, 1) * 0.18
+                    + candidate.contextAffinity * 0.28
                     + discovery
                     + jitter
                     - recentPenalty
+                    - candidate.recentRejection * 0.5
             )
         }
         .sorted {
@@ -85,7 +89,10 @@ enum DailyMixEngine {
             return $0.candidate.id < $1.candidate.id
         }
 
-        let desiredCount = min(limit, ranked.count)
+        // A mix is a focused session, not the whole library in another order.
+        let sessionCount = pool.count <= 5 ? pool.count : max(5, Int(ceil(Double(pool.count) * 0.6)))
+        let desiredCount = min(limit, sessionCount)
+        if desiredCount == 1 { return [anchor.id] }
         let perArtistLimit = ranked.count >= 10 ? 2 : desiredCount
         var artistCounts = [normalizedArtistKey(for: anchor): 1]
         var selected = [anchor]
@@ -123,23 +130,27 @@ enum DailyMixEngine {
         dayKey: Int64,
         now: TimeInterval
     ) -> Double {
-        let rotation = stableUnitValue(for: "anchor|\(dayKey)|\(candidate.id)") * 0.38
-        let discovery = candidate.isUnheard ? 0.06 : 0
-        return clamp(candidate.taste, 0, 1) * 0.56
+        let rotation = stableUnitValue(for: "anchor|\(dayKey)|\(candidate.id)") * 0.04
+        let discovery = candidate.isUnheard ? 0.02 : 0
+        return clamp(candidate.taste, 0, 1) * 0.30
+            + candidate.contextAffinity * 0.60
+            + (candidate.hasAnalyzedVibe ? 0.10 : 0)
             + rotation
             + discovery
+            - candidate.recentRejection
             - recencyPenalty(candidate.lastPlayedAt, now: now) * 0.8
     }
 
-    private static func dailyTheme(from anchor: AudioVibeProfile, dayKey: Int64) -> AudioVibeProfile {
-        let energyShift = (stableUnitValue(for: "theme-energy|\(dayKey)") - 0.5) * 0.28
-        let brightnessShift = (stableUnitValue(for: "theme-brightness|\(dayKey)") - 0.5) * 0.22
-        let tempoShift = (stableUnitValue(for: "theme-tempo|\(dayKey)") - 0.5) * 20
+    private static func learnedTheme(_ candidates: [DailyMixCandidate], fallback: AudioVibeProfile) -> AudioVibeProfile {
+        guard !candidates.isEmpty else { return fallback }
+        let weights = candidates.map { max(0.05, $0.contextAffinity + $0.taste * 0.3) }
+        let total = weights.reduce(0, +)
+        func mean(_ key: KeyPath<AudioVibeProfile, Double>) -> Double {
+            zip(candidates, weights).reduce(0) { $0 + $1.0.vibe[keyPath: key] * $1.1 } / total
+        }
         return AudioVibeProfile(
-            bpm: clamp(anchor.bpm + tempoShift, 70, 180),
-            energy: clamp(anchor.energy + energyShift, 0.08, 0.92),
-            brightness: clamp(anchor.brightness + brightnessShift, 0.05, 0.95),
-            dynamics: anchor.dynamics
+            bpm: mean(\.bpm), energy: mean(\.energy),
+            brightness: mean(\.brightness), dynamics: mean(\.dynamics)
         )
     }
 
