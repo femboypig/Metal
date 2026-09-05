@@ -242,50 +242,29 @@ struct MetalSquareWidgetView: View {
 struct MetalWideWidgetView: View {
     let entry: MetalWidgetEntry
 
+    private var secondaryRecommendations: [MetalWidgetRecommendation] {
+        Array(entry.recommendations.dropFirst().prefix(2))
+    }
+
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             Link(destination: entry.primary.deepLinkURL) {
-                MetalArtwork(data: entry.primary.artworkData, cornerRadius: 14)
-                    .frame(width: 88, height: 112)
+                MetalRecommendationHero(recommendation: entry.primary, cornerRadius: 16)
+                    .frame(width: 132)
             }
             .buttonStyle(.plain)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("DAILY MIX")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .tracking(2)
-                    .foregroundStyle(.white.opacity(0.65))
-                Link(destination: entry.primary.deepLinkURL) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(entry.primary.title)
-                            .font(.system(size: 19, weight: .bold))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.65)
-                            .allowsTightening(true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(entry.primary.artist.isEmpty ? "Picked for you" : entry.primary.artist)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.65))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+
+            VStack(spacing: 8) {
+                ForEach(secondaryRecommendations) { recommendation in
+                    Link(destination: recommendation.deepLinkURL) {
+                        MetalRecommendationRow(recommendation: recommendation)
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                Spacer(minLength: 0)
-                Link(destination: URL(string: "metal://daily-mix?autoplay=1")!) {
-                    Label("Play your mix", systemImage: "play.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(.white.opacity(0.14), in: Capsule())
-                }
-                .buttonStyle(.plain)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .layoutPriority(1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(16)
+        .padding(12)
         .foregroundStyle(.white)
         .metalWidgetBackground(artworkData: entry.primary.artworkData)
     }
@@ -313,8 +292,8 @@ struct MetalWideWidget: Widget {
         StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
             MetalWideWidgetView(entry: entry)
         }
-        .configurationDisplayName("Daily Mix")
-        .description("Your personal soundtrack. Tap to start your mix.")
+        .configurationDisplayName("Lovely Mix")
+        .description("A rotating mix of songs picked for you.")
         .supportedFamilies([.systemMedium])
         .contentMarginsDisabled()
         .containerBackgroundRemovable(false)
