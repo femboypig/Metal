@@ -54,6 +54,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     // Page 2 (Now Playing) Subviews
     var page2: UIView!
     var playerGradientLayer: CAGradientLayer!
+    var playerFluidView: PlayerFluidBackgroundView!
     var playerHeaderLabel: UILabel!
     var coverArtCard: UIView!
     var coverImageView: UIImageView!
@@ -118,7 +119,6 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         case all
         case dailyMix
         case favorites
-        case lovely
         case playlist(String)
     }
     var activeFilter: FilterCategory = .all
@@ -261,5 +261,16 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     func updateWavePlayingState() {
         let isPlaying = audioPlayer?.isPlaying == true
         myWaveView?.setPlaying(isPlaying)
+        playerFluidView?.setPlaying(isPlaying)
+    }
+
+    func applyPlayerBackgroundStyle() {
+        let isFluid = (persistedSettings.playerBackgroundStyle == "fluid")
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.3)
+        playerGradientLayer?.opacity = isFluid ? 0.0 : 1.0
+        CATransaction.commit()
+        playerFluidView?.isHidden = !isFluid
+        playerFluidView?.isPaused = !isFluid
     }
 }
