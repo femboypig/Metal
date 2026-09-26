@@ -235,6 +235,68 @@ extension ViewController {
             descLabel.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16)
         ])
 
+        // Appearance Section
+        let appearanceLabel = UILabel()
+        appearanceLabel.translatesAutoresizingMaskIntoConstraints = false
+        appearanceLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        appearanceLabel.textColor = secondaryTextColor()
+        appearanceLabel.text = "APPEARANCE"
+        appearanceLabel.letterSpacing(1.2)
+        page0.addSubview(appearanceLabel)
+
+        // Player Background Setting Card
+        let bgCard = UIView()
+        bgCard.translatesAutoresizingMaskIntoConstraints = false
+        bgCard.backgroundColor = cardBackgroundColor()
+        bgCard.layer.cornerRadius = 18
+        bgCard.layer.borderWidth = 1.0
+        bgCard.layer.borderColor = cardBorderColor().cgColor
+        page0.addSubview(bgCard)
+
+        let bgLabel = UILabel()
+        bgLabel.translatesAutoresizingMaskIntoConstraints = false
+        bgLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        bgLabel.textColor = primaryTextColor()
+        bgLabel.text = "Player Background"
+        bgCard.addSubview(bgLabel)
+
+        let bgDescLabel = UILabel()
+        bgDescLabel.translatesAutoresizingMaskIntoConstraints = false
+        bgDescLabel.font = UIFont.systemFont(ofSize: 12, weight: .regular)
+        bgDescLabel.textColor = secondaryTextColor()
+        bgDescLabel.numberOfLines = 0
+        bgDescLabel.text = "Animated liquid plasma synthesized purely from artwork colors, or classic album gradient."
+        bgCard.addSubview(bgDescLabel)
+
+        let bgSegmented = UISegmentedControl(items: ["Fluid Plasma", "Gradient"])
+        bgSegmented.translatesAutoresizingMaskIntoConstraints = false
+        bgSegmented.selectedSegmentIndex = (persistedSettings.playerBackgroundStyle == "gradient") ? 1 : 0
+        bgSegmented.addTarget(self, action: #selector(playerBackgroundStyleChanged(_:)), for: .valueChanged)
+        bgCard.addSubview(bgSegmented)
+
+        NSLayoutConstraint.activate([
+            appearanceLabel.topAnchor.constraint(equalTo: card.bottomAnchor, constant: 28),
+            appearanceLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
+
+            bgCard.topAnchor.constraint(equalTo: appearanceLabel.bottomAnchor, constant: 12),
+            bgCard.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
+            bgCard.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24),
+
+            bgLabel.topAnchor.constraint(equalTo: bgCard.topAnchor, constant: 18),
+            bgLabel.leadingAnchor.constraint(equalTo: bgCard.leadingAnchor, constant: 20),
+            bgLabel.trailingAnchor.constraint(equalTo: bgCard.trailingAnchor, constant: -20),
+
+            bgDescLabel.topAnchor.constraint(equalTo: bgLabel.bottomAnchor, constant: 4),
+            bgDescLabel.leadingAnchor.constraint(equalTo: bgCard.leadingAnchor, constant: 20),
+            bgDescLabel.trailingAnchor.constraint(equalTo: bgCard.trailingAnchor, constant: -20),
+
+            bgSegmented.topAnchor.constraint(equalTo: bgDescLabel.bottomAnchor, constant: 14),
+            bgSegmented.leadingAnchor.constraint(equalTo: bgCard.leadingAnchor, constant: 20),
+            bgSegmented.trailingAnchor.constraint(equalTo: bgCard.trailingAnchor, constant: -20),
+            bgSegmented.heightAnchor.constraint(equalToConstant: 32),
+            bgSegmented.bottomAnchor.constraint(equalTo: bgCard.bottomAnchor, constant: -16)
+        ])
+
         // Bottom Plain Text: Experimental Build Information
         let expInfoLabel = UILabel()
         expInfoLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -262,6 +324,16 @@ extension ViewController {
     @objc func aidjToggleChanged(_ sender: UISwitch) {
         UserDefaults.standard.set(sender.isOn, forKey: "Metal_AIDJEnabled")
         saveSettings()
+
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.prepare()
+        generator.impactOccurred()
+    }
+
+    @objc func playerBackgroundStyleChanged(_ sender: UISegmentedControl) {
+        persistedSettings.playerBackgroundStyle = (sender.selectedSegmentIndex == 1) ? "gradient" : "fluid"
+        saveSettings()
+        applyPlayerBackgroundStyle()
 
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.prepare()
@@ -303,8 +375,8 @@ extension ViewController {
         tableView.delegate = self
         tableView.dataSource = self
         tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.identifier)
-        tableView.contentInset = UIEdgeInsets(top: 48, left: 0, bottom: 0, right: 0)
-        tableView.scrollIndicatorInsets = UIEdgeInsets(top: 48, left: 0, bottom: 0, right: 0)
+        tableView.contentInset = UIEdgeInsets(top: 56, left: 0, bottom: 0, right: 0)
+        tableView.scrollIndicatorInsets = UIEdgeInsets(top: 56, left: 0, bottom: 0, right: 0)
         page1.addSubview(tableView)
 
         applyTableGradientMask()
@@ -315,7 +387,7 @@ extension ViewController {
         // 4. Unified Floating Pill Bar for Filters (All, Daily Mix, Favorites, etc.) - Floats ABOVE the songs list
         floatingFiltersContainer = UIView()
         floatingFiltersContainer.translatesAutoresizingMaskIntoConstraints = false
-        floatingFiltersContainer.layer.cornerRadius = 19
+        floatingFiltersContainer.layer.cornerRadius = 20
         floatingFiltersContainer.layer.borderWidth = 0.5
         floatingFiltersContainer.layer.borderColor = cardBorderColor().cgColor
         floatingFiltersContainer.layer.shadowColor = UIColor.black.cgColor
@@ -331,7 +403,7 @@ extension ViewController {
             pillGlass = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
         }
         pillGlass.translatesAutoresizingMaskIntoConstraints = false
-        pillGlass.layer.cornerRadius = 19
+        pillGlass.layer.cornerRadius = 20
         pillGlass.clipsToBounds = true
         pillGlass.isUserInteractionEnabled = false
         floatingFiltersContainer.addSubview(pillGlass)
@@ -340,14 +412,14 @@ extension ViewController {
         filtersScrollView.translatesAutoresizingMaskIntoConstraints = false
         filtersScrollView.showsHorizontalScrollIndicator = false
         filtersScrollView.bounces = true
-        filtersScrollView.layer.cornerRadius = 19
+        filtersScrollView.layer.cornerRadius = 20
         filtersScrollView.clipsToBounds = true
         floatingFiltersContainer.addSubview(filtersScrollView)
 
         filtersStackView = UIStackView()
         filtersStackView.translatesAutoresizingMaskIntoConstraints = false
         filtersStackView.axis = .horizontal
-        filtersStackView.spacing = 3
+        filtersStackView.spacing = 6
         filtersStackView.alignment = .center
         filtersScrollView.addSubview(filtersStackView)
 
@@ -381,13 +453,6 @@ extension ViewController {
         titleLabel.textColor = primaryTextColor()
         titleLabel.text = "Metal."
         page1.addSubview(titleLabel)
-
-        let subtitleLabel = UILabel()
-        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = UIFont(name: "Georgia-Italic", size: 15)
-        subtitleLabel.textColor = secondaryTextColor()
-        subtitleLabel.text = "Your auditory shelf."
-        page1.addSubview(subtitleLabel)
 
         importButton = UIButton(type: .system)
         importButton.translatesAutoresizingMaskIntoConstraints = false
@@ -506,20 +571,17 @@ extension ViewController {
         miniControls.addArrangedSubview(miniNextButton)
 
         NSLayoutConstraint.activate([
-            // Header Titles
-            titleLabel.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 12),
+            // Header Titles: titleLabel "Metal." and importButton "+" vertically centered with each other
+            titleLabel.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 14),
             titleLabel.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 20),
-
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
-            subtitleLabel.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 20),
 
             importButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             importButton.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -20),
             importButton.widthAnchor.constraint(equalToConstant: 40),
             importButton.heightAnchor.constraint(equalToConstant: 40),
 
-            // Search Bar: sits with generous empty space below subtitle, bridging the wave and bottomPanel
-            searchBar.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 52),
+            // Search Bar: sits with generous empty space below title, bridging the wave and bottomPanel
+            searchBar.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 58),
             searchBar.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 14),
             searchBar.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -14),
             searchBar.heightAnchor.constraint(equalToConstant: 44),
@@ -540,7 +602,7 @@ extension ViewController {
             floatingFiltersContainer.topAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 28),
             floatingFiltersContainer.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             floatingFiltersContainer.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
-            floatingFiltersContainer.heightAnchor.constraint(equalToConstant: 38),
+            floatingFiltersContainer.heightAnchor.constraint(equalToConstant: 40),
 
             pillGlass.topAnchor.constraint(equalTo: floatingFiltersContainer.topAnchor),
             pillGlass.leadingAnchor.constraint(equalTo: floatingFiltersContainer.leadingAnchor),
@@ -611,6 +673,12 @@ extension ViewController {
 
     func setupPage2NowPlaying() {
         page2.backgroundColor = .clear
+
+        // 0. Metal-based Ambient Fluid Plasma (synthesized solely from artwork colors)
+        playerFluidView = PlayerFluidBackgroundView()
+        playerFluidView.translatesAutoresizingMaskIntoConstraints = false
+        playerFluidView.isUserInteractionEnabled = false
+        page2.insertSubview(playerFluidView, at: 0)
 
         // Full Edge-to-Edge Dynamic Ambient Gradient Background (Fills status bar notch & home indicator)
         if let playerPage = page2 as? PlayerPageView {
@@ -809,6 +877,12 @@ extension ViewController {
 
         // Layout Constraints
         NSLayoutConstraint.activate([
+            // Full Edge-to-Edge Player Fluid Plasma Background
+            playerFluidView.topAnchor.constraint(equalTo: page2.topAnchor),
+            playerFluidView.leadingAnchor.constraint(equalTo: page2.leadingAnchor),
+            playerFluidView.trailingAnchor.constraint(equalTo: page2.trailingAnchor),
+            playerFluidView.bottomAnchor.constraint(equalTo: page2.bottomAnchor),
+
             // Top Bar (SafeArea top)
             topBar.topAnchor.constraint(equalTo: page2.safeAreaLayoutGuide.topAnchor, constant: 8),
             topBar.leadingAnchor.constraint(equalTo: page2.leadingAnchor, constant: 20),
@@ -877,6 +951,8 @@ extension ViewController {
             playPauseButton.widthAnchor.constraint(equalToConstant: 64),
             playPauseButton.heightAnchor.constraint(equalToConstant: 64)
         ])
+
+        applyPlayerBackgroundStyle()
     }
 
     func updateCardBorders() {
@@ -1441,4 +1517,287 @@ func interpolateColor(from: UIColor, to: UIColor, progress: CGFloat) -> UIColor 
         alpha: a1 + (a2 - a1) * p
     )
 }
+
+// MARK: - Metal-based Player Fluid Plasma Background
+
+let playerFluidShaderSource = """
+#include <metal_stdlib>
+using namespace metal;
+
+struct VertexOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+struct PlayerFluidUniforms {
+    float2 resolution;
+    float time;
+    float amplitude;
+    float isPlaying;
+    float isDark;
+    float padding1;
+    float padding2;
+    float3 artworkColor;
+};
+
+vertex VertexOut playerFluidVertexShader(uint vertexID [[vertex_id]]) {
+    float2 positions[3] = {
+        float2(-1.0, -1.0),
+        float2( 3.0, -1.0),
+        float2(-1.0,  3.0)
+    };
+    VertexOut out;
+    out.position = float4(positions[vertexID], 0.0, 1.0);
+    out.uv = positions[vertexID] * 0.5 + 0.5;
+    return out;
+}
+
+// Modulo 289
+static inline float3 pf_mod289(float3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+static inline float2 pf_mod289(float2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+static inline float3 pf_permute(float3 x) { return pf_mod289(((x * 34.0) + 1.0) * x); }
+
+// 2D Simplex Noise
+static inline float pf_snoise(float2 v) {
+    const float4 C = float4(0.211324865405187,
+                            0.366025403784439,
+                           -0.577350269189626,
+                            0.024390243902439);
+    float2 i  = floor(v + dot(v, C.yy));
+    float2 x0 = v -   i + dot(i, C.xx);
+    float2 i1 = (x0.x > x0.y) ? float2(1.0, 0.0) : float2(0.0, 1.0);
+    float4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = pf_mod289(i);
+    float3 p = pf_permute(pf_permute(i.y + float3(0.0, i1.y, 1.0))
+                     + i.x + float3(0.0, i1.x, 1.0));
+    float3 m = max(0.5 - float3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+    m = m * m;
+    m = m * m;
+    float3 x = 2.0 * fract(p * C.www) - 1.0;
+    float3 h = abs(x) - 0.5;
+    float3 ox = floor(x + 0.5);
+    float3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+    float3 g;
+    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+}
+
+fragment float4 playerFluidFragmentShader(
+    VertexOut in [[stage_in]],
+    constant PlayerFluidUniforms &uniforms [[buffer(0)]]
+) {
+    float2 res = uniforms.resolution;
+    if (res.x <= 0.0 || res.y <= 0.0) {
+        return float4(0.0);
+    }
+
+    float2 uv = in.position.xy / res;
+    float minDim = min(res.x, res.y);
+    float2 p = (in.position.xy - 0.5 * res) / minDim;
+
+    float t = uniforms.time * 0.16;
+    float amp = uniforms.amplitude;
+
+    // Multi-octave organic domain warping
+    float2 q = float2(
+        pf_snoise(p * 1.2 + float2(t * 0.10, t * 0.08)),
+        pf_snoise(p * 1.2 + float2(-t * 0.09, t * 0.11))
+    );
+
+    float2 r = float2(
+        pf_snoise(p * 1.8 + 1.2 * q + float2(1.7, 9.2) + float2(t * 0.06, -t * 0.08)),
+        pf_snoise(p * 1.8 + 1.2 * q + float2(8.3, 2.8) + float2(-t * 0.07, t * 0.05))
+    );
+
+    float f = pf_snoise(p * 1.5 + 1.4 * r + float2(t * 0.05, t * 0.04));
+
+    // Synthesize harmonious palette ONLY from artworkColor ("онли артворк цвета")
+    float3 rawColor = uniforms.artworkColor;
+    if (length(rawColor) < 0.02) {
+        rawColor = float3(0.18, 0.18, 0.22);
+    }
+
+    // Boost artwork saturation for vibrant fluid lobes
+    float maxC = max(rawColor.r, max(rawColor.g, rawColor.b));
+    float minC = min(rawColor.r, min(rawColor.g, rawColor.b));
+    float lum = (maxC + minC) * 0.5;
+    float3 satArt = saturate((rawColor - lum) * 1.35 + lum);
+
+    // Deep velvety background floor (keeps controls visible and provides deep contrast)
+    float3 cBase = satArt * 0.12 + float3(0.025, 0.025, 0.035);
+
+    // Primary rich artwork color
+    float3 cPrimary = satArt * 0.70 + float3(0.04, 0.04, 0.05);
+
+    // Harmonic shifted tone (subtle complementary/analogous variation from artwork color)
+    float3 cHarmonic = satArt.brg * 0.55 + satArt * 0.35 + float3(0.03, 0.02, 0.05);
+
+    // Soft luminous bloom highlight
+    float3 cHighlight = saturate(satArt * 1.1 + float3(0.14, 0.14, 0.16));
+
+    // Multi-layered organic blend
+    float weightPrimary = smoothstep(-0.45, 0.45, f + q.x * 0.35 * amp);
+    float weightHarmonic = smoothstep(-0.35, 0.55, r.y + q.y * 0.40 * amp);
+    float weightHighlight = smoothstep(0.30, 0.85, f * amp);
+
+    float3 fluidColor = mix(cBase, cPrimary, weightPrimary);
+    fluidColor = mix(fluidColor, cHarmonic, weightHarmonic * 0.65);
+    fluidColor += cHighlight * weightHighlight * 0.38;
+
+    // Compositional vignette for player usability:
+    // Keep lower section (slider + buttons) darker and calmer
+    float bottomDamping = smoothstep(0.40, 0.95, uv.y);
+    fluidColor = mix(fluidColor, cBase, bottomDamping * 0.50);
+
+    // Soft radial contrast behind album artwork center
+    float centerDist = length(p);
+    float centerSoftness = smoothstep(0.15, 0.65, centerDist);
+    fluidColor = mix(fluidColor * 0.85, fluidColor, centerSoftness);
+
+    return float4(fluidColor, 1.0);
+}
+"""
+
+class PlayerFluidBackgroundView: UIView, MTKViewDelegate {
+    struct PlayerFluidUniforms {
+        var resolution: SIMD2<Float> = .zero
+        var time: Float = 0
+        var amplitude: Float = 0.7
+        var isPlaying: Float = 0.0
+        var isDark: Float = 1.0
+        var padding1: Float = 0.0
+        var padding2: Float = 0.0
+        var artworkColor: SIMD3<Float> = .zero
+    }
+
+    private var mtkView: MTKView?
+    private var commandQueue: MTLCommandQueue?
+    private var pipelineState: MTLRenderPipelineState?
+    private var startTime: CFTimeInterval = 0
+
+    private var isPlayingState: Bool = false
+    private var currentAmplitude: Float = 0.65
+    private var targetAmplitude: Float = 0.65
+
+    private var currentArtworkColor: SIMD3<Float> = SIMD3<Float>(0.13, 0.13, 0.15)
+    private var targetArtworkColor: SIMD3<Float> = SIMD3<Float>(0.13, 0.13, 0.15)
+
+    var isPaused: Bool {
+        get { mtkView?.isPaused ?? false }
+        set { mtkView?.isPaused = newValue }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupMetalPipeline()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupMetalPipeline()
+    }
+
+    private func setupMetalPipeline() {
+        guard let device = MTLCreateSystemDefaultDevice() else { return }
+
+        let metalView = MTKView(frame: .zero, device: device)
+        metalView.translatesAutoresizingMaskIntoConstraints = false
+        metalView.clearColor = MTLClearColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0)
+        metalView.colorPixelFormat = .bgra8Unorm
+        metalView.delegate = self
+        metalView.isPaused = false
+        metalView.enableSetNeedsDisplay = false
+        metalView.preferredFramesPerSecond = 60
+        addSubview(metalView)
+        self.mtkView = metalView
+
+        NSLayoutConstraint.activate([
+            metalView.topAnchor.constraint(equalTo: topAnchor),
+            metalView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            metalView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            metalView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+
+        do {
+            let library = try device.makeLibrary(source: playerFluidShaderSource, options: nil)
+            let vertexFunction = library.makeFunction(name: "playerFluidVertexShader")
+            let fragmentFunction = library.makeFunction(name: "playerFluidFragmentShader")
+
+            let pipelineDescriptor = MTLRenderPipelineDescriptor()
+            pipelineDescriptor.vertexFunction = vertexFunction
+            pipelineDescriptor.fragmentFunction = fragmentFunction
+            pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+
+            self.pipelineState = try device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+            self.commandQueue = device.makeCommandQueue()
+            self.startTime = CACurrentMediaTime()
+        } catch {
+            print("Failed to compile player fluid Metal shader: \(error)")
+        }
+    }
+
+    func setPlaying(_ playing: Bool) {
+        isPlayingState = playing
+        targetAmplitude = playing ? 1.15 : 0.65
+    }
+
+    func setArtworkColor(_ color: UIColor?) {
+        guard let color = color else { return }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        if color.getRed(&r, green: &g, blue: &b, alpha: &a) {
+            targetArtworkColor = SIMD3<Float>(Float(r), Float(g), Float(b))
+        }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        mtkView?.isPaused = (window == nil)
+    }
+
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+
+    func draw(in view: MTKView) {
+        guard let pipelineState = pipelineState,
+              let commandQueue = commandQueue,
+              let renderPassDescriptor = view.currentRenderPassDescriptor,
+              let drawable = view.currentDrawable else {
+            return
+        }
+
+        let elapsed = Float(CACurrentMediaTime() - startTime)
+        currentAmplitude += (targetAmplitude - currentAmplitude) * 0.04
+        currentArtworkColor += (targetArtworkColor - currentArtworkColor) * 0.03
+
+        let drawableSize = view.drawableSize
+        guard drawableSize.width > 0, drawableSize.height > 0 else { return }
+
+        var uniforms = PlayerFluidUniforms(
+            resolution: SIMD2<Float>(Float(drawableSize.width), Float(drawableSize.height)),
+            time: elapsed,
+            amplitude: currentAmplitude,
+            isPlaying: isPlayingState ? 1.0 : 0.0,
+            isDark: traitCollection.userInterfaceStyle == .dark ? 1.0 : 0.0,
+            padding1: 0.0,
+            padding2: 0.0,
+            artworkColor: currentArtworkColor
+        )
+
+        guard let commandBuffer = commandQueue.makeCommandBuffer(),
+              let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
+            return
+        }
+
+        renderEncoder.setRenderPipelineState(pipelineState)
+        renderEncoder.setFragmentBytes(&uniforms, length: MemoryLayout<PlayerFluidUniforms>.stride, index: 0)
+        renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        renderEncoder.endEncoding()
+
+        commandBuffer.present(drawable)
+        commandBuffer.commit()
+    }
+}
+
 
