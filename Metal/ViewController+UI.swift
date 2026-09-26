@@ -4,6 +4,7 @@
 //
 
 import UIKit
+import Darwin
 
 extension ViewController {
 
@@ -85,6 +86,7 @@ extension ViewController {
         // Paging ScrollView - Edge-to-Edge full screen
         scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.contentInsetAdjustmentBehavior = .never
         scrollView.isPagingEnabled = true
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.bounces = true
@@ -230,6 +232,110 @@ extension ViewController {
             descLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
             descLabel.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16)
         ])
+
+        // Section: Experimental Build Information
+        let buildSectionLabel = UILabel()
+        buildSectionLabel.translatesAutoresizingMaskIntoConstraints = false
+        buildSectionLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        buildSectionLabel.textColor = secondaryTextColor()
+        buildSectionLabel.text = "EXPERIMENTAL BUILD"
+        buildSectionLabel.letterSpacing(1.2)
+        page0.addSubview(buildSectionLabel)
+
+        // Experimental Build Card
+        let buildCard = UIView()
+        buildCard.translatesAutoresizingMaskIntoConstraints = false
+        buildCard.backgroundColor = cardBackgroundColor()
+        buildCard.layer.cornerRadius = 18
+        buildCard.layer.borderWidth = 1.0
+        buildCard.layer.borderColor = cardBorderColor().cgColor
+        page0.addSubview(buildCard)
+
+        let iosRow = createSettingsInfoRow(title: "iOS Version", value: "iOS \(UIDevice.current.systemVersion)")
+        buildCard.addSubview(iosRow)
+
+        let deviceRow = createSettingsInfoRow(title: "Device Model", value: UIDevice.current.modelName)
+        buildCard.addSubview(deviceRow)
+
+        let buildVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "27.0"
+        let buildRow = createSettingsInfoRow(title: "Build", value: "Metal v\(buildVersion) (\(buildNumber)-experimental)")
+        buildCard.addSubview(buildRow)
+
+        let badgeContainer = UIView()
+        badgeContainer.translatesAutoresizingMaskIntoConstraints = false
+        badgeContainer.backgroundColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 0.12)
+        badgeContainer.layer.cornerRadius = 9
+        buildCard.addSubview(badgeContainer)
+
+        let badgeLabel = UILabel()
+        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+        badgeLabel.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
+        badgeLabel.textColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
+        badgeLabel.text = "● Experimental Branch • iOS 26/27 SDK"
+        badgeContainer.addSubview(badgeLabel)
+
+        NSLayoutConstraint.activate([
+            buildSectionLabel.topAnchor.constraint(equalTo: card.bottomAnchor, constant: 28),
+            buildSectionLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
+
+            buildCard.topAnchor.constraint(equalTo: buildSectionLabel.bottomAnchor, constant: 10),
+            buildCard.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
+            buildCard.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24),
+            buildCard.heightAnchor.constraint(equalToConstant: 160),
+
+            iosRow.topAnchor.constraint(equalTo: buildCard.topAnchor, constant: 14),
+            iosRow.leadingAnchor.constraint(equalTo: buildCard.leadingAnchor, constant: 18),
+            iosRow.trailingAnchor.constraint(equalTo: buildCard.trailingAnchor, constant: -18),
+            iosRow.heightAnchor.constraint(equalToConstant: 22),
+
+            deviceRow.topAnchor.constraint(equalTo: iosRow.bottomAnchor, constant: 8),
+            deviceRow.leadingAnchor.constraint(equalTo: buildCard.leadingAnchor, constant: 18),
+            deviceRow.trailingAnchor.constraint(equalTo: buildCard.trailingAnchor, constant: -18),
+            deviceRow.heightAnchor.constraint(equalToConstant: 22),
+
+            buildRow.topAnchor.constraint(equalTo: deviceRow.bottomAnchor, constant: 8),
+            buildRow.leadingAnchor.constraint(equalTo: buildCard.leadingAnchor, constant: 18),
+            buildRow.trailingAnchor.constraint(equalTo: buildCard.trailingAnchor, constant: -18),
+            buildRow.heightAnchor.constraint(equalToConstant: 22),
+
+            badgeContainer.topAnchor.constraint(equalTo: buildRow.bottomAnchor, constant: 12),
+            badgeContainer.leadingAnchor.constraint(equalTo: buildCard.leadingAnchor, constant: 18),
+            badgeContainer.trailingAnchor.constraint(lessThanOrEqualTo: buildCard.trailingAnchor, constant: -18),
+            badgeContainer.heightAnchor.constraint(equalToConstant: 24),
+
+            badgeLabel.leadingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: 10),
+            badgeLabel.trailingAnchor.constraint(equalTo: badgeContainer.trailingAnchor, constant: -10),
+            badgeLabel.centerYAnchor.constraint(equalTo: badgeContainer.centerYAnchor)
+        ])
+    }
+
+    func createSettingsInfoRow(title: String, value: String) -> UIView {
+        let container = UIView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let titleLbl = UILabel()
+        titleLbl.translatesAutoresizingMaskIntoConstraints = false
+        titleLbl.font = UIFont.systemFont(ofSize: 14, weight: .regular)
+        titleLbl.textColor = secondaryTextColor()
+        titleLbl.text = title
+        container.addSubview(titleLbl)
+
+        let valLbl = UILabel()
+        valLbl.translatesAutoresizingMaskIntoConstraints = false
+        valLbl.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        valLbl.textColor = primaryTextColor()
+        valLbl.text = value
+        container.addSubview(valLbl)
+
+        NSLayoutConstraint.activate([
+            titleLbl.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            titleLbl.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+
+            valLbl.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            valLbl.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ])
+        return container
     }
 
     @objc func showLibraryTapped() {
@@ -249,16 +355,25 @@ extension ViewController {
     func setupPage1Library() {
         page1.backgroundColor = primaryBackgroundColor()
 
+        // 1. Top Header Card (Panel behind header, ends halfway through searchBar with rounded bottom corners)
+        headerCardView = UIView()
+        headerCardView.translatesAutoresizingMaskIntoConstraints = false
+        headerCardView.backgroundColor = cardBackgroundColor()
+        headerCardView.layer.cornerRadius = 28
+        headerCardView.layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+        headerCardView.clipsToBounds = true
+        page1.addSubview(headerCardView)
+
         let titleLabel = UILabel()
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = UIFont(name: "Georgia-Bold", size: 42)
+        titleLabel.font = UIFont(name: "Georgia-Bold", size: 38)
         titleLabel.textColor = primaryTextColor()
         titleLabel.text = "Metal."
         page1.addSubview(titleLabel)
 
         let subtitleLabel = UILabel()
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = UIFont(name: "Georgia-Italic", size: 16)
+        subtitleLabel.font = UIFont(name: "Georgia-Italic", size: 15)
         subtitleLabel.textColor = secondaryTextColor()
         subtitleLabel.text = "Your auditory shelf."
         page1.addSubview(subtitleLabel)
@@ -280,31 +395,88 @@ extension ViewController {
         importButton.addTarget(self, action: #selector(importMusicButtonTapped), for: .touchUpInside)
         page1.addSubview(importButton)
 
+        // 2. Search Bar - Acts as physical connector/bridge between top header card and lower area
         searchBar = UISearchBar()
         searchBar.translatesAutoresizingMaskIntoConstraints = false
         searchBar.searchBarStyle = .minimal
+        searchBar.backgroundImage = UIImage()
+        searchBar.backgroundColor = .clear
+        searchBar.layer.borderWidth = 0
         searchBar.placeholder = "Search songs..."
         searchBar.delegate = self
         searchBar.searchTextField.backgroundColor = cardBackgroundColor()
         searchBar.searchTextField.textColor = primaryTextColor()
         searchBar.searchTextField.leftView?.tintColor = secondaryTextColor()
-        searchBar.searchTextField.layer.cornerRadius = 14
+        searchBar.searchTextField.layer.cornerRadius = 15
         searchBar.searchTextField.clipsToBounds = true
+        searchBar.searchTextField.layer.borderWidth = 0.5
+        searchBar.searchTextField.layer.borderColor = cardBorderColor().cgColor
+        searchBar.layer.shadowColor = UIColor.black.cgColor
+        searchBar.layer.shadowOpacity = 0.10
+        searchBar.layer.shadowRadius = 6
+        searchBar.layer.shadowOffset = CGSize(width: 0, height: 2)
+        searchBar.clipsToBounds = false
         page1.addSubview(searchBar)
 
-        filtersScrollView = UIScrollView()
-        filtersScrollView.translatesAutoresizingMaskIntoConstraints = false
-        filtersScrollView.showsHorizontalScrollIndicator = false
-        filtersScrollView.bounces = true
-        page1.addSubview(filtersScrollView)
+        // 3. Yandex Music "Моя волна" (My Wave) Card & Generative Fluid Visualizer
+        myWaveCardView = UIView()
+        myWaveCardView.translatesAutoresizingMaskIntoConstraints = false
+        myWaveCardView.backgroundColor = cardBackgroundColor()
+        myWaveCardView.layer.cornerRadius = 22
+        myWaveCardView.layer.borderWidth = 1.0
+        myWaveCardView.layer.borderColor = cardBorderColor().cgColor
+        myWaveCardView.clipsToBounds = true
+        let waveTap = UITapGestureRecognizer(target: self, action: #selector(myWaveCardTapped))
+        myWaveCardView.addGestureRecognizer(waveTap)
+        page1.addSubview(myWaveCardView)
 
-        filtersStackView = UIStackView()
-        filtersStackView.translatesAutoresizingMaskIntoConstraints = false
-        filtersStackView.axis = .horizontal
-        filtersStackView.spacing = 8
-        filtersStackView.alignment = .center
-        filtersScrollView.addSubview(filtersStackView)
+        myWaveView = YandexWaveView()
+        myWaveView.translatesAutoresizingMaskIntoConstraints = false
+        myWaveCardView.addSubview(myWaveView)
 
+        let waveHeaderStack = UIStackView()
+        waveHeaderStack.translatesAutoresizingMaskIntoConstraints = false
+        waveHeaderStack.axis = .horizontal
+        waveHeaderStack.alignment = .center
+        waveHeaderStack.spacing = 10
+        myWaveCardView.addSubview(waveHeaderStack)
+
+        let waveIcon = UIImageView()
+        waveIcon.translatesAutoresizingMaskIntoConstraints = false
+        waveIcon.image = UIImage(systemName: "waveform.path", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .bold))
+        waveIcon.tintColor = primaryButtonColor()
+        waveIcon.contentMode = .scaleAspectFit
+        waveHeaderStack.addArrangedSubview(waveIcon)
+
+        let waveTextStack = UIStackView()
+        waveTextStack.axis = .vertical
+        waveTextStack.spacing = 1
+        waveHeaderStack.addArrangedSubview(waveTextStack)
+
+        let waveTitleLabel = UILabel()
+        waveTitleLabel.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        waveTitleLabel.textColor = primaryTextColor()
+        waveTitleLabel.text = "МОЯ ВОЛНА"
+        waveTitleLabel.letterSpacing(0.8)
+        waveTextStack.addArrangedSubview(waveTitleLabel)
+
+        let waveSubtitleLabel = UILabel()
+        waveSubtitleLabel.font = UIFont.systemFont(ofSize: 11, weight: .regular)
+        waveSubtitleLabel.textColor = secondaryTextColor()
+        waveSubtitleLabel.text = "Бесконечный поток под твой вайб"
+        waveTextStack.addArrangedSubview(waveSubtitleLabel)
+
+        wavePlayButton = UIButton(type: .system)
+        wavePlayButton.translatesAutoresizingMaskIntoConstraints = false
+        let playImg = UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .bold))
+        wavePlayButton.setImage(playImg, for: .normal)
+        wavePlayButton.tintColor = .white
+        wavePlayButton.backgroundColor = primaryButtonColor()
+        wavePlayButton.layer.cornerRadius = 16
+        wavePlayButton.addTarget(self, action: #selector(myWaveCardTapped), for: .touchUpInside)
+        myWaveCardView.addSubview(wavePlayButton)
+
+        // 4. TableView (Songs List) - extends below wave card
         tableView = CylinderTableView()
         tableView.onLayoutSubviews = { [weak self] in
             self?.applyCylinderEffect()
@@ -316,12 +488,53 @@ extension ViewController {
         tableView.delegate = self
         tableView.dataSource = self
         tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.identifier)
+        tableView.contentInset = UIEdgeInsets(top: 48, left: 0, bottom: 0, right: 0)
+        tableView.scrollIndicatorInsets = UIEdgeInsets(top: 48, left: 0, bottom: 0, right: 0)
         page1.addSubview(tableView)
 
         applyTableGradientMask()
 
         let cellLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handleCellLongPress(_:)))
         tableView.addGestureRecognizer(cellLongPress)
+
+        // 5. Unified Floating Pill Bar for Filters (All, Daily Mix, Favorites, etc.) - Floats ABOVE the songs list
+        floatingFiltersContainer = UIView()
+        floatingFiltersContainer.translatesAutoresizingMaskIntoConstraints = false
+        floatingFiltersContainer.layer.cornerRadius = 19
+        floatingFiltersContainer.layer.borderWidth = 0.5
+        floatingFiltersContainer.layer.borderColor = cardBorderColor().cgColor
+        floatingFiltersContainer.layer.shadowColor = UIColor.black.cgColor
+        floatingFiltersContainer.layer.shadowOpacity = 0.16
+        floatingFiltersContainer.layer.shadowRadius = 8
+        floatingFiltersContainer.layer.shadowOffset = CGSize(width: 0, height: 3)
+        page1.addSubview(floatingFiltersContainer)
+
+        let pillGlass: UIView
+        if #available(iOS 26.0, *) {
+            pillGlass = UIVisualEffectView(effect: UIGlassEffect())
+        } else {
+            pillGlass = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+        }
+        pillGlass.translatesAutoresizingMaskIntoConstraints = false
+        pillGlass.layer.cornerRadius = 19
+        pillGlass.clipsToBounds = true
+        pillGlass.isUserInteractionEnabled = false
+        floatingFiltersContainer.addSubview(pillGlass)
+
+        filtersScrollView = UIScrollView()
+        filtersScrollView.translatesAutoresizingMaskIntoConstraints = false
+        filtersScrollView.showsHorizontalScrollIndicator = false
+        filtersScrollView.bounces = true
+        filtersScrollView.layer.cornerRadius = 19
+        filtersScrollView.clipsToBounds = true
+        floatingFiltersContainer.addSubview(filtersScrollView)
+
+        filtersStackView = UIStackView()
+        filtersStackView.translatesAutoresizingMaskIntoConstraints = false
+        filtersStackView.axis = .horizontal
+        filtersStackView.spacing = 3
+        filtersStackView.alignment = .center
+        filtersScrollView.addSubview(filtersStackView)
 
         miniPlayerView = UIView()
         miniPlayerView.translatesAutoresizingMaskIntoConstraints = false
@@ -422,36 +635,79 @@ extension ViewController {
         miniControls.addArrangedSubview(miniNextButton)
 
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 12),
+            // Top Header Card: starts at page1.topAnchor and ends at searchBar.centerYAnchor
+            headerCardView.topAnchor.constraint(equalTo: page1.topAnchor),
+            headerCardView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
+            headerCardView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
+            headerCardView.bottomAnchor.constraint(equalTo: searchBar.centerYAnchor),
+
+            // Header Elements inside top card
+            titleLabel.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 10),
             titleLabel.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 20),
 
             subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
             subtitleLabel.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 20),
 
-            importButton.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 18),
+            importButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
             importButton.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -20),
             importButton.widthAnchor.constraint(equalToConstant: 40),
             importButton.heightAnchor.constraint(equalToConstant: 40),
 
+            // Search Bar: sits on the bottom seam of headerCardView
             searchBar.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 10),
-            searchBar.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 12),
-            searchBar.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -12),
+            searchBar.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 14),
+            searchBar.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -14),
+            searchBar.heightAnchor.constraint(equalToConstant: 44),
 
-            filtersScrollView.topAnchor.constraint(equalTo: searchBar.bottomAnchor, constant: 6),
-            filtersScrollView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
-            filtersScrollView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
-            filtersScrollView.heightAnchor.constraint(equalToConstant: 36),
+            // My Wave Card: in the open space below searchBar
+            myWaveCardView.topAnchor.constraint(equalTo: searchBar.bottomAnchor, constant: 10),
+            myWaveCardView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
+            myWaveCardView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
+            myWaveCardView.heightAnchor.constraint(equalToConstant: 96),
+
+            myWaveView.topAnchor.constraint(equalTo: myWaveCardView.topAnchor),
+            myWaveView.leadingAnchor.constraint(equalTo: myWaveCardView.leadingAnchor),
+            myWaveView.trailingAnchor.constraint(equalTo: myWaveCardView.trailingAnchor),
+            myWaveView.bottomAnchor.constraint(equalTo: myWaveCardView.bottomAnchor),
+
+            waveHeaderStack.topAnchor.constraint(equalTo: myWaveCardView.topAnchor, constant: 12),
+            waveHeaderStack.leadingAnchor.constraint(equalTo: myWaveCardView.leadingAnchor, constant: 14),
+            waveHeaderStack.trailingAnchor.constraint(lessThanOrEqualTo: wavePlayButton.leadingAnchor, constant: -10),
+            waveIcon.widthAnchor.constraint(equalToConstant: 18),
+            waveIcon.heightAnchor.constraint(equalToConstant: 18),
+
+            wavePlayButton.centerYAnchor.constraint(equalTo: waveHeaderStack.centerYAnchor),
+            wavePlayButton.trailingAnchor.constraint(equalTo: myWaveCardView.trailingAnchor, constant: -14),
+            wavePlayButton.widthAnchor.constraint(equalToConstant: 32),
+            wavePlayButton.heightAnchor.constraint(equalToConstant: 32),
+
+            // TableView (Songs List): occupies space from wave card down to mini player
+            tableView.topAnchor.constraint(equalTo: myWaveCardView.bottomAnchor, constant: 8),
+            tableView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
+            tableView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
+            tableView.bottomAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
+
+            // Floating Filters Container: sits FLOATING right over tableView top!
+            floatingFiltersContainer.topAnchor.constraint(equalTo: myWaveCardView.bottomAnchor, constant: 8),
+            floatingFiltersContainer.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
+            floatingFiltersContainer.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
+            floatingFiltersContainer.heightAnchor.constraint(equalToConstant: 38),
+
+            pillGlass.topAnchor.constraint(equalTo: floatingFiltersContainer.topAnchor),
+            pillGlass.leadingAnchor.constraint(equalTo: floatingFiltersContainer.leadingAnchor),
+            pillGlass.trailingAnchor.constraint(equalTo: floatingFiltersContainer.trailingAnchor),
+            pillGlass.bottomAnchor.constraint(equalTo: floatingFiltersContainer.bottomAnchor),
+
+            filtersScrollView.topAnchor.constraint(equalTo: floatingFiltersContainer.topAnchor),
+            filtersScrollView.leadingAnchor.constraint(equalTo: floatingFiltersContainer.leadingAnchor, constant: 4),
+            filtersScrollView.trailingAnchor.constraint(equalTo: floatingFiltersContainer.trailingAnchor, constant: -4),
+            filtersScrollView.bottomAnchor.constraint(equalTo: floatingFiltersContainer.bottomAnchor),
 
             filtersStackView.topAnchor.constraint(equalTo: filtersScrollView.contentLayoutGuide.topAnchor),
             filtersStackView.bottomAnchor.constraint(equalTo: filtersScrollView.contentLayoutGuide.bottomAnchor),
             filtersStackView.leadingAnchor.constraint(equalTo: filtersScrollView.contentLayoutGuide.leadingAnchor),
             filtersStackView.trailingAnchor.constraint(equalTo: filtersScrollView.contentLayoutGuide.trailingAnchor),
-            filtersStackView.heightAnchor.constraint(equalToConstant: 36),
-
-            tableView.topAnchor.constraint(equalTo: filtersScrollView.bottomAnchor, constant: 6),
-            tableView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
-            tableView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
+            filtersStackView.heightAnchor.constraint(equalTo: filtersScrollView.heightAnchor),
 
             miniPlayerView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             miniPlayerView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
@@ -498,7 +754,7 @@ extension ViewController {
     }
 
     func setupPage2NowPlaying() {
-        page2.backgroundColor = .black
+        page2.backgroundColor = .clear
 
         // Full Edge-to-Edge Dynamic Ambient Gradient Background (Fills status bar notch & home indicator)
         playerGradientLayer = CAGradientLayer()
@@ -763,6 +1019,13 @@ extension ViewController {
 
     func updateCardBorders() {
         let border = cardBorderColor().resolvedColor(with: traitCollection).cgColor
+        headerCardView?.backgroundColor = cardBackgroundColor()
+        myWaveCardView?.backgroundColor = cardBackgroundColor()
+        myWaveCardView?.layer.borderColor = border
+        floatingFiltersContainer?.layer.borderColor = border
+        searchBar?.searchTextField.backgroundColor = cardBackgroundColor()
+        searchBar?.searchTextField.layer.borderColor = border
+
         miniPlayerView?.layer.borderColor = border
         miniCoverCard?.layer.borderColor = border
         miniPlayPauseButton?.layer.borderColor = border
@@ -856,13 +1119,13 @@ class GradientOverlayView: UIView {
         let transparentBg = bg.withAlphaComponent(0.0)
 
         if fromTop {
-            // Solid color for first 30% of height, then fades out to transparent
-            gradient.colors = [bg.cgColor, bg.cgColor, transparentBg.cgColor]
-            gradient.locations = [0.0, 0.3, 1.0]
+            // Completely smooth continuous fade from solid to transparent, eliminating any hard line
+            gradient.colors = [bg.cgColor, transparentBg.cgColor]
+            gradient.locations = [0.0, 1.0]
         } else {
-            // Transparent for first 70% of height, then solid color for the final 30%
-            gradient.colors = [transparentBg.cgColor, bg.cgColor, bg.cgColor]
-            gradient.locations = [0.0, 0.7, 1.0]
+            // Completely smooth continuous fade from transparent to solid
+            gradient.colors = [transparentBg.cgColor, bg.cgColor]
+            gradient.locations = [0.0, 1.0]
         }
     }
 }
@@ -873,3 +1136,302 @@ private extension UILabel {
         attributedText = NSAttributedString(string: text, attributes: [.kern: value])
     }
 }
+
+// MARK: - Yandex Music "Моя волна" (My Wave) Generative Visualizer
+
+class YandexWaveView: UIView {
+
+    private var displayLink: CADisplayLink?
+    private var phase: CGFloat = 0.0
+    private var isPlaying: Bool = false
+    private var currentAmplitudeMultiplier: CGFloat = 0.7
+    private var targetAmplitudeMultiplier: CGFloat = 0.7
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        commonInit()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        commonInit()
+    }
+
+    private func commonInit() {
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+        clipsToBounds = true
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            startDisplayLink()
+        } else {
+            stopDisplayLink()
+        }
+    }
+
+    func setPlaying(_ playing: Bool) {
+        isPlaying = playing
+        targetAmplitudeMultiplier = playing ? 1.35 : 0.65
+    }
+
+    private func startDisplayLink() {
+        stopDisplayLink()
+        let link = CADisplayLink(target: self, selector: #selector(updateWaveAnimation))
+        if #available(iOS 15.0, *) {
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+        }
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    private func stopDisplayLink() {
+        displayLink?.invalidate()
+        displayLink = nil
+    }
+
+    deinit {
+        stopDisplayLink()
+    }
+
+    @objc private func updateWaveAnimation() {
+        let speed: CGFloat = isPlaying ? 0.038 : 0.016
+        phase += speed
+        if phase > .pi * 2000 { phase = 0 }
+
+        // Smooth transition of amplitude multiplier
+        currentAmplitudeMultiplier += (targetAmplitudeMultiplier - currentAmplitudeMultiplier) * 0.08
+
+        setNeedsDisplay()
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext(), rect.width > 0, rect.height > 0 else { return }
+
+        let width = rect.width
+        let height = rect.height
+        let baseHeight = height * 0.58
+        let amp = currentAmplitudeMultiplier
+
+        let isDark = traitCollection.userInterfaceStyle == .dark
+
+        // Layer 1: Deep ambient violet / berry glow (background wave)
+        let layer1Start = UIColor(red: 0.45, green: 0.12, blue: 0.78, alpha: isDark ? 0.45 : 0.35).cgColor
+        let layer1End = UIColor(red: 0.15, green: 0.35, blue: 0.88, alpha: isDark ? 0.20 : 0.15).cgColor
+        drawSingleWave(
+            context: context,
+            rect: rect,
+            baseY: baseHeight + 4,
+            amplitude1: 14.0 * amp,
+            freq1: 0.012,
+            speed1: 1.1,
+            amplitude2: 9.0 * amp,
+            freq2: 0.024,
+            speed2: -0.8,
+            phaseOffset: 0.0,
+            startColor: layer1Start,
+            endColor: layer1End,
+            crestColor: UIColor(red: 0.65, green: 0.30, blue: 0.95, alpha: 0.7).cgColor
+        )
+
+        // Layer 2: Sunset orange / golden amber fluid (mid wave)
+        let layer2Start = UIColor(red: 0.96, green: 0.42, blue: 0.18, alpha: isDark ? 0.65 : 0.50).cgColor
+        let layer2End = UIColor(red: 0.88, green: 0.20, blue: 0.45, alpha: isDark ? 0.40 : 0.30).cgColor
+        drawSingleWave(
+            context: context,
+            rect: rect,
+            baseY: baseHeight,
+            amplitude1: 18.0 * amp,
+            freq1: 0.016,
+            speed1: 1.5,
+            amplitude2: 12.0 * amp,
+            freq2: 0.032,
+            speed2: -1.2,
+            phaseOffset: 1.8,
+            startColor: layer2Start,
+            endColor: layer2End,
+            crestColor: UIColor(red: 1.0, green: 0.55, blue: 0.25, alpha: 0.85).cgColor
+        )
+
+        // Layer 3: Vibrant terracotta / neon crest (foreground wave)
+        let layer3Start = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: isDark ? 0.85 : 0.75).cgColor
+        let layer3End = UIColor(red: 1.00, green: 0.52, blue: 0.30, alpha: isDark ? 0.55 : 0.45).cgColor
+        drawSingleWave(
+            context: context,
+            rect: rect,
+            baseY: baseHeight - 4,
+            amplitude1: 16.0 * amp,
+            freq1: 0.020,
+            speed1: 1.8,
+            amplitude2: 10.0 * amp,
+            freq2: 0.040,
+            speed2: -1.6,
+            phaseOffset: 3.4,
+            startColor: layer3Start,
+            endColor: layer3End,
+            crestColor: UIColor.white.withAlphaComponent(0.9).cgColor
+        )
+
+        // Floating ambient light particles / vibe sparks
+        drawVibeOrbs(context: context, rect: rect, amp: amp)
+    }
+
+    private func drawSingleWave(
+        context: CGContext,
+        rect: CGRect,
+        baseY: CGFloat,
+        amplitude1: CGFloat,
+        freq1: CGFloat,
+        speed1: CGFloat,
+        amplitude2: CGFloat,
+        freq2: CGFloat,
+        speed2: CGFloat,
+        phaseOffset: CGFloat,
+        startColor: CGColor,
+        endColor: CGColor,
+        crestColor: CGColor
+    ) {
+        let width = rect.width
+        let height = rect.height
+        let step: CGFloat = 4.0
+
+        let path = CGMutablePath()
+        let crestPath = CGMutablePath()
+
+        var firstPoint = true
+
+        for x in stride(from: 0.0, through: width + step, by: step) {
+            let y1 = sin(x * freq1 + phase * speed1 + phaseOffset) * amplitude1
+            let y2 = cos(x * freq2 + phase * speed2 + phaseOffset * 0.7) * amplitude2
+            let y = baseY + y1 + y2
+
+            if firstPoint {
+                path.move(to: CGPoint(x: x, y: y))
+                crestPath.move(to: CGPoint(x: x, y: y))
+                firstPoint = false
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+                crestPath.addLine(to: CGPoint(x: x, y: y))
+            }
+        }
+
+        // Close path down to bottom of view
+        path.addLine(to: CGPoint(x: width, y: height))
+        path.addLine(to: CGPoint(x: 0, y: height))
+        path.closeSubpath()
+
+        // Draw wave fill with gradient
+        context.saveGState()
+        context.addPath(path)
+        context.clip()
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let colors = [startColor, endColor] as CFArray
+        let locations: [CGFloat] = [0.0, 1.0]
+
+        if let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: locations) {
+            context.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: 0, y: baseY - amplitude1 - amplitude2),
+                end: CGPoint(x: width, y: height),
+                options: []
+            )
+        }
+        context.restoreGState()
+
+        // Stroke the glowing crest line
+        context.saveGState()
+        context.addPath(crestPath)
+        context.setStrokeColor(crestColor)
+        context.setLineWidth(1.2)
+        context.strokePath()
+        context.restoreGState()
+    }
+
+    private func drawVibeOrbs(context: CGContext, rect: CGRect, amp: CGFloat) {
+        let width = rect.width
+        let height = rect.height
+
+        let particles: [(xFactor: CGFloat, yFactor: CGFloat, radius: CGFloat, speed: CGFloat, color: UIColor)] = [
+            (0.25, 0.45, 14.0 * amp, 0.9, UIColor(red: 1.0, green: 0.5, blue: 0.2, alpha: 0.25)),
+            (0.60, 0.38, 18.0 * amp, 1.3, UIColor(red: 0.8, green: 0.2, blue: 0.9, alpha: 0.20)),
+            (0.85, 0.52, 12.0 * amp, 0.7, UIColor(red: 0.9, green: 0.4, blue: 0.1, alpha: 0.22))
+        ]
+
+        for p in particles {
+            let dx = sin(phase * p.speed) * 16.0
+            let dy = cos(phase * p.speed * 0.8) * 10.0
+            let cx = width * p.xFactor + dx
+            let cy = height * p.yFactor + dy
+            let r = max(p.radius, 4.0)
+
+            let orbRect = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
+            context.saveGState()
+            context.setFillColor(p.color.cgColor)
+            context.fillEllipse(in: orbRect)
+            context.restoreGState()
+        }
+    }
+}
+
+// MARK: - Device Model Name Resolver
+
+extension UIDevice {
+    var modelName: String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let machineMirror = Mirror(reflecting: systemInfo.machine)
+        let identifier = machineMirror.children.reduce("") { identifier, element in
+            guard let value = element.value as? Int8, value != 0 else { return identifier }
+            return identifier + String(UnicodeScalar(UInt8(value)))
+        }
+
+        switch identifier {
+        case "iPhone14,2": return "iPhone 13 Pro"
+        case "iPhone14,3": return "iPhone 13 Pro Max"
+        case "iPhone14,4": return "iPhone 13 mini"
+        case "iPhone14,5": return "iPhone 13"
+        case "iPhone14,7": return "iPhone 14"
+        case "iPhone14,8": return "iPhone 14 Plus"
+        case "iPhone15,2": return "iPhone 14 Pro"
+        case "iPhone15,3": return "iPhone 14 Pro Max"
+        case "iPhone15,4": return "iPhone 15"
+        case "iPhone15,5": return "iPhone 15 Plus"
+        case "iPhone16,1": return "iPhone 15 Pro"
+        case "iPhone16,2": return "iPhone 15 Pro Max"
+        case "iPhone17,1": return "iPhone 16 Pro"
+        case "iPhone17,2": return "iPhone 16 Pro Max"
+        case "iPhone17,3": return "iPhone 16"
+        case "iPhone17,4": return "iPhone 16 Plus"
+        case "iPhone17,5": return "iPhone 16e"
+        case "i386", "x86_64", "arm64":
+            if let simModel = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] {
+                return "Simulator (\(simModel))"
+            }
+            return "iPhone Simulator"
+        default:
+            return identifier.isEmpty ? UIDevice.current.model : identifier
+        }
+    }
+}
+
+// MARK: - Color Interpolator
+
+func interpolateColor(from: UIColor, to: UIColor, progress: CGFloat) -> UIColor {
+    var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+    var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+
+    from.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+    to.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+
+    let p = max(0.0, min(1.0, progress))
+    return UIColor(
+        red: r1 + (r2 - r1) * p,
+        green: g1 + (g2 - g1) * p,
+        blue: b1 + (b2 - b1) * p,
+        alpha: a1 + (a2 - a1) * p
+    )
+}
+
