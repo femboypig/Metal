@@ -102,7 +102,7 @@ extension ViewController {
         page1.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(page1)
 
-        page2 = UIView()
+        page2 = PlayerPageView()
         page2.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(page2)
 
@@ -233,109 +233,23 @@ extension ViewController {
             descLabel.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16)
         ])
 
-        // Section: Experimental Build Information
-        let buildSectionLabel = UILabel()
-        buildSectionLabel.translatesAutoresizingMaskIntoConstraints = false
-        buildSectionLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
-        buildSectionLabel.textColor = secondaryTextColor()
-        buildSectionLabel.text = "EXPERIMENTAL BUILD"
-        buildSectionLabel.letterSpacing(1.2)
-        page0.addSubview(buildSectionLabel)
-
-        // Experimental Build Card
-        let buildCard = UIView()
-        buildCard.translatesAutoresizingMaskIntoConstraints = false
-        buildCard.backgroundColor = cardBackgroundColor()
-        buildCard.layer.cornerRadius = 18
-        buildCard.layer.borderWidth = 1.0
-        buildCard.layer.borderColor = cardBorderColor().cgColor
-        page0.addSubview(buildCard)
-
-        let iosRow = createSettingsInfoRow(title: "iOS Version", value: "iOS \(UIDevice.current.systemVersion)")
-        buildCard.addSubview(iosRow)
-
-        let deviceRow = createSettingsInfoRow(title: "Device Model", value: UIDevice.current.modelName)
-        buildCard.addSubview(deviceRow)
-
+        // Bottom Plain Text: Experimental Build Information
+        let expInfoLabel = UILabel()
+        expInfoLabel.translatesAutoresizingMaskIntoConstraints = false
+        expInfoLabel.font = UIFont.systemFont(ofSize: 12, weight: .regular)
+        expInfoLabel.textColor = secondaryTextColor()
+        expInfoLabel.textAlignment = .center
+        expInfoLabel.numberOfLines = 0
         let buildVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "27.0"
-        let buildRow = createSettingsInfoRow(title: "Build", value: "Metal v\(buildVersion) (\(buildNumber)-experimental)")
-        buildCard.addSubview(buildRow)
-
-        let badgeContainer = UIView()
-        badgeContainer.translatesAutoresizingMaskIntoConstraints = false
-        badgeContainer.backgroundColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 0.12)
-        badgeContainer.layer.cornerRadius = 9
-        buildCard.addSubview(badgeContainer)
-
-        let badgeLabel = UILabel()
-        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
-        badgeLabel.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
-        badgeLabel.textColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-        badgeLabel.text = "● Experimental Branch • iOS 26/27 SDK"
-        badgeContainer.addSubview(badgeLabel)
+        expInfoLabel.text = "iOS \(UIDevice.current.systemVersion) • \(UIDevice.current.modelName)\nMetal v\(buildVersion) (\(buildNumber)) • Experimental Branch • iOS 26/27 SDK"
+        page0.addSubview(expInfoLabel)
 
         NSLayoutConstraint.activate([
-            buildSectionLabel.topAnchor.constraint(equalTo: card.bottomAnchor, constant: 28),
-            buildSectionLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-
-            buildCard.topAnchor.constraint(equalTo: buildSectionLabel.bottomAnchor, constant: 10),
-            buildCard.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-            buildCard.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24),
-            buildCard.heightAnchor.constraint(equalToConstant: 160),
-
-            iosRow.topAnchor.constraint(equalTo: buildCard.topAnchor, constant: 14),
-            iosRow.leadingAnchor.constraint(equalTo: buildCard.leadingAnchor, constant: 18),
-            iosRow.trailingAnchor.constraint(equalTo: buildCard.trailingAnchor, constant: -18),
-            iosRow.heightAnchor.constraint(equalToConstant: 22),
-
-            deviceRow.topAnchor.constraint(equalTo: iosRow.bottomAnchor, constant: 8),
-            deviceRow.leadingAnchor.constraint(equalTo: buildCard.leadingAnchor, constant: 18),
-            deviceRow.trailingAnchor.constraint(equalTo: buildCard.trailingAnchor, constant: -18),
-            deviceRow.heightAnchor.constraint(equalToConstant: 22),
-
-            buildRow.topAnchor.constraint(equalTo: deviceRow.bottomAnchor, constant: 8),
-            buildRow.leadingAnchor.constraint(equalTo: buildCard.leadingAnchor, constant: 18),
-            buildRow.trailingAnchor.constraint(equalTo: buildCard.trailingAnchor, constant: -18),
-            buildRow.heightAnchor.constraint(equalToConstant: 22),
-
-            badgeContainer.topAnchor.constraint(equalTo: buildRow.bottomAnchor, constant: 12),
-            badgeContainer.leadingAnchor.constraint(equalTo: buildCard.leadingAnchor, constant: 18),
-            badgeContainer.trailingAnchor.constraint(lessThanOrEqualTo: buildCard.trailingAnchor, constant: -18),
-            badgeContainer.heightAnchor.constraint(equalToConstant: 24),
-
-            badgeLabel.leadingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: 10),
-            badgeLabel.trailingAnchor.constraint(equalTo: badgeContainer.trailingAnchor, constant: -10),
-            badgeLabel.centerYAnchor.constraint(equalTo: badgeContainer.centerYAnchor)
+            expInfoLabel.bottomAnchor.constraint(equalTo: page0.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+            expInfoLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
+            expInfoLabel.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24)
         ])
-    }
-
-    func createSettingsInfoRow(title: String, value: String) -> UIView {
-        let container = UIView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let titleLbl = UILabel()
-        titleLbl.translatesAutoresizingMaskIntoConstraints = false
-        titleLbl.font = UIFont.systemFont(ofSize: 14, weight: .regular)
-        titleLbl.textColor = secondaryTextColor()
-        titleLbl.text = title
-        container.addSubview(titleLbl)
-
-        let valLbl = UILabel()
-        valLbl.translatesAutoresizingMaskIntoConstraints = false
-        valLbl.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        valLbl.textColor = primaryTextColor()
-        valLbl.text = value
-        container.addSubview(valLbl)
-
-        NSLayoutConstraint.activate([
-            titleLbl.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            titleLbl.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-
-            valLbl.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            valLbl.centerYAnchor.constraint(equalTo: container.centerYAnchor)
-        ])
-        return container
     }
 
     @objc func showLibraryTapped() {
@@ -355,128 +269,27 @@ extension ViewController {
     func setupPage1Library() {
         page1.backgroundColor = primaryBackgroundColor()
 
-        // 1. Top Header Card (Panel behind header, ends halfway through searchBar with rounded bottom corners)
-        headerCardView = UIView()
-        headerCardView.translatesAutoresizingMaskIntoConstraints = false
-        headerCardView.backgroundColor = cardBackgroundColor()
-        headerCardView.layer.cornerRadius = 28
-        headerCardView.layer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
-        headerCardView.clipsToBounds = true
-        page1.addSubview(headerCardView)
-
-        let titleLabel = UILabel()
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = UIFont(name: "Georgia-Bold", size: 38)
-        titleLabel.textColor = primaryTextColor()
-        titleLabel.text = "Metal."
-        page1.addSubview(titleLabel)
-
-        let subtitleLabel = UILabel()
-        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = UIFont(name: "Georgia-Italic", size: 15)
-        subtitleLabel.textColor = secondaryTextColor()
-        subtitleLabel.text = "Your auditory shelf."
-        page1.addSubview(subtitleLabel)
-
-        importButton = UIButton(type: .system)
-        importButton.translatesAutoresizingMaskIntoConstraints = false
-        let importImage = UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold))
-        if #available(iOS 26.0, *) {
-            var configuration = UIButton.Configuration.glass()
-            configuration.image = importImage
-            configuration.baseForegroundColor = primaryTextColor()
-            importButton.configuration = configuration
-        } else {
-            importButton.setImage(importImage, for: .normal)
-            importButton.tintColor = primaryTextColor()
-            importButton.backgroundColor = .clear
-        }
-        importButton.accessibilityLabel = "Import Music"
-        importButton.addTarget(self, action: #selector(importMusicButtonTapped), for: .touchUpInside)
-        page1.addSubview(importButton)
-
-        // 2. Search Bar - Acts as physical connector/bridge between top header card and lower area
-        searchBar = UISearchBar()
-        searchBar.translatesAutoresizingMaskIntoConstraints = false
-        searchBar.searchBarStyle = .minimal
-        searchBar.backgroundImage = UIImage()
-        searchBar.backgroundColor = .clear
-        searchBar.layer.borderWidth = 0
-        searchBar.placeholder = "Search songs..."
-        searchBar.delegate = self
-        searchBar.searchTextField.backgroundColor = cardBackgroundColor()
-        searchBar.searchTextField.textColor = primaryTextColor()
-        searchBar.searchTextField.leftView?.tintColor = secondaryTextColor()
-        searchBar.searchTextField.layer.cornerRadius = 15
-        searchBar.searchTextField.clipsToBounds = true
-        searchBar.searchTextField.layer.borderWidth = 0.5
-        searchBar.searchTextField.layer.borderColor = cardBorderColor().cgColor
-        searchBar.layer.shadowColor = UIColor.black.cgColor
-        searchBar.layer.shadowOpacity = 0.10
-        searchBar.layer.shadowRadius = 6
-        searchBar.layer.shadowOffset = CGSize(width: 0, height: 2)
-        searchBar.clipsToBounds = false
-        page1.addSubview(searchBar)
-
-        // 3. Yandex Music "Моя волна" (My Wave) Card & Generative Fluid Visualizer
-        myWaveCardView = UIView()
-        myWaveCardView.translatesAutoresizingMaskIntoConstraints = false
-        myWaveCardView.backgroundColor = cardBackgroundColor()
-        myWaveCardView.layer.cornerRadius = 22
-        myWaveCardView.layer.borderWidth = 1.0
-        myWaveCardView.layer.borderColor = cardBorderColor().cgColor
-        myWaveCardView.clipsToBounds = true
-        let waveTap = UITapGestureRecognizer(target: self, action: #selector(myWaveCardTapped))
-        myWaveCardView.addGestureRecognizer(waveTap)
-        page1.addSubview(myWaveCardView)
-
+        // 1. Pure Visual Ambient Wave ("мумия / волна как у яндекс музыки")
+        // Positioned in the open space below header titles down to the midpoint of the search bar
         myWaveView = YandexWaveView()
         myWaveView.translatesAutoresizingMaskIntoConstraints = false
-        myWaveCardView.addSubview(myWaveView)
+        myWaveView.backgroundColor = .clear
+        myWaveView.isUserInteractionEnabled = false
+        myWaveView.clipsToBounds = true
+        page1.addSubview(myWaveView)
 
-        let waveHeaderStack = UIStackView()
-        waveHeaderStack.translatesAutoresizingMaskIntoConstraints = false
-        waveHeaderStack.axis = .horizontal
-        waveHeaderStack.alignment = .center
-        waveHeaderStack.spacing = 10
-        myWaveCardView.addSubview(waveHeaderStack)
+        // 2. Bottom Underlay Panel ("снизу подложка, обрывается сзади половины searchsongs и по бокам закругляется")
+        bottomPanel = UIView()
+        bottomPanel.translatesAutoresizingMaskIntoConstraints = false
+        bottomPanel.backgroundColor = cardBackgroundColor()
+        bottomPanel.layer.cornerRadius = 28
+        bottomPanel.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        bottomPanel.layer.borderWidth = 1.0
+        bottomPanel.layer.borderColor = cardBorderColor().cgColor
+        bottomPanel.clipsToBounds = true
+        page1.addSubview(bottomPanel)
 
-        let waveIcon = UIImageView()
-        waveIcon.translatesAutoresizingMaskIntoConstraints = false
-        waveIcon.image = UIImage(systemName: "waveform.path", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .bold))
-        waveIcon.tintColor = primaryButtonColor()
-        waveIcon.contentMode = .scaleAspectFit
-        waveHeaderStack.addArrangedSubview(waveIcon)
-
-        let waveTextStack = UIStackView()
-        waveTextStack.axis = .vertical
-        waveTextStack.spacing = 1
-        waveHeaderStack.addArrangedSubview(waveTextStack)
-
-        let waveTitleLabel = UILabel()
-        waveTitleLabel.font = UIFont.systemFont(ofSize: 13, weight: .bold)
-        waveTitleLabel.textColor = primaryTextColor()
-        waveTitleLabel.text = "МОЯ ВОЛНА"
-        waveTitleLabel.letterSpacing(0.8)
-        waveTextStack.addArrangedSubview(waveTitleLabel)
-
-        let waveSubtitleLabel = UILabel()
-        waveSubtitleLabel.font = UIFont.systemFont(ofSize: 11, weight: .regular)
-        waveSubtitleLabel.textColor = secondaryTextColor()
-        waveSubtitleLabel.text = "Бесконечный поток под твой вайб"
-        waveTextStack.addArrangedSubview(waveSubtitleLabel)
-
-        wavePlayButton = UIButton(type: .system)
-        wavePlayButton.translatesAutoresizingMaskIntoConstraints = false
-        let playImg = UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .bold))
-        wavePlayButton.setImage(playImg, for: .normal)
-        wavePlayButton.tintColor = .white
-        wavePlayButton.backgroundColor = primaryButtonColor()
-        wavePlayButton.layer.cornerRadius = 16
-        wavePlayButton.addTarget(self, action: #selector(myWaveCardTapped), for: .touchUpInside)
-        myWaveCardView.addSubview(wavePlayButton)
-
-        // 4. TableView (Songs List) - extends below wave card
+        // 3. TableView (Songs List) - positioned over bottomPanel
         tableView = CylinderTableView()
         tableView.onLayoutSubviews = { [weak self] in
             self?.applyCylinderEffect()
@@ -497,7 +310,7 @@ extension ViewController {
         let cellLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handleCellLongPress(_:)))
         tableView.addGestureRecognizer(cellLongPress)
 
-        // 5. Unified Floating Pill Bar for Filters (All, Daily Mix, Favorites, etc.) - Floats ABOVE the songs list
+        // 4. Unified Floating Pill Bar for Filters (All, Daily Mix, Favorites, etc.) - Floats ABOVE the songs list
         floatingFiltersContainer = UIView()
         floatingFiltersContainer.translatesAutoresizingMaskIntoConstraints = false
         floatingFiltersContainer.layer.cornerRadius = 19
@@ -536,6 +349,62 @@ extension ViewController {
         filtersStackView.alignment = .center
         filtersScrollView.addSubview(filtersStackView)
 
+        // 5. Search Bar - Acts as physical connector/bridge between header wave and bottomPanel
+        searchBar = UISearchBar()
+        searchBar.translatesAutoresizingMaskIntoConstraints = false
+        searchBar.searchBarStyle = .minimal
+        searchBar.backgroundImage = UIImage()
+        searchBar.backgroundColor = .clear
+        searchBar.layer.borderWidth = 0
+        searchBar.placeholder = "Search songs..."
+        searchBar.delegate = self
+        searchBar.searchTextField.backgroundColor = cardBackgroundColor()
+        searchBar.searchTextField.textColor = primaryTextColor()
+        searchBar.searchTextField.leftView?.tintColor = secondaryTextColor()
+        searchBar.searchTextField.layer.cornerRadius = 15
+        searchBar.searchTextField.clipsToBounds = true
+        searchBar.searchTextField.layer.borderWidth = 0.5
+        searchBar.searchTextField.layer.borderColor = cardBorderColor().cgColor
+        searchBar.layer.shadowColor = UIColor.black.cgColor
+        searchBar.layer.shadowOpacity = 0.10
+        searchBar.layer.shadowRadius = 6
+        searchBar.layer.shadowOffset = CGSize(width: 0, height: 2)
+        searchBar.clipsToBounds = false
+        page1.addSubview(searchBar)
+
+        // 6. Header Titles and Action Button
+        let titleLabel = UILabel()
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = UIFont(name: "Georgia-Bold", size: 38)
+        titleLabel.textColor = primaryTextColor()
+        titleLabel.text = "Metal."
+        page1.addSubview(titleLabel)
+
+        let subtitleLabel = UILabel()
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        subtitleLabel.font = UIFont(name: "Georgia-Italic", size: 15)
+        subtitleLabel.textColor = secondaryTextColor()
+        subtitleLabel.text = "Your auditory shelf."
+        page1.addSubview(subtitleLabel)
+
+        importButton = UIButton(type: .system)
+        importButton.translatesAutoresizingMaskIntoConstraints = false
+        let importImage = UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold))
+        if #available(iOS 26.0, *) {
+            var configuration = UIButton.Configuration.glass()
+            configuration.image = importImage
+            configuration.baseForegroundColor = primaryTextColor()
+            importButton.configuration = configuration
+        } else {
+            importButton.setImage(importImage, for: .normal)
+            importButton.tintColor = primaryTextColor()
+            importButton.backgroundColor = .clear
+        }
+        importButton.accessibilityLabel = "Import Music"
+        importButton.addTarget(self, action: #selector(importMusicButtonTapped), for: .touchUpInside)
+        page1.addSubview(importButton)
+
+        // Miniplayer (Page 1 Interface - Floating Pill Card)
         miniPlayerView = UIView()
         miniPlayerView.translatesAutoresizingMaskIntoConstraints = false
         miniPlayerView.layer.cornerRadius = 29
@@ -635,14 +504,8 @@ extension ViewController {
         miniControls.addArrangedSubview(miniNextButton)
 
         NSLayoutConstraint.activate([
-            // Top Header Card: starts at page1.topAnchor and ends at searchBar.centerYAnchor
-            headerCardView.topAnchor.constraint(equalTo: page1.topAnchor),
-            headerCardView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
-            headerCardView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            headerCardView.bottomAnchor.constraint(equalTo: searchBar.centerYAnchor),
-
-            // Header Elements inside top card
-            titleLabel.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 10),
+            // Header Titles
+            titleLabel.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 12),
             titleLabel.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 20),
 
             subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
@@ -653,42 +516,26 @@ extension ViewController {
             importButton.widthAnchor.constraint(equalToConstant: 40),
             importButton.heightAnchor.constraint(equalToConstant: 40),
 
-            // Search Bar: sits on the bottom seam of headerCardView
-            searchBar.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 10),
+            // Search Bar: sits with generous empty space below subtitle, bridging the wave and bottomPanel
+            searchBar.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 52),
             searchBar.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 14),
             searchBar.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -14),
             searchBar.heightAnchor.constraint(equalToConstant: 44),
 
-            // My Wave Card: in the open space below searchBar
-            myWaveCardView.topAnchor.constraint(equalTo: searchBar.bottomAnchor, constant: 10),
-            myWaveCardView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
-            myWaveCardView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
-            myWaveCardView.heightAnchor.constraint(equalToConstant: 96),
+            // Pure Visual Wave: flows in the open space underneath Metal/shelf/+ down to searchBar's midpoint
+            myWaveView.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 2),
+            myWaveView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
+            myWaveView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
+            myWaveView.bottomAnchor.constraint(equalTo: searchBar.centerYAnchor),
 
-            myWaveView.topAnchor.constraint(equalTo: myWaveCardView.topAnchor),
-            myWaveView.leadingAnchor.constraint(equalTo: myWaveCardView.leadingAnchor),
-            myWaveView.trailingAnchor.constraint(equalTo: myWaveCardView.trailingAnchor),
-            myWaveView.bottomAnchor.constraint(equalTo: myWaveCardView.bottomAnchor),
+            // Bottom Underlay Panel: starts at the center of searchBar and extends to bottom of screen
+            bottomPanel.topAnchor.constraint(equalTo: searchBar.centerYAnchor),
+            bottomPanel.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
+            bottomPanel.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
+            bottomPanel.bottomAnchor.constraint(equalTo: page1.bottomAnchor),
 
-            waveHeaderStack.topAnchor.constraint(equalTo: myWaveCardView.topAnchor, constant: 12),
-            waveHeaderStack.leadingAnchor.constraint(equalTo: myWaveCardView.leadingAnchor, constant: 14),
-            waveHeaderStack.trailingAnchor.constraint(lessThanOrEqualTo: wavePlayButton.leadingAnchor, constant: -10),
-            waveIcon.widthAnchor.constraint(equalToConstant: 18),
-            waveIcon.heightAnchor.constraint(equalToConstant: 18),
-
-            wavePlayButton.centerYAnchor.constraint(equalTo: waveHeaderStack.centerYAnchor),
-            wavePlayButton.trailingAnchor.constraint(equalTo: myWaveCardView.trailingAnchor, constant: -14),
-            wavePlayButton.widthAnchor.constraint(equalToConstant: 32),
-            wavePlayButton.heightAnchor.constraint(equalToConstant: 32),
-
-            // TableView (Songs List): occupies space from wave card down to mini player
-            tableView.topAnchor.constraint(equalTo: myWaveCardView.bottomAnchor, constant: 8),
-            tableView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
-            tableView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
-
-            // Floating Filters Container: sits FLOATING right over tableView top!
-            floatingFiltersContainer.topAnchor.constraint(equalTo: myWaveCardView.bottomAnchor, constant: 8),
+            // Floating Filters Container: floats above the song list inside the bottom panel
+            floatingFiltersContainer.topAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 28),
             floatingFiltersContainer.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             floatingFiltersContainer.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
             floatingFiltersContainer.heightAnchor.constraint(equalToConstant: 38),
@@ -709,6 +556,13 @@ extension ViewController {
             filtersStackView.trailingAnchor.constraint(equalTo: filtersScrollView.contentLayoutGuide.trailingAnchor),
             filtersStackView.heightAnchor.constraint(equalTo: filtersScrollView.heightAnchor),
 
+            // TableView (Songs List): sits over bottomPanel, content begins below floating filters
+            tableView.topAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 28),
+            tableView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
+            tableView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
+            tableView.bottomAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
+
+            // Mini Player Constraints
             miniPlayerView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             miniPlayerView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
             miniPlayerView.bottomAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.bottomAnchor, constant: -8),
@@ -757,13 +611,19 @@ extension ViewController {
         page2.backgroundColor = .clear
 
         // Full Edge-to-Edge Dynamic Ambient Gradient Background (Fills status bar notch & home indicator)
-        playerGradientLayer = CAGradientLayer()
+        if let playerPage = page2 as? PlayerPageView {
+            playerGradientLayer = playerPage.gradientLayer
+        } else {
+            playerGradientLayer = CAGradientLayer()
+            page2.layer.insertSublayer(playerGradientLayer, at: 0)
+        }
         playerGradientLayer.colors = [
             UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1.0).cgColor,
             UIColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0).cgColor
         ]
         playerGradientLayer.locations = [0.0, 1.0]
-        page2.layer.insertSublayer(playerGradientLayer, at: 0)
+        playerGradientLayer.startPoint = CGPoint(x: 0.5, y: 0.0)
+        playerGradientLayer.endPoint = CGPoint(x: 0.5, y: 1.0)
 
         // --- 1. Top Navigation Bar (Positioned at Safe Area Top) ---
         let topBar = UIView()
@@ -1019,9 +879,8 @@ extension ViewController {
 
     func updateCardBorders() {
         let border = cardBorderColor().resolvedColor(with: traitCollection).cgColor
-        headerCardView?.backgroundColor = cardBackgroundColor()
-        myWaveCardView?.backgroundColor = cardBackgroundColor()
-        myWaveCardView?.layer.borderColor = border
+        bottomPanel?.backgroundColor = cardBackgroundColor()
+        bottomPanel?.layer.borderColor = border
         floatingFiltersContainer?.layer.borderColor = border
         searchBar?.searchTextField.backgroundColor = cardBackgroundColor()
         searchBar?.searchTextField.layer.borderColor = border
@@ -1031,7 +890,9 @@ extension ViewController {
         miniPlayPauseButton?.layer.borderColor = border
         activeSheetView?.layer.borderColor = border
 
-        playerGradientLayer?.frame = page2?.bounds ?? .zero
+        if !(page2 is PlayerPageView) {
+            playerGradientLayer?.frame = page2?.bounds ?? .zero
+        }
 
         progressSlider?.setThumbImage(makeThumbImage(size: 10), for: .normal)
     }
@@ -1054,13 +915,13 @@ extension ViewController {
         page1.viewWithTag(7702)?.removeFromSuperview()
 
         let topFade = GradientOverlayView(fromTop: true) { [weak self] in
-            self?.primaryBackgroundColor() ?? .clear
+            self?.cardBackgroundColor() ?? .clear
         }
         topFade.tag = 7701
         page1.addSubview(topFade)
 
         let bottomFade = GradientOverlayView(fromTop: false) { [weak self] in
-            self?.primaryBackgroundColor() ?? .clear
+            self?.cardBackgroundColor() ?? .clear
         }
         bottomFade.tag = 7702
         page1.addSubview(bottomFade)
@@ -1085,6 +946,18 @@ extension ViewController {
         top.layoutIfNeeded()
         bot.setNeedsLayout()
         bot.layoutIfNeeded()
+    }
+}
+
+// MARK: - PlayerPageView (Edge-to-Edge Ambient Gradient Layer Backed View)
+
+class PlayerPageView: UIView {
+    override class var layerClass: AnyClass {
+        return CAGradientLayer.self
+    }
+
+    var gradientLayer: CAGradientLayer {
+        return layer as! CAGradientLayer
     }
 }
 
