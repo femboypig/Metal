@@ -37,19 +37,19 @@ struct MetalWidgetEntry: TimelineEntry {
             date: date,
             recommendations: [
                 MetalWidgetRecommendation(
-                    id: "lovely-1",
-                    title: "Lovely Mix",
-                    artist: "Made from the music you love",
+                    id: "mix-1",
+                    title: "Daily Mix",
+                    artist: "Made from your music taste",
                     artworkData: nil
                 ),
                 MetalWidgetRecommendation(
-                    id: "lovely-2",
+                    id: "mix-2",
                     title: "Your next favorite",
                     artist: "Chosen from your listening taste",
                     artworkData: nil
                 ),
                 MetalWidgetRecommendation(
-                    id: "lovely-3",
+                    id: "mix-3",
                     title: "Picked for you",
                     artist: "Metal",
                     artworkData: nil
@@ -277,8 +277,8 @@ struct MetalSquareWidget: Widget {
         StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
             MetalSquareWidgetView(entry: entry)
         }
-        .configurationDisplayName("Lovely Pick")
-        .description("A track picked from the music you love.")
+        .configurationDisplayName("Quick Pick")
+        .description("A track picked from your music taste.")
         .supportedFamilies([.systemSmall])
         .contentMarginsDisabled()
         .containerBackgroundRemovable(false)
@@ -292,7 +292,7 @@ struct MetalWideWidget: Widget {
         StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
             MetalWideWidgetView(entry: entry)
         }
-        .configurationDisplayName("Lovely Mix")
+        .configurationDisplayName("Daily Mix")
         .description("A rotating mix of songs picked for you.")
         .supportedFamilies([.systemMedium])
         .contentMarginsDisabled()
