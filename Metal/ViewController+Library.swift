@@ -148,7 +148,7 @@ extension ViewController {
         // 6. "+ Playlist" Pill
         let newPill = UIButton(type: .system)
         newPill.translatesAutoresizingMaskIntoConstraints = false
-        newPill.backgroundColor = cardBackgroundColor()
+        newPill.backgroundColor = .clear
         newPill.layer.cornerRadius = 15
         newPill.layer.borderWidth = 0
 
@@ -158,30 +158,30 @@ extension ViewController {
             config.image = UIImage(systemName: "plus", withConfiguration: plusConfiguration)
             config.imagePadding = 3
             config.title = "Playlist"
-            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10)
             config.baseForegroundColor = secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
-                outgoing.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+                outgoing.font = UIFont.systemFont(ofSize: 12, weight: .bold)
                 return outgoing
             }
             newPill.configuration = config
         } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
             config.title = "＋ Playlist"
-            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10)
             config.baseForegroundColor = secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
-                outgoing.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+                outgoing.font = UIFont.systemFont(ofSize: 12, weight: .bold)
                 return outgoing
             }
             newPill.configuration = config
         } else {
             newPill.setTitle("＋ Playlist", for: .normal)
-            newPill.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+            newPill.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .bold)
             newPill.setTitleColor(secondaryTextColor(), for: .normal)
-            newPill.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
+            newPill.contentEdgeInsets = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
         }
 
         newPill.titleLabel?.numberOfLines = 1
@@ -198,6 +198,7 @@ extension ViewController {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.setTitle(title, for: .normal)
         button.layer.cornerRadius = 15
+        button.clipsToBounds = true
 
         let isActive = (activeFilter == category)
 
@@ -206,31 +207,33 @@ extension ViewController {
                 ? UIButton.Configuration.prominentGlass()
                 : UIButton.Configuration.glass()
             config.title = title
-            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12)
             config.baseForegroundColor = isActive ? .white : secondaryTextColor()
             if isActive {
-                config.baseBackgroundColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
+                config.baseBackgroundColor = primaryButtonColor()
             }
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
-                outgoing.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+                outgoing.font = UIFont.systemFont(ofSize: 12, weight: .bold)
                 return outgoing
             }
             button.configuration = config
         } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
-            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
-            config.baseForegroundColor = isActive ? UIColor(red: 0.93, green: 0.47, blue: 0.31, alpha: 1.0) : secondaryTextColor()
+            config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12)
+            config.baseForegroundColor = isActive ? .white : secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
-                outgoing.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+                outgoing.font = UIFont.systemFont(ofSize: 12, weight: .bold)
                 return outgoing
             }
             button.configuration = config
+            button.backgroundColor = isActive ? primaryButtonColor() : .clear
         } else {
-            button.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
-            button.setTitleColor(isActive ? UIColor(red: 0.93, green: 0.47, blue: 0.31, alpha: 1.0) : secondaryTextColor(), for: .normal)
-            button.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
+            button.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+            button.setTitleColor(isActive ? .white : secondaryTextColor(), for: .normal)
+            button.contentEdgeInsets = UIEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
+            button.backgroundColor = isActive ? primaryButtonColor() : .clear
         }
 
         button.titleLabel?.numberOfLines = 1
@@ -239,13 +242,8 @@ extension ViewController {
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         if #available(iOS 26.0, *) {
-            button.backgroundColor = .clear
-            button.layer.borderWidth = 0
-        } else if isActive {
-            button.backgroundColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 0.13)
             button.layer.borderWidth = 0
         } else {
-            button.backgroundColor = .clear
             button.layer.borderWidth = 0
         }
 
@@ -821,6 +819,7 @@ extension ViewController {
 
     @objc func updateFilterPillBorders() {
         let borderCol = cardBorderColor().resolvedColor(with: self.view.traitCollection).cgColor
+        floatingFiltersContainer?.layer.borderColor = borderCol
         for subview in filtersStackView?.arrangedSubviews ?? [] {
             if let button = subview as? UIButton {
                 if button.layer.borderWidth > 0 {
