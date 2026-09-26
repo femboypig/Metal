@@ -157,7 +157,7 @@ extension ViewController {
             config.image = UIImage(systemName: "plus", withConfiguration: plusConfiguration)
             config.imagePadding = 4
             config.title = "Playlist"
-            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
             config.baseForegroundColor = secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
@@ -168,7 +168,7 @@ extension ViewController {
         } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
             config.title = "＋ Playlist"
-            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
             config.baseForegroundColor = secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
@@ -180,7 +180,7 @@ extension ViewController {
             newPill.setTitle("＋ Playlist", for: .normal)
             newPill.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
             newPill.setTitleColor(secondaryTextColor(), for: .normal)
-            newPill.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+            newPill.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
         }
 
         newPill.titleLabel?.numberOfLines = 1
