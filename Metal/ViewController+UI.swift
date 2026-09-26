@@ -525,7 +525,7 @@ extension ViewController {
             searchBar.heightAnchor.constraint(equalToConstant: 44),
 
             // Pure Visual Wave: flows across the entire header area and spreads down behind bottomPanel's rounded corners
-            myWaveView.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 4),
+            myWaveView.topAnchor.constraint(equalTo: page1.topAnchor),
             myWaveView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             myWaveView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
             myWaveView.bottomAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 72),
@@ -1029,7 +1029,9 @@ struct WaveUniforms {
     float amplitude;
     float isPlaying;
     float isDark;
-    float2 padding;
+    float hasThemeColor;
+    float padding1;
+    float3 themeColor;
 };
 
 vertex VertexOut waveVertexShader(uint vertexID [[vertex_id]]) {
@@ -1089,8 +1091,8 @@ fragment float4 waveFragmentShader(
     float minDim = min(res.x, res.y);
     float2 p = (in.position.xy - 0.5 * res) / minDim;
 
-    // Slight vertical center offset for balanced visual mass
-    p.y += 0.04;
+    // Slight vertical center offset for balanced visual mass extending to screen top
+    p.y += 0.07;
 
     float t = uniforms.time * 0.28;
     float amp = uniforms.amplitude;
@@ -1120,17 +1122,17 @@ fragment float4 waveFragmentShader(
     float bulgeSpatial = snoise(p * 1.7 + warp2 * 0.35 + float2(t * 0.12, -t * 0.15));
 
     // Base radius: fills the area generously with organic curvature
-    float baseRadius = 0.54;
+    float baseRadius = 0.55;
     float targetRadius = baseRadius + (bulgeLarge * 0.22 + bulgeMedium * 0.12 + bulgeSpatial * 0.08) * amp;
 
     // Signed distance to the morphing contour
     float d = dist - targetRadius;
 
-    // Layer 1: Huge soft ambient glow
-    float ambientGlow = smoothstep(0.56, -0.22, d);
+    // Layer 1: Huge soft ambient glow extending edge-to-edge
+    float ambientGlow = smoothstep(0.60, -0.22, d);
 
     // Layer 2: Colored blurred mass
-    float blurredMass = smoothstep(0.32, -0.14, d);
+    float blurredMass = smoothstep(0.34, -0.14, d);
 
     // Layer 3: Main brighter organic body
     float mainBody = smoothstep(0.10, -0.16, d);
@@ -1158,7 +1160,7 @@ fragment float4 waveFragmentShader(
     );
     float distToYellow = length(p - yellowCenterOffset);
 
-    // Authentic saturated Yandex Music "My Wave" palette:
+    // Base saturated Yandex Music "My Wave" palette:
     float3 cDeepIndigo   = float3(0.22, 0.04, 0.44); // ambient deep purple-indigo
     float3 cRoyalPurple  = float3(0.58, 0.06, 0.76); // rich royal purple
     float3 cHotMagenta   = float3(0.98, 0.12, 0.58); // hot pink / electric magenta
@@ -1166,6 +1168,20 @@ fragment float4 waveFragmentShader(
     float3 cGoldenYellow = float3(1.00, 0.88, 0.22); // radiant yellow / warm amber
     float3 cHighlight    = float3(1.00, 0.98, 0.86); // luminous center highlight
     float3 cElectricCyan = float3(0.12, 0.78, 0.94); // soft electric cyan accent
+
+    // Subtly adapt colors to album artwork if themeColor is present ("цвета мб чуток под обложку")
+    if (uniforms.hasThemeColor > 0.5) {
+        float3 cover = uniforms.themeColor;
+        float maxC = max(cover.r, max(cover.g, cover.b));
+        float minC = min(cover.r, min(cover.g, cover.b));
+        float l = (maxC + minC) * 0.5;
+        float3 vibrantCover = saturate((cover - l) * 1.4 + l + 0.05);
+
+        cRoyalPurple  = mix(cRoyalPurple, vibrantCover * float3(0.75, 0.45, 0.9) + float3(0.15, 0.03, 0.22), 0.40);
+        cHotMagenta   = mix(cHotMagenta, vibrantCover * 1.1 + float3(0.18, 0.02, 0.12), 0.42);
+        cMoltenOrange = mix(cMoltenOrange, saturate(vibrantCover * 1.15 + float3(0.22, 0.14, 0.0)), 0.35);
+        cGoldenYellow = mix(cGoldenYellow, saturate(vibrantCover * float3(1.1, 1.0, 0.5) + float3(0.2, 0.2, 0.0)), 0.26);
+    }
 
     // Blend purple and magenta across asymmetric lobes:
     float magentaMix = smoothstep(-0.40, 0.50, dirX + internalFluid2 * 0.40);
@@ -1211,7 +1227,9 @@ class YandexWaveView: UIView, MTKViewDelegate {
         var amplitude: Float = 0.7
         var isPlaying: Float = 0.0
         var isDark: Float = 1.0
-        var padding: SIMD2<Float> = .zero
+        var hasThemeColor: Float = 0.0
+        var padding1: Float = 0.0
+        var themeColor: SIMD3<Float> = .zero
     }
 
     private var mtkView: MTKView?
@@ -1224,6 +1242,10 @@ class YandexWaveView: UIView, MTKViewDelegate {
     private var isPlayingState: Bool = false
     private var currentAmplitude: Float = 0.7
     private var targetAmplitude: Float = 0.7
+
+    private var currentThemeColor: SIMD3<Float> = .zero
+    private var targetThemeColor: SIMD3<Float> = .zero
+    private var hasThemeColor: Bool = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1289,6 +1311,21 @@ class YandexWaveView: UIView, MTKViewDelegate {
         targetAmplitude = playing ? 1.25 : 0.70
     }
 
+    func setThemeColor(_ color: UIColor?) {
+        guard let color = color else {
+            hasThemeColor = false
+            return
+        }
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        if color.getRed(&r, green: &g, blue: &b, alpha: &a) {
+            targetThemeColor = SIMD3<Float>(Float(r), Float(g), Float(b))
+            hasThemeColor = true
+            if currentThemeColor == .zero {
+                currentThemeColor = targetThemeColor
+            }
+        }
+    }
+
     override func didMoveToWindow() {
         super.didMoveToWindow()
         mtkView?.isPaused = (window == nil)
@@ -1315,6 +1352,10 @@ class YandexWaveView: UIView, MTKViewDelegate {
 
         currentAmplitude += (targetAmplitude - currentAmplitude) * 0.05
 
+        if hasThemeColor {
+            currentThemeColor += (targetThemeColor - currentThemeColor) * 0.04
+        }
+
         let drawableSize = view.drawableSize
         guard drawableSize.width > 0, drawableSize.height > 0 else { return }
 
@@ -1324,7 +1365,9 @@ class YandexWaveView: UIView, MTKViewDelegate {
             amplitude: currentAmplitude,
             isPlaying: isPlayingState ? 1.0 : 0.0,
             isDark: traitCollection.userInterfaceStyle == .dark ? 1.0 : 0.0,
-            padding: .zero
+            hasThemeColor: hasThemeColor ? 1.0 : 0.0,
+            padding1: 0.0,
+            themeColor: currentThemeColor
         )
 
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
