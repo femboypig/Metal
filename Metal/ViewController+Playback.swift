@@ -626,34 +626,6 @@ extension ViewController {
         }
     }
 
-    @objc func myWaveCardTapped() {
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.prepare()
-        generator.impactOccurred()
-
-        if let player = audioPlayer, player.isPlaying {
-            playNextTrack()
-            showToast(message: "Моя волна • Следующий трек", success: true)
-        } else if let player = audioPlayer {
-            player.play()
-            startTimer()
-            updatePlaybackButtons()
-            updateMiniPlayerUI()
-            updateWavePlayingState()
-            showToast(message: "Моя волна • Играет", success: true)
-        } else if !filteredTracks.isEmpty {
-            currentTrackIndex = 0
-            playCurrentTrack()
-            showToast(message: "Моя волна • Запуск", success: true)
-        } else if !tracks.isEmpty {
-            activeFilter = .all
-            filterTracks()
-            rebuildFiltersRow()
-            currentTrackIndex = 0
-            playCurrentTrack()
-            showToast(message: "Моя волна • Все треки", success: true)
-        }
-    }
 
     // MARK: - AVAudioPlayerDelegate
 
