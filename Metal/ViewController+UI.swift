@@ -104,7 +104,7 @@ extension ViewController {
         page1.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(page1)
 
-        page2 = PlayerPageView()
+        page2 = UIView()
         page2.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(page2)
 
@@ -446,7 +446,12 @@ extension ViewController {
         searchBar.clipsToBounds = false
         page1.addSubview(searchBar)
 
-        // 6. Header Titles and Action Button
+        // 6. Header Titles and Action Button (Mathematically centered between safe zone and search bar)
+        let headerArea = UIView()
+        headerArea.translatesAutoresizingMaskIntoConstraints = false
+        headerArea.isUserInteractionEnabled = false
+        page1.addSubview(headerArea)
+
         let titleLabel = UILabel()
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = UIFont(name: "Georgia-Bold", size: 38)
@@ -571,17 +576,22 @@ extension ViewController {
         miniControls.addArrangedSubview(miniNextButton)
 
         NSLayoutConstraint.activate([
-            // Header Titles: titleLabel "Metal." and importButton "+" vertically centered with each other
-            titleLabel.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 14),
+            headerArea.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor),
+            headerArea.bottomAnchor.constraint(equalTo: searchBar.topAnchor),
+            headerArea.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
+            headerArea.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
+
+            // Header Titles: titleLabel "Metal." and importButton "+" vertically centered mathematically between safe zone and search bar
+            titleLabel.centerYAnchor.constraint(equalTo: headerArea.centerYAnchor),
             titleLabel.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 20),
 
-            importButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            importButton.centerYAnchor.constraint(equalTo: headerArea.centerYAnchor),
             importButton.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -20),
             importButton.widthAnchor.constraint(equalToConstant: 40),
             importButton.heightAnchor.constraint(equalToConstant: 40),
 
-            // Search Bar: sits with generous empty space below title, bridging the wave and bottomPanel
-            searchBar.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 58),
+            // Search Bar: sits with generous empty space below safe zone, bridging the wave and bottomPanel
+            searchBar.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 92),
             searchBar.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 14),
             searchBar.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -14),
             searchBar.heightAnchor.constraint(equalToConstant: 44),
@@ -598,10 +608,11 @@ extension ViewController {
             bottomPanel.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
             bottomPanel.bottomAnchor.constraint(equalTo: page1.bottomAnchor),
 
-            // Floating Filters Container: floats above the song list inside the bottom panel
+            // Floating Filters Container: floats above the song list inside the bottom panel, self-centering capsule
             floatingFiltersContainer.topAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 28),
-            floatingFiltersContainer.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
-            floatingFiltersContainer.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
+            floatingFiltersContainer.centerXAnchor.constraint(equalTo: page1.centerXAnchor),
+            floatingFiltersContainer.leadingAnchor.constraint(greaterThanOrEqualTo: page1.leadingAnchor, constant: 16),
+            floatingFiltersContainer.trailingAnchor.constraint(lessThanOrEqualTo: page1.trailingAnchor, constant: -16),
             floatingFiltersContainer.heightAnchor.constraint(equalToConstant: 40),
 
             pillGlass.topAnchor.constraint(equalTo: floatingFiltersContainer.topAnchor),
@@ -610,8 +621,8 @@ extension ViewController {
             pillGlass.bottomAnchor.constraint(equalTo: floatingFiltersContainer.bottomAnchor),
 
             filtersScrollView.topAnchor.constraint(equalTo: floatingFiltersContainer.topAnchor),
-            filtersScrollView.leadingAnchor.constraint(equalTo: floatingFiltersContainer.leadingAnchor, constant: 4),
-            filtersScrollView.trailingAnchor.constraint(equalTo: floatingFiltersContainer.trailingAnchor, constant: -4),
+            filtersScrollView.leadingAnchor.constraint(equalTo: floatingFiltersContainer.leadingAnchor, constant: 6),
+            filtersScrollView.trailingAnchor.constraint(equalTo: floatingFiltersContainer.trailingAnchor, constant: -6),
             filtersScrollView.bottomAnchor.constraint(equalTo: floatingFiltersContainer.bottomAnchor),
 
             filtersStackView.topAnchor.constraint(equalTo: filtersScrollView.contentLayoutGuide.topAnchor),
@@ -659,9 +670,9 @@ extension ViewController {
             miniNextButton.heightAnchor.constraint(equalToConstant: 32)
         ])
 
-        let centerConstraint = filtersStackView.centerXAnchor.constraint(equalTo: filtersScrollView.centerXAnchor)
-        centerConstraint.priority = .defaultLow
-        centerConstraint.isActive = true
+        let pillWidthConstraint = floatingFiltersContainer.widthAnchor.constraint(equalTo: filtersStackView.widthAnchor, constant: 12)
+        pillWidthConstraint.priority = UILayoutPriority(999)
+        pillWidthConstraint.isActive = true
 
         rebuildFiltersRow()
     }
@@ -681,19 +692,16 @@ extension ViewController {
         page2.insertSubview(playerFluidView, at: 0)
 
         // Full Edge-to-Edge Dynamic Ambient Gradient Background (Fills status bar notch & home indicator)
-        if let playerPage = page2 as? PlayerPageView {
-            playerGradientLayer = playerPage.gradientLayer
-        } else {
-            playerGradientLayer = CAGradientLayer()
-            page2.layer.insertSublayer(playerGradientLayer, at: 0)
-        }
-        playerGradientLayer.colors = [
+        let gradient = CAGradientLayer()
+        gradient.colors = [
             UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1.0).cgColor,
             UIColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0).cgColor
         ]
-        playerGradientLayer.locations = [0.0, 1.0]
-        playerGradientLayer.startPoint = CGPoint(x: 0.5, y: 0.0)
-        playerGradientLayer.endPoint = CGPoint(x: 0.5, y: 1.0)
+        gradient.locations = [0.0, 1.0]
+        gradient.startPoint = CGPoint(x: 0.5, y: 0.0)
+        gradient.endPoint = CGPoint(x: 0.5, y: 1.0)
+        page2.layer.insertSublayer(gradient, at: 0)
+        playerGradientLayer = gradient
 
         // --- 1. Top Navigation Bar (Positioned at Safe Area Top) ---
         let topBar = UIView()
@@ -968,9 +976,7 @@ extension ViewController {
         miniPlayPauseButton?.layer.borderColor = border
         activeSheetView?.layer.borderColor = border
 
-        if !(page2 is PlayerPageView) {
-            playerGradientLayer?.frame = page2?.bounds ?? .zero
-        }
+        playerGradientLayer?.frame = page2?.bounds ?? .zero
 
         progressSlider?.setThumbImage(makeThumbImage(size: 10), for: .normal)
     }
