@@ -613,6 +613,7 @@ extension ViewController {
         let bottomColor = UIColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0)
 
         currentDominantColor = dominantColor
+        myWaveView?.setThemeColor(dominantColor)
 
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.5)
