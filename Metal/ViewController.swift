@@ -26,6 +26,14 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var searchBar: UISearchBar!
     var importButton: UIButton!
     
+    // Page 1 Header Card, Wave Visualizer & Floating Pill Filter Bar
+    var headerCardView: UIView!
+    var myWaveCardView: UIView!
+    var myWaveView: YandexWaveView!
+    var wavePlayButton: UIButton!
+    var floatingFiltersContainer: UIView!
+    var currentDominantColor: UIColor?
+    
     // Horizontal Playlists/Favorites Pill Scroller
     var filtersScrollView: UIScrollView!
     var filtersStackView: UIStackView!
@@ -240,5 +248,22 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             prepareDailyMixVibes()
             prepareUpcomingTrack()
         }
+    }
+
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        guard isViewLoaded, let sv = scrollView, sv.bounds.width > 0 else {
+            return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
+        }
+        if sv.contentOffset.x >= sv.bounds.width * 1.5 {
+            return .lightContent
+        }
+        return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
+    }
+
+    func updateWavePlayingState() {
+        let isPlaying = audioPlayer?.isPlaying == true
+        myWaveView?.setPlaying(isPlaying)
+        let iconName = isPlaying ? "pause.fill" : "play.fill"
+        wavePlayButton?.setImage(UIImage(systemName: iconName, withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .bold)), for: .normal)
     }
 }
