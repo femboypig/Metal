@@ -95,11 +95,34 @@ extension ViewController {
     }
     
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        // Only apply the cylinder effect when the tableView itself is scrolling,
-        // not the outer paging scrollView
+        if scrollView === self.scrollView {
+            let width = scrollView.bounds.width
+            if width > 0 {
+                let offset = scrollView.contentOffset.x
+                if offset > width {
+                    let progress = min(max((offset - width) / width, 0.0), 1.0)
+                    let targetColor = currentDominantColor ?? UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1.0)
+                    let bg = interpolateColor(from: primaryBackgroundColor(), to: targetColor, progress: progress)
+                    view.backgroundColor = bg
+                    scrollView.backgroundColor = bg
+                } else {
+                    view.backgroundColor = primaryBackgroundColor()
+                    scrollView.backgroundColor = primaryBackgroundColor()
+                }
+                setNeedsStatusBarAppearanceUpdate()
+            }
+            return
+        }
+
         guard scrollView === tableView else { return }
         applyCylinderEffect()
         updateOverlayAlphas()
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        if scrollView === self.scrollView {
+            setNeedsStatusBarAppearanceUpdate()
+        }
     }
     
     // MARK: - Cylinder / Drum-Roll Effect
@@ -109,13 +132,14 @@ extension ViewController {
               let bot = page1?.viewWithTag(7702) else { return }
         
         let offsetY = tableView.contentOffset.y
+        let topOffset = offsetY + tableView.contentInset.top
         let fadeLimit: CGFloat = 36.0
         
         // 1. Top overlay alpha transitions from 0.0 at rest to 1.0 after scrolling down 36pt
-        if offsetY <= 0 {
+        if topOffset <= 0 {
             top.alpha = 0.0
-        } else if offsetY < fadeLimit {
-            top.alpha = offsetY / fadeLimit
+        } else if topOffset < fadeLimit {
+            top.alpha = topOffset / fadeLimit
         } else {
             top.alpha = 1.0
         }
