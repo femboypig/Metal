@@ -266,11 +266,8 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
 
     func applyPlayerBackgroundStyle() {
         let isFluid = (persistedSettings.playerBackgroundStyle == "fluid")
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.3)
-        playerGradientLayer?.opacity = isFluid ? 0.0 : 1.0
-        CATransaction.commit()
         playerFluidView?.isHidden = !isFluid
         playerFluidView?.isPaused = !isFluid
+        playerGradientLayer?.isHidden = isFluid
     }
 }
