@@ -5,6 +5,8 @@
 
 import UIKit
 import Darwin
+import Metal
+import MetalKit
 
 extension ViewController {
 
@@ -522,11 +524,11 @@ extension ViewController {
             searchBar.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -14),
             searchBar.heightAnchor.constraint(equalToConstant: 44),
 
-            // Pure Visual Wave: flows in the open space underneath Metal/shelf/+ down to searchBar's midpoint
-            myWaveView.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 2),
+            // Pure Visual Wave: flows across the entire header area and spreads down behind bottomPanel's rounded corners
+            myWaveView.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 4),
             myWaveView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             myWaveView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            myWaveView.bottomAnchor.constraint(equalTo: searchBar.centerYAnchor),
+            myWaveView.bottomAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 72),
 
             // Bottom Underlay Panel: starts at the center of searchBar and extends to bottom of screen
             bottomPanel.topAnchor.constraint(equalTo: searchBar.centerYAnchor),
@@ -1010,242 +1012,331 @@ private extension UILabel {
     }
 }
 
-// MARK: - Yandex Music "Моя волна" (My Wave) Generative Visualizer
+// MARK: - Yandex Music "Моя волна" (My Wave) Metal Shader Visualizer
 
-class YandexWaveView: UIView {
+private let waveMetalShaderSource = """
+#include <metal_stdlib>
+using namespace metal;
 
-    private var displayLink: CADisplayLink?
-    private var phase: CGFloat = 0.0
-    private var isPlaying: Bool = false
-    private var currentAmplitudeMultiplier: CGFloat = 0.7
-    private var targetAmplitudeMultiplier: CGFloat = 0.7
+struct VertexOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+struct WaveUniforms {
+    float2 resolution;
+    float time;
+    float amplitude;
+    float isPlaying;
+    float isDark;
+    float2 padding;
+};
+
+vertex VertexOut waveVertexShader(uint vertexID [[vertex_id]]) {
+    float2 positions[3] = {
+        float2(-1.0, -1.0),
+        float2( 3.0, -1.0),
+        float2(-1.0,  3.0)
+    };
+    VertexOut out;
+    out.position = float4(positions[vertexID], 0.0, 1.0);
+    out.uv = positions[vertexID] * 0.5 + 0.5;
+    return out;
+}
+
+// Modulo 289
+float3 mod289(float3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+float2 mod289(float2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+float3 permute(float3 x) { return mod289(((x * 34.0) + 1.0) * x); }
+
+// 2D Simplex Noise
+float snoise(float2 v) {
+    const float4 C = float4(0.211324865405187,
+                            0.366025403784439,
+                           -0.577350269189626,
+                            0.024390243902439);
+    float2 i  = floor(v + dot(v, C.yy));
+    float2 x0 = v -   i + dot(i, C.xx);
+    float2 i1 = (x0.x > x0.y) ? float2(1.0, 0.0) : float2(0.0, 1.0);
+    float4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = mod289(i);
+    float3 p = permute(permute(i.y + float3(0.0, i1.y, 1.0))
+                     + i.x + float3(0.0, i1.x, 1.0));
+    float3 m = max(0.5 - float3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+    m = m * m;
+    m = m * m;
+    float3 x = 2.0 * fract(p * C.www) - 1.0;
+    float3 h = abs(x) - 0.5;
+    float3 ox = floor(x + 0.5);
+    float3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+    float3 g;
+    g.x  = a0.x  * x0.x  + h.x  * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+}
+
+fragment float4 waveFragmentShader(
+    VertexOut in [[stage_in]],
+    constant WaveUniforms &uniforms [[buffer(0)]]
+) {
+    float2 res = uniforms.resolution;
+    if (res.x <= 0.0 || res.y <= 0.0) {
+        return float4(0.0);
+    }
+
+    float minDim = min(res.x, res.y);
+    float2 p = (in.position.xy - 0.5 * res) / minDim;
+
+    // Slight vertical center offset for balanced visual mass
+    p.y += 0.04;
+
+    float t = uniforms.time * 0.28;
+    float amp = uniforms.amplitude;
+
+    // Polar coordinates from center
+    float angle = atan2(p.y, p.x);
+    float dist = length(p);
+    float2 dir = float2(cos(angle), sin(angle));
+
+    // Domain warping vectors
+    float2 warp1 = float2(
+        snoise(dir * 1.4 + float2(t * 0.28, 0.6)),
+        snoise(dir * 1.4 + float2(1.9, t * 0.22))
+    );
+    float2 warp2 = float2(
+        snoise(p * 2.0 + warp1 * 0.55 + float2(t * 0.18, -t * 0.15)),
+        snoise(p * 2.0 - warp1 * 0.55 + float2(-t * 0.14, t * 0.20))
+    );
+
+    // 1. Large low-frequency bulges and smooth inward dents (6-10s cycle)
+    float bulgeLarge = snoise(dir * 1.15 + warp1 * 0.45 + float2(t * 0.20, t * 0.16));
+
+    // 2. Medium asymmetric protrusions (independent frequency and drift)
+    float bulgeMedium = snoise(dir * 2.4 - warp2 * 0.5 + float2(-t * 0.26, t * 0.22));
+
+    // 3. Spatial fluid convection through 2D space
+    float bulgeSpatial = snoise(p * 1.7 + warp2 * 0.35 + float2(t * 0.12, -t * 0.15));
+
+    // Base radius: fills the area generously with organic curvature
+    float baseRadius = 0.54;
+    float targetRadius = baseRadius + (bulgeLarge * 0.22 + bulgeMedium * 0.12 + bulgeSpatial * 0.08) * amp;
+
+    // Signed distance to the morphing contour
+    float d = dist - targetRadius;
+
+    // Layer 1: Huge soft ambient glow
+    float ambientGlow = smoothstep(0.56, -0.22, d);
+
+    // Layer 2: Colored blurred mass
+    float blurredMass = smoothstep(0.32, -0.14, d);
+
+    // Layer 3: Main brighter organic body
+    float mainBody = smoothstep(0.10, -0.16, d);
+
+    // Layer 4: Deep dense central core
+    float deepCore = smoothstep(0.00, -0.30, d);
+
+    // Independent drifting coordinates for the internal liquid color regions:
+    float2 colorCoords1 = p * 1.4 + float2(t * 0.15, -t * 0.11);
+    float2 colorCoords2 = p * 1.7 + float2(-t * 0.13, t * 0.16);
+    float2 colorCoords3 = p * 2.0 + float2(sin(t * 0.16) * 0.35, cos(t * 0.14) * 0.35);
+
+    float internalFluid1 = snoise(colorCoords1 + warp1 * 0.45);
+    float internalFluid2 = snoise(colorCoords2 + internalFluid1 * 0.55);
+    float internalFluid3 = snoise(colorCoords3 - internalFluid2 * 0.45);
+
+    // Swirling directional angle for region separation (purple vs magenta):
+    float fluidAngle = angle + internalFluid1 * 1.6 + t * 0.10;
+    float dirX = cos(fluidAngle);
+
+    // Drifting warm yellow core spot (slowly shifts inside the body):
+    float2 yellowCenterOffset = float2(
+        snoise(float2(t * 0.10, 2.7)) * 0.16,
+        snoise(float2(4.8, t * 0.12)) * 0.14 + 0.03
+    );
+    float distToYellow = length(p - yellowCenterOffset);
+
+    // Authentic saturated Yandex Music "My Wave" palette:
+    float3 cDeepIndigo   = float3(0.22, 0.04, 0.44); // ambient deep purple-indigo
+    float3 cRoyalPurple  = float3(0.58, 0.06, 0.76); // rich royal purple
+    float3 cHotMagenta   = float3(0.98, 0.12, 0.58); // hot pink / electric magenta
+    float3 cMoltenOrange = float3(1.00, 0.42, 0.10); // glowing sunset orange
+    float3 cGoldenYellow = float3(1.00, 0.88, 0.22); // radiant yellow / warm amber
+    float3 cHighlight    = float3(1.00, 0.98, 0.86); // luminous center highlight
+    float3 cElectricCyan = float3(0.12, 0.78, 0.94); // soft electric cyan accent
+
+    // Blend purple and magenta across asymmetric lobes:
+    float magentaMix = smoothstep(-0.40, 0.50, dirX + internalFluid2 * 0.40);
+    float3 liquidColor = mix(cRoyalPurple, cHotMagenta, magentaMix);
+
+    // Blend molten orange toward the center:
+    float orangeSpread = smoothstep(0.46, 0.12, dist + internalFluid2 * 0.10);
+    liquidColor = mix(liquidColor, cMoltenOrange, orangeSpread * 0.86);
+
+    // Drifting golden yellow center:
+    float yellowMix = smoothstep(0.30, 0.03, distToYellow + internalFluid1 * 0.08);
+    liquidColor = mix(liquidColor, cGoldenYellow, yellowMix);
+
+    // Inner highlight:
+    float highlightMix = smoothstep(0.12, 0.00, distToYellow + internalFluid3 * 0.05);
+    liquidColor = mix(liquidColor, cHighlight, highlightMix * 0.72);
+
+    // Electric cyan drift along fluid rift:
+    float cyanDrift = smoothstep(0.74, 0.96, internalFluid3) * smoothstep(0.30, 0.08, abs(dist - 0.26));
+    liquidColor = mix(liquidColor, cElectricCyan, cyanDrift * 0.40);
+
+    // Deep purple outer halo falloff:
+    liquidColor = mix(cDeepIndigo, liquidColor, smoothstep(0.42, 0.04, d));
+
+    // Volumetric luminance boosting:
+    float bloom = 1.0 + deepCore * 0.32 + highlightMix * 0.42;
+    float3 finalRGB = liquidColor * bloom;
+
+    // Alpha falloff blending all layers:
+    float alpha = mainBody * 0.94 + blurredMass * 0.46 + ambientGlow * 0.26;
+    alpha = clamp(alpha, 0.0, 1.0);
+
+    // Premultiplied alpha for seamless transparency
+    return float4(finalRGB * alpha, alpha);
+}
+"""
+
+class YandexWaveView: UIView, MTKViewDelegate {
+
+    private struct WaveUniforms {
+        var resolution: SIMD2<Float> = .zero
+        var time: Float = 0.0
+        var amplitude: Float = 0.7
+        var isPlaying: Float = 0.0
+        var isDark: Float = 1.0
+        var padding: SIMD2<Float> = .zero
+    }
+
+    private var mtkView: MTKView?
+    private var device: MTLDevice?
+    private var commandQueue: MTLCommandQueue?
+    private var pipelineState: MTLRenderPipelineState?
+
+    private var elapsedTime: Float = 0.0
+    private var lastFrameTime: CFTimeInterval = 0.0
+    private var isPlayingState: Bool = false
+    private var currentAmplitude: Float = 0.7
+    private var targetAmplitude: Float = 0.7
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        commonInit()
+        setupMetalPipeline()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        commonInit()
+        setupMetalPipeline()
     }
 
-    private func commonInit() {
+    private func setupMetalPipeline() {
         backgroundColor = .clear
         isUserInteractionEnabled = false
         clipsToBounds = true
-    }
 
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        if window != nil {
-            startDisplayLink()
-        } else {
-            stopDisplayLink()
+        guard let metalDevice = MTLCreateSystemDefaultDevice() else { return }
+        self.device = metalDevice
+        self.commandQueue = metalDevice.makeCommandQueue()
+
+        do {
+            let library = try metalDevice.makeLibrary(source: waveMetalShaderSource, options: nil)
+            let pipelineDescriptor = MTLRenderPipelineDescriptor()
+            pipelineDescriptor.vertexFunction = library.makeFunction(name: "waveVertexShader")
+            pipelineDescriptor.fragmentFunction = library.makeFunction(name: "waveFragmentShader")
+            pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+            pipelineDescriptor.colorAttachments[0].isBlendingEnabled = true
+            pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = .one
+            pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+            pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
+            pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+
+            self.pipelineState = try metalDevice.makeRenderPipelineState(descriptor: pipelineDescriptor)
+
+            let view = MTKView(frame: bounds, device: metalDevice)
+            view.translatesAutoresizingMaskIntoConstraints = false
+            view.delegate = self
+            view.colorPixelFormat = .bgra8Unorm
+            view.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+            view.isOpaque = false
+            view.layer.isOpaque = false
+            view.backgroundColor = .clear
+            view.preferredFramesPerSecond = 60
+            view.isPaused = false
+            view.enableSetNeedsDisplay = false
+            addSubview(view)
+
+            NSLayoutConstraint.activate([
+                view.topAnchor.constraint(equalTo: topAnchor),
+                view.leadingAnchor.constraint(equalTo: leadingAnchor),
+                view.trailingAnchor.constraint(equalTo: trailingAnchor),
+                view.bottomAnchor.constraint(equalTo: bottomAnchor)
+            ])
+
+            self.mtkView = view
+        } catch {
+            // Pipeline creation failed; safe empty fallback
         }
     }
 
     func setPlaying(_ playing: Bool) {
-        isPlaying = playing
-        targetAmplitudeMultiplier = playing ? 1.35 : 0.65
+        isPlayingState = playing
+        targetAmplitude = playing ? 1.25 : 0.70
     }
 
-    private func startDisplayLink() {
-        stopDisplayLink()
-        let link = CADisplayLink(target: self, selector: #selector(updateWaveAnimation))
-        if #available(iOS 15.0, *) {
-            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        mtkView?.isPaused = (window == nil)
+        if window != nil {
+            lastFrameTime = CACurrentMediaTime()
         }
-        link.add(to: .main, forMode: .common)
-        displayLink = link
     }
 
-    private func stopDisplayLink() {
-        displayLink?.invalidate()
-        displayLink = nil
-    }
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
-    deinit {
-        stopDisplayLink()
-    }
+    func draw(in view: MTKView) {
+        guard let drawable = view.currentDrawable,
+              let renderPassDesc = view.currentRenderPassDescriptor,
+              let pipeline = pipelineState,
+              let commandQueue = commandQueue else { return }
 
-    @objc private func updateWaveAnimation() {
-        let speed: CGFloat = isPlaying ? 0.038 : 0.016
-        phase += speed
-        if phase > .pi * 2000 { phase = 0 }
+        let now = CACurrentMediaTime()
+        let dt = lastFrameTime > 0 ? Float(min(now - lastFrameTime, 0.1)) : 0.016
+        lastFrameTime = now
 
-        // Smooth transition of amplitude multiplier
-        currentAmplitudeMultiplier += (targetAmplitudeMultiplier - currentAmplitudeMultiplier) * 0.08
+        let speedMultiplier: Float = isPlayingState ? 1.40 : 0.85
+        elapsedTime += dt * speedMultiplier
+        if elapsedTime > 10000.0 { elapsedTime = 0 }
 
-        setNeedsDisplay()
-    }
+        currentAmplitude += (targetAmplitude - currentAmplitude) * 0.05
 
-    override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext(), rect.width > 0, rect.height > 0 else { return }
+        let drawableSize = view.drawableSize
+        guard drawableSize.width > 0, drawableSize.height > 0 else { return }
 
-        let width = rect.width
-        let height = rect.height
-        let baseHeight = height * 0.58
-        let amp = currentAmplitudeMultiplier
-
-        let isDark = traitCollection.userInterfaceStyle == .dark
-
-        // Layer 1: Deep ambient violet / berry glow (background wave)
-        let layer1Start = UIColor(red: 0.45, green: 0.12, blue: 0.78, alpha: isDark ? 0.45 : 0.35).cgColor
-        let layer1End = UIColor(red: 0.15, green: 0.35, blue: 0.88, alpha: isDark ? 0.20 : 0.15).cgColor
-        drawSingleWave(
-            context: context,
-            rect: rect,
-            baseY: baseHeight + 4,
-            amplitude1: 14.0 * amp,
-            freq1: 0.012,
-            speed1: 1.1,
-            amplitude2: 9.0 * amp,
-            freq2: 0.024,
-            speed2: -0.8,
-            phaseOffset: 0.0,
-            startColor: layer1Start,
-            endColor: layer1End,
-            crestColor: UIColor(red: 0.65, green: 0.30, blue: 0.95, alpha: 0.7).cgColor
+        var uniforms = WaveUniforms(
+            resolution: SIMD2<Float>(Float(drawableSize.width), Float(drawableSize.height)),
+            time: elapsedTime,
+            amplitude: currentAmplitude,
+            isPlaying: isPlayingState ? 1.0 : 0.0,
+            isDark: traitCollection.userInterfaceStyle == .dark ? 1.0 : 0.0,
+            padding: .zero
         )
 
-        // Layer 2: Sunset orange / golden amber fluid (mid wave)
-        let layer2Start = UIColor(red: 0.96, green: 0.42, blue: 0.18, alpha: isDark ? 0.65 : 0.50).cgColor
-        let layer2End = UIColor(red: 0.88, green: 0.20, blue: 0.45, alpha: isDark ? 0.40 : 0.30).cgColor
-        drawSingleWave(
-            context: context,
-            rect: rect,
-            baseY: baseHeight,
-            amplitude1: 18.0 * amp,
-            freq1: 0.016,
-            speed1: 1.5,
-            amplitude2: 12.0 * amp,
-            freq2: 0.032,
-            speed2: -1.2,
-            phaseOffset: 1.8,
-            startColor: layer2Start,
-            endColor: layer2End,
-            crestColor: UIColor(red: 1.0, green: 0.55, blue: 0.25, alpha: 0.85).cgColor
-        )
+        guard let commandBuffer = commandQueue.makeCommandBuffer(),
+              let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDesc) else { return }
 
-        // Layer 3: Vibrant terracotta / neon crest (foreground wave)
-        let layer3Start = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: isDark ? 0.85 : 0.75).cgColor
-        let layer3End = UIColor(red: 1.00, green: 0.52, blue: 0.30, alpha: isDark ? 0.55 : 0.45).cgColor
-        drawSingleWave(
-            context: context,
-            rect: rect,
-            baseY: baseHeight - 4,
-            amplitude1: 16.0 * amp,
-            freq1: 0.020,
-            speed1: 1.8,
-            amplitude2: 10.0 * amp,
-            freq2: 0.040,
-            speed2: -1.6,
-            phaseOffset: 3.4,
-            startColor: layer3Start,
-            endColor: layer3End,
-            crestColor: UIColor.white.withAlphaComponent(0.9).cgColor
-        )
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<WaveUniforms>.size, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
 
-        // Floating ambient light particles / vibe sparks
-        drawVibeOrbs(context: context, rect: rect, amp: amp)
-    }
-
-    private func drawSingleWave(
-        context: CGContext,
-        rect: CGRect,
-        baseY: CGFloat,
-        amplitude1: CGFloat,
-        freq1: CGFloat,
-        speed1: CGFloat,
-        amplitude2: CGFloat,
-        freq2: CGFloat,
-        speed2: CGFloat,
-        phaseOffset: CGFloat,
-        startColor: CGColor,
-        endColor: CGColor,
-        crestColor: CGColor
-    ) {
-        let width = rect.width
-        let height = rect.height
-        let step: CGFloat = 4.0
-
-        let path = CGMutablePath()
-        let crestPath = CGMutablePath()
-
-        var firstPoint = true
-
-        for x in stride(from: 0.0, through: width + step, by: step) {
-            let y1 = sin(x * freq1 + phase * speed1 + phaseOffset) * amplitude1
-            let y2 = cos(x * freq2 + phase * speed2 + phaseOffset * 0.7) * amplitude2
-            let y = baseY + y1 + y2
-
-            if firstPoint {
-                path.move(to: CGPoint(x: x, y: y))
-                crestPath.move(to: CGPoint(x: x, y: y))
-                firstPoint = false
-            } else {
-                path.addLine(to: CGPoint(x: x, y: y))
-                crestPath.addLine(to: CGPoint(x: x, y: y))
-            }
-        }
-
-        // Close path down to bottom of view
-        path.addLine(to: CGPoint(x: width, y: height))
-        path.addLine(to: CGPoint(x: 0, y: height))
-        path.closeSubpath()
-
-        // Draw wave fill with gradient
-        context.saveGState()
-        context.addPath(path)
-        context.clip()
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let colors = [startColor, endColor] as CFArray
-        let locations: [CGFloat] = [0.0, 1.0]
-
-        if let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: locations) {
-            context.drawLinearGradient(
-                gradient,
-                start: CGPoint(x: 0, y: baseY - amplitude1 - amplitude2),
-                end: CGPoint(x: width, y: height),
-                options: []
-            )
-        }
-        context.restoreGState()
-
-        // Stroke the glowing crest line
-        context.saveGState()
-        context.addPath(crestPath)
-        context.setStrokeColor(crestColor)
-        context.setLineWidth(1.2)
-        context.strokePath()
-        context.restoreGState()
-    }
-
-    private func drawVibeOrbs(context: CGContext, rect: CGRect, amp: CGFloat) {
-        let width = rect.width
-        let height = rect.height
-
-        let particles: [(xFactor: CGFloat, yFactor: CGFloat, radius: CGFloat, speed: CGFloat, color: UIColor)] = [
-            (0.25, 0.45, 14.0 * amp, 0.9, UIColor(red: 1.0, green: 0.5, blue: 0.2, alpha: 0.25)),
-            (0.60, 0.38, 18.0 * amp, 1.3, UIColor(red: 0.8, green: 0.2, blue: 0.9, alpha: 0.20)),
-            (0.85, 0.52, 12.0 * amp, 0.7, UIColor(red: 0.9, green: 0.4, blue: 0.1, alpha: 0.22))
-        ]
-
-        for p in particles {
-            let dx = sin(phase * p.speed) * 16.0
-            let dy = cos(phase * p.speed * 0.8) * 10.0
-            let cx = width * p.xFactor + dx
-            let cy = height * p.yFactor + dy
-            let r = max(p.radius, 4.0)
-
-            let orbRect = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
-            context.saveGState()
-            context.setFillColor(p.color.cgColor)
-            context.fillEllipse(in: orbRect)
-            context.restoreGState()
-        }
+        commandBuffer.present(drawable)
+        commandBuffer.commit()
     }
 }
 
