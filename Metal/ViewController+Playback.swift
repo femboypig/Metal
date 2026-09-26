@@ -601,6 +601,7 @@ extension ViewController {
         let inactiveColor = UIColor.white.withAlphaComponent(0.4)
         shuffleButton?.tintColor = isShuffleEnabled ? activeColor : inactiveColor
         repeatButton?.tintColor = isRepeatEnabled ? activeColor : inactiveColor
+        updateWavePlayingState()
     }
 
     func updatePlayerTheme(with artwork: UIImage?) {
@@ -611,10 +612,47 @@ extension ViewController {
             ?? UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1.0)
         let bottomColor = UIColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0)
 
+        currentDominantColor = dominantColor
+
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.5)
         playerGradientLayer?.colors = [dominantColor.cgColor, bottomColor.cgColor]
         CATransaction.commit()
+
+        if let sv = scrollView, sv.bounds.width > 0, sv.contentOffset.x >= sv.bounds.width * 1.5 {
+            view.backgroundColor = dominantColor
+            scrollView.backgroundColor = dominantColor
+            setNeedsStatusBarAppearanceUpdate()
+        }
+    }
+
+    @objc func myWaveCardTapped() {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.prepare()
+        generator.impactOccurred()
+
+        if let player = audioPlayer, player.isPlaying {
+            playNextTrack()
+            showToast(message: "Моя волна • Следующий трек", success: true)
+        } else if let player = audioPlayer {
+            player.play()
+            startTimer()
+            updatePlaybackButtons()
+            updateMiniPlayerUI()
+            updateWavePlayingState()
+            showToast(message: "Моя волна • Играет", success: true)
+        } else if !filteredTracks.isEmpty {
+            currentTrackIndex = 0
+            playCurrentTrack()
+            showToast(message: "Моя волна • Запуск", success: true)
+        } else if !tracks.isEmpty {
+            activeFilter = .all
+            filterTracks()
+            rebuildFiltersRow()
+            currentTrackIndex = 0
+            playCurrentTrack()
+            showToast(message: "Моя волна • Все треки", success: true)
+        }
     }
 
     // MARK: - AVAudioPlayerDelegate
