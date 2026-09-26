@@ -147,9 +147,9 @@ extension ViewController {
         publishWidgetRecommendations()
     }
 
-    func lovelyTracks(from source: [Track]) -> [Track] {
+    func recommendedTracks(from source: [Track]) -> [Track] {
         source
-            .map { ($0, lovelyScore(for: $0)) }
+            .map { ($0, recommendationScore(for: $0)) }
             .filter { $0.1 >= 24 }
             .sorted {
                 if abs($0.1 - $1.1) > 0.01 { return $0.1 > $1.1 }
@@ -159,7 +159,7 @@ extension ViewController {
             .map(\.0)
     }
 
-    func lovelyScore(for track: Track, now: TimeInterval = Date().timeIntervalSince1970) -> Double {
+    func recommendationScore(for track: Track, now: TimeInterval = Date().timeIntervalSince1970) -> Double {
         let filename = track.url.lastPathComponent
         let stats = listeningTelemetry.tracks[filename] ?? TrackListeningTelemetry()
         let isFavorite = favoriteTracks.contains(filename)
