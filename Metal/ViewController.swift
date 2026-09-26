@@ -26,11 +26,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var searchBar: UISearchBar!
     var importButton: UIButton!
     
-    // Page 1 Header Card, Wave Visualizer & Floating Pill Filter Bar
-    var headerCardView: UIView!
-    var myWaveCardView: UIView!
+    // Page 1 Bottom Underlay Panel, Pure Visual Wave & Floating Filters
+    var bottomPanel: UIView!
     var myWaveView: YandexWaveView!
-    var wavePlayButton: UIButton!
     var floatingFiltersContainer: UIView!
     var currentDominantColor: UIColor?
     
@@ -263,7 +261,5 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     func updateWavePlayingState() {
         let isPlaying = audioPlayer?.isPlaying == true
         myWaveView?.setPlaying(isPlaying)
-        let iconName = isPlaying ? "pause.fill" : "play.fill"
-        wavePlayButton?.setImage(UIImage(systemName: iconName, withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .bold)), for: .normal)
     }
 }
