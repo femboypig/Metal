@@ -32,6 +32,7 @@ struct MetalSettingsDocument: Codable {
     var repeatEnabled: Bool = false
     var lastTrackFile: String?
     var playbackPosition: TimeInterval = 0
+    var playerBackgroundStyle: String = "fluid"
 }
 
 extension ViewController {
@@ -56,7 +57,8 @@ extension ViewController {
                 shuffleEnabled: defaults.bool(forKey: "Metal_Shuffle"),
                 repeatEnabled: defaults.bool(forKey: "Metal_Repeat"),
                 lastTrackFile: defaults.string(forKey: "Metal_LastTrackFile"),
-                playbackPosition: 0
+                playbackPosition: 0,
+                playerBackgroundStyle: defaults.string(forKey: "Metal_PlayerBackgroundStyle") ?? "fluid"
             )
             writeSettingsDocument()
         }
@@ -86,6 +88,7 @@ extension ViewController {
         persistedSettings.aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
         persistedSettings.shuffleEnabled = isShuffleEnabled
         persistedSettings.repeatEnabled = isRepeatEnabled
+        UserDefaults.standard.set(persistedSettings.playerBackgroundStyle, forKey: "Metal_PlayerBackgroundStyle")
 
         if let index = currentTrackIndex, index < filteredTracks.count {
             let filename = filteredTracks[index].url.lastPathComponent
@@ -130,11 +133,7 @@ extension ViewController {
         let favPill = createPillButton(title: "Favorites", category: .favorites)
         filtersStackView.addArrangedSubview(favPill)
 
-        // 4. Local smart playlist based on listening behavior
-        let lovelyPill = createPillButton(title: "Lovely", category: .lovely)
-        filtersStackView.addArrangedSubview(lovelyPill)
-
-        // 5. Custom Playlist Pills
+        // 4. Custom Playlist Pills
         for name in playlists.keys.sorted() {
             let pill = createPillButton(title: name, category: .playlist(name))
 
@@ -145,43 +144,43 @@ extension ViewController {
             filtersStackView.addArrangedSubview(pill)
         }
 
-        // 6. "+ Playlist" Pill
+        // 5. "+ Playlist" Pill
         let newPill = UIButton(type: .system)
         newPill.translatesAutoresizingMaskIntoConstraints = false
         newPill.backgroundColor = .clear
-        newPill.layer.cornerRadius = 15
+        newPill.layer.cornerRadius = 16
         newPill.layer.borderWidth = 0
 
         if #available(iOS 26.0, *) {
-            var config = UIButton.Configuration.glass()
-            let plusConfiguration = UIImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+            var config = UIButton.Configuration.plain()
+            let plusConfiguration = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
             config.image = UIImage(systemName: "plus", withConfiguration: plusConfiguration)
-            config.imagePadding = 3
+            config.imagePadding = 4
             config.title = "Playlist"
-            config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
             config.baseForegroundColor = secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
-                outgoing.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                outgoing.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
                 return outgoing
             }
             newPill.configuration = config
         } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
             config.title = "＋ Playlist"
-            config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10)
+            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
             config.baseForegroundColor = secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
-                outgoing.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                outgoing.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
                 return outgoing
             }
             newPill.configuration = config
         } else {
             newPill.setTitle("＋ Playlist", for: .normal)
-            newPill.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+            newPill.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
             newPill.setTitleColor(secondaryTextColor(), for: .normal)
-            newPill.contentEdgeInsets = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
+            newPill.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
         }
 
         newPill.titleLabel?.numberOfLines = 1
@@ -197,55 +196,49 @@ extension ViewController {
         let button = UIButton(type: .custom)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.setTitle(title, for: .normal)
-        button.layer.cornerRadius = 15
+        button.layer.cornerRadius = 16
         button.clipsToBounds = true
 
         let isActive = (activeFilter == category)
+        let activeBg = primaryTextColor()
+        let activeFg = primaryBackgroundColor()
+        let inactiveFg = secondaryTextColor()
 
         if #available(iOS 26.0, *) {
-            var config = isActive
-                ? UIButton.Configuration.prominentGlass()
-                : UIButton.Configuration.glass()
+            var config = UIButton.Configuration.plain()
             config.title = title
-            config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12)
-            config.baseForegroundColor = isActive ? .white : secondaryTextColor()
-            if isActive {
-                config.baseBackgroundColor = primaryButtonColor()
-            }
+            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
+            config.baseForegroundColor = isActive ? activeFg : inactiveFg
+            config.background.backgroundColor = isActive ? activeBg : .clear
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
-                outgoing.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                outgoing.font = UIFont.systemFont(ofSize: 13, weight: isActive ? .bold : .semibold)
                 return outgoing
             }
             button.configuration = config
         } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
-            config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12)
-            config.baseForegroundColor = isActive ? .white : secondaryTextColor()
+            config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
+            config.baseForegroundColor = isActive ? activeFg : inactiveFg
+            config.background.backgroundColor = isActive ? activeBg : .clear
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
                 var outgoing = incoming
-                outgoing.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                outgoing.font = UIFont.systemFont(ofSize: 13, weight: isActive ? .bold : .semibold)
                 return outgoing
             }
             button.configuration = config
-            button.backgroundColor = isActive ? primaryButtonColor() : .clear
         } else {
-            button.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .bold)
-            button.setTitleColor(isActive ? .white : secondaryTextColor(), for: .normal)
-            button.contentEdgeInsets = UIEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
-            button.backgroundColor = isActive ? primaryButtonColor() : .clear
+            button.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: isActive ? .bold : .semibold)
+            button.setTitleColor(isActive ? activeFg : inactiveFg, for: .normal)
+            button.contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
+            button.backgroundColor = isActive ? activeBg : .clear
         }
 
         button.titleLabel?.numberOfLines = 1
         button.titleLabel?.lineBreakMode = .byClipping
         button.setContentHuggingPriority(.required, for: .horizontal)
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        if #available(iOS 26.0, *) {
-            button.layer.borderWidth = 0
-        } else {
-            button.layer.borderWidth = 0
-        }
+        button.layer.borderWidth = 0
 
         button.addTarget(self, action: #selector(filterPillTapped(_:)), for: .touchUpInside)
 
@@ -257,7 +250,7 @@ extension ViewController {
     @objc func filterPillTapped(_ sender: UIButton) {
         guard let category = objc_getAssociatedObject(sender, &ViewController.categoryAssociationKey) as? FilterCategory else { return }
 
-        let categories: [FilterCategory] = [.all, .dailyMix, .favorites, .lovely]
+        let categories: [FilterCategory] = [.all, .dailyMix, .favorites]
             + playlists.keys.sorted().map { .playlist($0) }
         guard let oldIdx = categories.firstIndex(of: activeFilter),
               let newIdx = categories.firstIndex(of: category) else { return }
@@ -322,9 +315,6 @@ extension ViewController {
         case .favorites:
             categoryTracks = tracks.filter { favoriteTracks.contains($0.url.lastPathComponent) }
             headerText = "FAVORITES"
-        case .lovely:
-            categoryTracks = lovelyTracks(from: tracks)
-            headerText = "LOVELY"
         case .playlist(let name):
             let filenames = playlists[name] ?? []
             categoryTracks = tracks.filter { filenames.contains($0.url.lastPathComponent) }
@@ -580,11 +570,11 @@ extension ViewController {
         guard !tracks.isEmpty else { return }
 
         refreshDailyMixIfNeeded()
-        let lovely = lovelyTracks(from: tracks)
+        let recommended = recommendedTracks(from: tracks)
         let favorites = tracks.filter { favoriteTracks.contains($0.url.lastPathComponent) }
         let source = !dailyMixTracks.isEmpty
             ? dailyMixTracks
-            : (!lovely.isEmpty ? lovely : (!favorites.isEmpty ? favorites : tracks))
+            : (!favorites.isEmpty ? favorites : (!recommended.isEmpty ? recommended : tracks))
         let selection = Array(source.prefix(6))
 
         let recommendations = selection.map { track in
