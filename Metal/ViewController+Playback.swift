@@ -614,6 +614,7 @@ extension ViewController {
 
         currentDominantColor = dominantColor
         myWaveView?.setThemeColor(dominantColor)
+        playerFluidView?.setArtworkColor(dominantColor)
 
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.5)
