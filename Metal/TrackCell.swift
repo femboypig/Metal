@@ -56,8 +56,10 @@ class TrackCell: UITableViewCell {
         
         indexLabel.font = UIFont(name: "Georgia-Italic", size: 14)
         indexLabel.translatesAutoresizingMaskIntoConstraints = false
-        indexLabel.widthAnchor.constraint(equalToConstant: 20).isActive = true
+        indexLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 24).isActive = true
         indexLabel.setContentHuggingPriority(.required, for: .horizontal)
+        indexLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        indexLabel.textAlignment = .left
         leftStack.addArrangedSubview(indexLabel)
         
         playingThumbnail.contentMode = .scaleAspectFill
