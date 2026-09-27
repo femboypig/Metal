@@ -846,7 +846,7 @@ extension ViewController {
 
         let baseCardSize: CGFloat = 264
         let playingScale: CGFloat = 1.18
-        let gap: CGFloat = 26
+        let gap: CGFloat = 16
 
         let baseOffset = baseCardSize + gap
         let expansion = (baseCardSize * (playingScale - 1.0)) / 2.0
@@ -919,7 +919,7 @@ extension ViewController {
         let screenWidth = page2?.bounds.width ?? (view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width)
         let baseCardSize: CGFloat = 264
         let playingScale: CGFloat = 1.18
-        let gap: CGFloat = 26
+        let gap: CGFloat = 16
 
         let baseOffset = baseCardSize + gap
         let expansion = (baseCardSize * (playingScale - 1.0)) / 2.0
