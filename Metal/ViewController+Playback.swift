@@ -844,8 +844,7 @@ extension ViewController {
               let leftCoverCard = leftCoverCard,
               let rightCoverCard = rightCoverCard else { return }
 
-        let screenWidth = page2?.bounds.width ?? (view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width)
-        let baseCardSize: CGFloat = round(min(screenWidth * 0.67, 264))
+        let baseCardSize: CGFloat = 264
         let playingScale: CGFloat = 1.18
         let gap: CGFloat = 26
 
@@ -879,8 +878,11 @@ extension ViewController {
             coverArtCard.layer.shadowRadius = centerShadowRadius
             coverArtCard.layer.shadowOpacity = centerShadowOpacity
             coverArtCard.alpha = 1.0
+            self.coverDimOverlay?.alpha = 0.0
             leftCoverCard.alpha = 0.55
+            self.leftCoverDimOverlay?.alpha = 1.0
             rightCoverCard.alpha = 0.55
+            self.rightCoverDimOverlay?.alpha = 1.0
         }
 
         if animated {
@@ -893,7 +895,10 @@ extension ViewController {
                 animations: updates
             )
         } else {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             updates()
+            CATransaction.commit()
         }
     }
 
@@ -912,7 +917,7 @@ extension ViewController {
         isCarouselAnimating = true
 
         let screenWidth = page2?.bounds.width ?? (view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width)
-        let baseCardSize: CGFloat = round(min(screenWidth * 0.67, 264))
+        let baseCardSize: CGFloat = 264
         let playingScale: CGFloat = 1.18
         let gap: CGFloat = 26
 
@@ -944,8 +949,7 @@ extension ViewController {
             height: baseCardSize
         )
 
-        let incomingImageView = UIImageView(frame: incomingCard.bounds)
-        incomingImageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        let incomingImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: baseCardSize, height: baseCardSize))
         incomingImageView.contentMode = .scaleAspectFill
         incomingImageView.layer.cornerRadius = 18
         incomingImageView.layer.cornerCurve = .continuous
@@ -953,8 +957,7 @@ extension ViewController {
         incomingImageView.image = incomingTrack?.artwork ?? UIImage(named: "PlaceholderArtwork")
         incomingCard.addSubview(incomingImageView)
 
-        let incomingDim = UIView(frame: incomingCard.bounds)
-        incomingDim.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        let incomingDim = UIView(frame: CGRect(x: 0, y: 0, width: baseCardSize, height: baseCardSize))
         incomingDim.backgroundColor = UIColor.black.withAlphaComponent(0.20)
         incomingDim.layer.cornerRadius = 18
         incomingDim.layer.cornerCurve = .continuous
@@ -984,11 +987,13 @@ extension ViewController {
 
                     coverArtCard.transform = CGAffineTransform(translationX: -sideOffset, y: 0)
                     coverArtCard.alpha = 0.55
+                    self.coverDimOverlay?.alpha = 1.0
                     coverArtCard.layer.shadowRadius = 12
                     coverArtCard.layer.shadowOpacity = 0.25
 
                     rightCoverCard.transform = CGAffineTransform(scaleX: centerScale, y: centerScale)
                     rightCoverCard.alpha = 1.0
+                    self.rightCoverDimOverlay?.alpha = 0.0
                     rightCoverCard.layer.shadowRadius = isPlaying ? 20 : 12
                     rightCoverCard.layer.shadowOpacity = isPlaying ? 0.40 : 0.28
 
@@ -997,13 +1002,18 @@ extension ViewController {
                 },
                 completion: { [weak self] _ in
                     guard let self else { return }
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+
                     incomingCard.removeFromSuperview()
-                    coverArtCard.layer.zPosition = 2
-                    leftCoverCard.layer.zPosition = 1
-                    rightCoverCard.layer.zPosition = 1
+                    self.coverArtCard.layer.zPosition = 2
+                    self.leftCoverCard.layer.zPosition = 1
+                    self.rightCoverCard.layer.zPosition = 1
                     self.isCarouselAnimating = false
                     self.updateCarouselArtworks(animated: false)
                     self.applyCarouselLayout(isPlaying: self.audioPlayer?.isPlaying == true, animated: false)
+
+                    CATransaction.commit()
                 }
             )
 
@@ -1027,11 +1037,13 @@ extension ViewController {
 
                     coverArtCard.transform = CGAffineTransform(translationX: sideOffset, y: 0)
                     coverArtCard.alpha = 0.55
+                    self.coverDimOverlay?.alpha = 1.0
                     coverArtCard.layer.shadowRadius = 12
                     coverArtCard.layer.shadowOpacity = 0.25
 
                     leftCoverCard.transform = CGAffineTransform(scaleX: centerScale, y: centerScale)
                     leftCoverCard.alpha = 1.0
+                    self.leftCoverDimOverlay?.alpha = 0.0
                     leftCoverCard.layer.shadowRadius = isPlaying ? 20 : 12
                     leftCoverCard.layer.shadowOpacity = isPlaying ? 0.40 : 0.28
 
@@ -1040,13 +1052,18 @@ extension ViewController {
                 },
                 completion: { [weak self] _ in
                     guard let self else { return }
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+
                     incomingCard.removeFromSuperview()
-                    coverArtCard.layer.zPosition = 2
-                    leftCoverCard.layer.zPosition = 1
-                    rightCoverCard.layer.zPosition = 1
+                    self.coverArtCard.layer.zPosition = 2
+                    self.leftCoverCard.layer.zPosition = 1
+                    self.rightCoverCard.layer.zPosition = 1
                     self.isCarouselAnimating = false
                     self.updateCarouselArtworks(animated: false)
                     self.applyCarouselLayout(isPlaying: self.audioPlayer?.isPlaying == true, animated: false)
+
+                    CATransaction.commit()
                 }
             )
         }
