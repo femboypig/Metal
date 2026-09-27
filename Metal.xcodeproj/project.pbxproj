@@ -23,6 +23,7 @@
 		04C7492A2FEFF60C00B62262 /* Metal.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 04C749282FEFF60C00B62262 /* Metal.xcdatamodeld */; };
 		04C7492C2FEFF60E00B62262 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 04C7492B2FEFF60E00B62262 /* Assets.xcassets */; };
 		04C7492F2FEFF60E00B62262 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04C7492D2FEFF60E00B62262 /* LaunchScreen.storyboard */; };
+		F10000000000000000000001 /* DrukWideBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* DrukWideBold.ttf */; };
 		04C7504596FA5DF98520F8F2 /* AIDJEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C766D736C95B5AB14A99E4 /* AIDJEngine.swift */; };
 		A1B2C3D4E5F6000000000001 /* ListeningTelemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000002 /* ListeningTelemetry.swift */; };
 		D10000000000000000000001 /* DailyMixEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000011 /* DailyMixEngine.swift */; };
@@ -93,6 +94,7 @@
 		04C7B9DF903C58FF8783CA0D /* BottomSheetItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheetItem.swift; sourceTree = "<group>"; };
 		04C7BAD1435D5DFEB64C61A0 /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Track.swift; sourceTree = "<group>"; };
 		04C7D54A69FA52439A4CCBC3 /* ViewController+Gestures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Gestures.swift"; sourceTree = "<group>"; };
+		F10000000000000000000002 /* DrukWideBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = DrukWideBold.ttf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -160,6 +162,7 @@
 				04C7492D2FEFF60E00B62262 /* LaunchScreen.storyboard */,
 				04C749302FEFF60E00B62262 /* Info.plist */,
 				04C749282FEFF60C00B62262 /* Metal.xcdatamodeld */,
+				F10000000000000000000002 /* DrukWideBold.ttf */,
 			);
 			path = Metal;
 			sourceTree = "<group>";
@@ -268,6 +271,7 @@
 				04C7492F2FEFF60E00B62262 /* LaunchScreen.storyboard in Resources */,
 				04C7492C2FEFF60E00B62262 /* Assets.xcassets in Resources */,
 				04C749272FEFF60C00B62262 /* Main.storyboard in Resources */,
+				F10000000000000000000001 /* DrukWideBold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
