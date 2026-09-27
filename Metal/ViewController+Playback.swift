@@ -607,32 +607,66 @@ extension ViewController {
     }
 
     func updatePlaybackButtons() {
-        let activeColor = UIColor.white
-        let inactiveColor = UIColor.white.withAlphaComponent(0.4)
+        let isDark = traitCollection.userInterfaceStyle == .dark
+        let activeColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
+        let inactiveColor = isDark ? UIColor.white.withAlphaComponent(0.4) : UIColor(red: 0.55, green: 0.55, blue: 0.60, alpha: 0.6)
         shuffleButton?.tintColor = isShuffleEnabled ? activeColor : inactiveColor
         repeatButton?.tintColor = isRepeatEnabled ? activeColor : inactiveColor
         updateWavePlayingState()
     }
 
-    func updatePlayerTheme(with artwork: UIImage?) {
-        // The player displays PlaceholderArtwork for tracks without embedded art, so
-        // derive the ambient color from that same image instead of a red fallback.
-        let displayedArtwork = artwork ?? UIImage(named: "PlaceholderArtwork")
-        let dominantColor = displayedArtwork?.averageColor()
-            ?? UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1.0)
-        let bottomColor = UIColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0)
+    func fallbackTrackColor(for trackTitle: String?) -> UIColor {
+        guard let title = trackTitle, !title.isEmpty else {
+            return UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
+        }
+        let hash = abs(title.hashValue)
+        let hue = CGFloat(hash % 360) / 360.0
+        return UIColor(hue: hue, saturation: 0.68, brightness: 0.72, alpha: 1.0)
+    }
 
-        currentDominantColor = dominantColor
-        myWaveView?.setThemeColor(dominantColor)
+    func updatePlayerTheme(with artwork: UIImage?) {
+        let isDark = traitCollection.userInterfaceStyle == .dark
+        let trackTitle: String? = {
+            if let index = currentTrackIndex, index < filteredTracks.count {
+                return filteredTracks[index].title
+            }
+            return nil
+        }()
+
+        let vibrantColor: UIColor
+        if let art = artwork, let extracted = art.extractVibrantColor() {
+            vibrantColor = extracted
+        } else {
+            vibrantColor = fallbackTrackColor(for: trackTitle)
+        }
+
+        currentDominantColor = vibrantColor
+        myWaveView?.setThemeColor(vibrantColor)
+
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        vibrantColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+
+        let topColor: UIColor
+        let bottomColor: UIColor
+
+        if isDark {
+            topColor = UIColor(hue: h, saturation: min(s * 1.05, 0.85), brightness: min(max(b, 0.38), 0.52), alpha: 1.0)
+            bottomColor = UIColor(hue: h, saturation: min(s * 0.40, 0.30), brightness: 0.07, alpha: 1.0)
+        } else {
+            topColor = UIColor(hue: h, saturation: min(s * 0.38, 0.28), brightness: 0.96, alpha: 1.0)
+            bottomColor = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0)
+        }
 
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.5)
-        playerGradientLayer?.colors = [dominantColor.cgColor, bottomColor.cgColor]
+        playerGradientLayer?.colors = [topColor.cgColor, bottomColor.cgColor]
         CATransaction.commit()
 
+        updatePlayerControlsTheme(isDark: isDark)
+
         if let sv = scrollView, sv.bounds.width > 0, sv.contentOffset.x >= sv.bounds.width * 1.5 {
-            view.backgroundColor = dominantColor
-            scrollView.backgroundColor = dominantColor
+            view.backgroundColor = topColor
+            scrollView.backgroundColor = topColor
             setNeedsStatusBarAppearanceUpdate()
         }
     }
@@ -1071,31 +1105,52 @@ extension ViewController {
 }
 
 fileprivate extension UIImage {
-    func averageColor() -> UIColor? {
-        guard let inputImage = CIImage(image: self) else { return nil }
-        let extentVector = CIVector(x: inputImage.extent.origin.x,
-                                    y: inputImage.extent.origin.y,
-                                    z: inputImage.extent.size.width,
-                                    w: inputImage.extent.size.height)
-        guard let filter = CIFilter(name: "CIAreaAverage", parameters: [kCIInputImageKey: inputImage, kCIInputExtentKey: extentVector]) else { return nil }
-        guard let outputImage = filter.outputImage else { return nil }
+    func extractVibrantColor() -> UIColor? {
+        let targetSize = CGSize(width: 32, height: 32)
+        UIGraphicsBeginImageContextWithOptions(targetSize, false, 1.0)
+        draw(in: CGRect(origin: .zero, size: targetSize))
+        guard let smallImage = UIGraphicsGetImageFromCurrentImageContext(),
+              let cgImage = smallImage.cgImage else {
+            UIGraphicsEndImageContext()
+            return nil
+        }
+        UIGraphicsEndImageContext()
 
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        let context = CIContext(options: [.workingColorSpace: kCFNull as Any])
-        context.render(outputImage, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+        guard let dataProvider = cgImage.dataProvider,
+              let data = dataProvider.data,
+              let ptr = CFDataGetBytePtr(data) else { return nil }
 
-        var r = CGFloat(bitmap[0]) / 255.0
-        var g = CGFloat(bitmap[1]) / 255.0
-        var b = CGFloat(bitmap[2]) / 255.0
+        let bytesPerPixel = 4
+        let bytesPerRow = cgImage.bytesPerRow
 
-        let maxComp = max(r, max(g, b))
-        if maxComp > 0.45 {
-            let factor = 0.45 / maxComp
-            r *= factor
-            g *= factor
-            b *= factor
+        var bestColor: UIColor?
+        var highestScore: CGFloat = -1.0
+
+        for y in 0..<32 {
+            for x in 0..<32 {
+                let offset = y * bytesPerRow + x * bytesPerPixel
+                let r = CGFloat(ptr[offset]) / 255.0
+                let g = CGFloat(ptr[offset + 1]) / 255.0
+                let b = CGFloat(ptr[offset + 2]) / 255.0
+
+                let color = UIColor(red: r, green: g, blue: b, alpha: 1.0)
+                var h: CGFloat = 0, s: CGFloat = 0, br: CGFloat = 0, a: CGFloat = 0
+                color.getHue(&h, saturation: &s, brightness: &br, alpha: &a)
+
+                // Skip washed out or near-black / near-white pixels
+                if s < 0.18 || br < 0.15 || br > 0.96 {
+                    continue
+                }
+
+                // Score prioritizes vivid color with balanced luminance
+                let score = s * 1.8 + (1.0 - abs(br - 0.55)) * 0.8
+                if score > highestScore {
+                    highestScore = score
+                    bestColor = color
+                }
+            }
         }
 
-        return UIColor(red: r, green: g, blue: b, alpha: 1.0)
+        return bestColor
     }
 }
