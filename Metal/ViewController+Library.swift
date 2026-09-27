@@ -32,7 +32,6 @@ struct MetalSettingsDocument: Codable {
     var repeatEnabled: Bool = false
     var lastTrackFile: String?
     var playbackPosition: TimeInterval = 0
-    var playerBackgroundStyle: String = "fluid"
 }
 
 extension ViewController {
@@ -57,8 +56,7 @@ extension ViewController {
                 shuffleEnabled: defaults.bool(forKey: "Metal_Shuffle"),
                 repeatEnabled: defaults.bool(forKey: "Metal_Repeat"),
                 lastTrackFile: defaults.string(forKey: "Metal_LastTrackFile"),
-                playbackPosition: 0,
-                playerBackgroundStyle: defaults.string(forKey: "Metal_PlayerBackgroundStyle") ?? "fluid"
+                playbackPosition: 0
             )
             writeSettingsDocument()
         }
@@ -88,7 +86,6 @@ extension ViewController {
         persistedSettings.aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
         persistedSettings.shuffleEnabled = isShuffleEnabled
         persistedSettings.repeatEnabled = isRepeatEnabled
-        UserDefaults.standard.set(persistedSettings.playerBackgroundStyle, forKey: "Metal_PlayerBackgroundStyle")
 
         if let index = currentTrackIndex, index < filteredTracks.count {
             let filename = filteredTracks[index].url.lastPathComponent
