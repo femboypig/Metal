@@ -9,6 +9,21 @@ import UIKit
 import AVFoundation
 import MediaPlayer
 import UniformTypeIdentifiers
+import CoreText
+
+enum PlayerFontStyle: String, CaseIterable, Codable {
+    case serif = "serif"
+    case rounded = "rounded"
+    case wide = "wide"
+
+    var displayName: String {
+        switch self {
+        case .serif: return "Serif"
+        case .rounded: return "Default"
+        case .wide: return "Wide"
+        }
+    }
+}
 
 class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSource, UIScrollViewDelegate, UIDocumentPickerDelegate, AVAudioPlayerDelegate {
 
@@ -78,10 +93,18 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var elapsedLabel: UILabel!
     var remainingLabel: UILabel!
     var playPauseButton: UIButton!
+    var playerPrevButton: UIButton!
+    var playerNextButton: UIButton!
+    var playerDismissButton: UIButton!
+    var playerOptionsButton: UIButton!
+    var playerDeviceButton: UIButton!
+    var playerShareButton: UIButton!
+    var playerQueueButton: UIButton!
     var shuffleButton: UIButton!
     var repeatButton: UIButton!
     var playerFavoriteButton: UIButton!
     var playerDislikeButton: UIButton!
+    var playerFontStyle: PlayerFontStyle = .serif
     
     // Playback State & Audio Player
     var tracks: [Track] = []
@@ -163,6 +186,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        registerCustomFonts()
         
         loadLocalUserData()
         loadListeningTelemetry()
@@ -228,6 +252,13 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             updateCardBorders()
             updateTableGradientMaskFrame()
             updateFilterPillBorders()
+            updatePlayerControlsTheme(isDark: traitCollection.userInterfaceStyle == .dark)
+            if let index = currentTrackIndex, index < tracks.count {
+                updatePlayerTheme(with: tracks[index].artwork)
+            } else {
+                updatePlayerTheme(with: nil)
+            }
+            setNeedsStatusBarAppearanceUpdate()
         }
     }
     
@@ -265,13 +296,15 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
-        guard isViewLoaded, let sv = scrollView, sv.bounds.width > 0 else {
-            return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
-        }
-        if sv.contentOffset.x >= sv.bounds.width * 1.5 {
-            return .lightContent
-        }
         return traitCollection.userInterfaceStyle == .dark ? .lightContent : .darkContent
+    }
+
+    func registerCustomFonts() {
+        guard let fontURL = Bundle.main.url(forResource: "DrukWideBold", withExtension: "ttf") else {
+            return
+        }
+        var error: Unmanaged<CFError>?
+        CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, &error)
     }
 
     func updateWavePlayingState() {
