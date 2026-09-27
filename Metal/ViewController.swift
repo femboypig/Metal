@@ -58,10 +58,19 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var coverCarouselContainer: UIView!
     var leftCoverCard: UIView!
     var leftCoverImageView: UIImageView!
+    var leftCoverDimOverlay: UIView!
     var coverArtCard: UIView!
     var coverImageView: UIImageView!
     var rightCoverCard: UIView!
     var rightCoverImageView: UIImageView!
+    var rightCoverDimOverlay: UIView!
+    var isCarouselAnimating: Bool = false
+
+    var isPlayerPageVisible: Bool {
+        guard isViewLoaded, let sv = scrollView, sv.bounds.width > 0 else { return false }
+        let currentPage = Int(round(sv.contentOffset.x / sv.bounds.width))
+        return currentPage == 2
+    }
     var trackTitleLabel: UILabel!
     var artistLabel: UILabel!
     var progressSlider: UISlider!
@@ -196,8 +205,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         updateTableGradientMaskFrame()
         applyCylinderEffect()
         updateFilterPillBorders()
-        updateOverlayAlphas()
-        applyCarouselLayout(isPlaying: audioPlayer?.isPlaying == true, animated: false)
+        if !isCarouselAnimating {
+            applyCarouselLayout(isPlaying: audioPlayer?.isPlaying == true, animated: false)
+        }
         
         if !didInitialScroll && scrollView.frame.size.width > 0 {
             didInitialScroll = true
