@@ -106,6 +106,7 @@ extension ViewController {
 
         page2 = UIView()
         page2.translatesAutoresizingMaskIntoConstraints = false
+        page2.clipsToBounds = true
         scrollView.addSubview(page2)
 
         // Gesture to dismiss keyboard
@@ -693,7 +694,7 @@ extension ViewController {
         // 0. Cover Art Carousel (Peek Left, Dominant Center, Peek Right)
         coverCarouselContainer = UIView()
         coverCarouselContainer.translatesAutoresizingMaskIntoConstraints = false
-        coverCarouselContainer.clipsToBounds = false
+        coverCarouselContainer.clipsToBounds = true
         coverCarouselContainer.isUserInteractionEnabled = true
         centerContentView.addSubview(coverCarouselContainer)
 
@@ -705,10 +706,10 @@ extension ViewController {
         swipeRight.direction = .right
         coverCarouselContainer.addGestureRecognizer(swipeRight)
 
-        // Previous Cover (Left)
+        // Previous Cover (Left) - Dimmed
         leftCoverCard = UIView()
         leftCoverCard.translatesAutoresizingMaskIntoConstraints = false
-        leftCoverCard.backgroundColor = UIColor.white.withAlphaComponent(0.08)
+        leftCoverCard.backgroundColor = .black
         leftCoverCard.layer.cornerRadius = 18
         leftCoverCard.layer.cornerCurve = .continuous
         leftCoverCard.layer.borderWidth = 0.5
@@ -720,6 +721,7 @@ extension ViewController {
         leftCoverCard.clipsToBounds = false
         leftCoverCard.layer.zPosition = 1
         leftCoverCard.isUserInteractionEnabled = true
+        leftCoverCard.alpha = 0.55
         coverCarouselContainer.addSubview(leftCoverCard)
 
         leftCoverImageView = UIImageView()
@@ -730,13 +732,22 @@ extension ViewController {
         leftCoverImageView.clipsToBounds = true
         leftCoverCard.addSubview(leftCoverImageView)
 
+        leftCoverDimOverlay = UIView()
+        leftCoverDimOverlay.translatesAutoresizingMaskIntoConstraints = false
+        leftCoverDimOverlay.backgroundColor = UIColor.black.withAlphaComponent(0.20)
+        leftCoverDimOverlay.layer.cornerRadius = 18
+        leftCoverDimOverlay.layer.cornerCurve = .continuous
+        leftCoverDimOverlay.clipsToBounds = true
+        leftCoverDimOverlay.isUserInteractionEnabled = false
+        leftCoverCard.addSubview(leftCoverDimOverlay)
+
         let leftTap = UITapGestureRecognizer(target: self, action: #selector(leftCoverTapped))
         leftCoverCard.addGestureRecognizer(leftTap)
 
-        // Next Cover (Right)
+        // Next Cover (Right) - Dimmed
         rightCoverCard = UIView()
         rightCoverCard.translatesAutoresizingMaskIntoConstraints = false
-        rightCoverCard.backgroundColor = UIColor.white.withAlphaComponent(0.08)
+        rightCoverCard.backgroundColor = .black
         rightCoverCard.layer.cornerRadius = 18
         rightCoverCard.layer.cornerCurve = .continuous
         rightCoverCard.layer.borderWidth = 0.5
@@ -748,6 +759,7 @@ extension ViewController {
         rightCoverCard.clipsToBounds = false
         rightCoverCard.layer.zPosition = 1
         rightCoverCard.isUserInteractionEnabled = true
+        rightCoverCard.alpha = 0.55
         coverCarouselContainer.addSubview(rightCoverCard)
 
         rightCoverImageView = UIImageView()
@@ -757,6 +769,15 @@ extension ViewController {
         rightCoverImageView.layer.cornerCurve = .continuous
         rightCoverImageView.clipsToBounds = true
         rightCoverCard.addSubview(rightCoverImageView)
+
+        rightCoverDimOverlay = UIView()
+        rightCoverDimOverlay.translatesAutoresizingMaskIntoConstraints = false
+        rightCoverDimOverlay.backgroundColor = UIColor.black.withAlphaComponent(0.20)
+        rightCoverDimOverlay.layer.cornerRadius = 18
+        rightCoverDimOverlay.layer.cornerCurve = .continuous
+        rightCoverDimOverlay.clipsToBounds = true
+        rightCoverDimOverlay.isUserInteractionEnabled = false
+        rightCoverCard.addSubview(rightCoverDimOverlay)
 
         let rightTap = UITapGestureRecognizer(target: self, action: #selector(rightCoverTapped))
         rightCoverCard.addGestureRecognizer(rightTap)
@@ -929,11 +950,11 @@ extension ViewController {
             coverCarouselContainer.topAnchor.constraint(equalTo: centerContentView.topAnchor),
             coverCarouselContainer.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor),
             coverCarouselContainer.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor),
-            coverCarouselContainer.heightAnchor.constraint(equalToConstant: 326),
+            coverCarouselContainer.heightAnchor.constraint(equalToConstant: 336),
 
-            // Center Card (Base size 268x268, centered in container)
-            coverArtCard.widthAnchor.constraint(equalToConstant: 268),
-            coverArtCard.heightAnchor.constraint(equalToConstant: 268),
+            // Center Card (Base size 264x264, centered in container)
+            coverArtCard.widthAnchor.constraint(equalToConstant: 264),
+            coverArtCard.heightAnchor.constraint(equalToConstant: 264),
             coverArtCard.centerXAnchor.constraint(equalTo: coverCarouselContainer.centerXAnchor),
             coverArtCard.centerYAnchor.constraint(equalTo: coverCarouselContainer.centerYAnchor),
 
@@ -942,9 +963,9 @@ extension ViewController {
             coverImageView.trailingAnchor.constraint(equalTo: coverArtCard.trailingAnchor),
             coverImageView.bottomAnchor.constraint(equalTo: coverArtCard.bottomAnchor),
 
-            // Left Card (Base size 268x268, centered in container, translated via transform)
-            leftCoverCard.widthAnchor.constraint(equalToConstant: 268),
-            leftCoverCard.heightAnchor.constraint(equalToConstant: 268),
+            // Left Card (Base size 264x264, centered in container, translated via transform)
+            leftCoverCard.widthAnchor.constraint(equalToConstant: 264),
+            leftCoverCard.heightAnchor.constraint(equalToConstant: 264),
             leftCoverCard.centerXAnchor.constraint(equalTo: coverCarouselContainer.centerXAnchor),
             leftCoverCard.centerYAnchor.constraint(equalTo: coverCarouselContainer.centerYAnchor),
 
@@ -953,9 +974,14 @@ extension ViewController {
             leftCoverImageView.trailingAnchor.constraint(equalTo: leftCoverCard.trailingAnchor),
             leftCoverImageView.bottomAnchor.constraint(equalTo: leftCoverCard.bottomAnchor),
 
-            // Right Card (Base size 268x268, centered in container, translated via transform)
-            rightCoverCard.widthAnchor.constraint(equalToConstant: 268),
-            rightCoverCard.heightAnchor.constraint(equalToConstant: 268),
+            leftCoverDimOverlay.topAnchor.constraint(equalTo: leftCoverCard.topAnchor),
+            leftCoverDimOverlay.leadingAnchor.constraint(equalTo: leftCoverCard.leadingAnchor),
+            leftCoverDimOverlay.trailingAnchor.constraint(equalTo: leftCoverCard.trailingAnchor),
+            leftCoverDimOverlay.bottomAnchor.constraint(equalTo: leftCoverCard.bottomAnchor),
+
+            // Right Card (Base size 264x264, centered in container, translated via transform)
+            rightCoverCard.widthAnchor.constraint(equalToConstant: 264),
+            rightCoverCard.heightAnchor.constraint(equalToConstant: 264),
             rightCoverCard.centerXAnchor.constraint(equalTo: coverCarouselContainer.centerXAnchor),
             rightCoverCard.centerYAnchor.constraint(equalTo: coverCarouselContainer.centerYAnchor),
 
@@ -963,6 +989,11 @@ extension ViewController {
             rightCoverImageView.leadingAnchor.constraint(equalTo: rightCoverCard.leadingAnchor),
             rightCoverImageView.trailingAnchor.constraint(equalTo: rightCoverCard.trailingAnchor),
             rightCoverImageView.bottomAnchor.constraint(equalTo: rightCoverCard.bottomAnchor),
+
+            rightCoverDimOverlay.topAnchor.constraint(equalTo: rightCoverCard.topAnchor),
+            rightCoverDimOverlay.leadingAnchor.constraint(equalTo: rightCoverCard.leadingAnchor),
+            rightCoverDimOverlay.trailingAnchor.constraint(equalTo: rightCoverCard.trailingAnchor),
+            rightCoverDimOverlay.bottomAnchor.constraint(equalTo: rightCoverCard.bottomAnchor),
 
             // Info Stack (below coverCarouselContainer)
             infoStack.topAnchor.constraint(equalTo: coverCarouselContainer.bottomAnchor, constant: 18),
