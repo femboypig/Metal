@@ -61,6 +61,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var leftCoverDimOverlay: UIView!
     var coverArtCard: UIView!
     var coverImageView: UIImageView!
+    var coverDimOverlay: UIView!
     var rightCoverCard: UIView!
     var rightCoverImageView: UIImageView!
     var rightCoverDimOverlay: UIView!
