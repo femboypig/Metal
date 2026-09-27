@@ -235,68 +235,6 @@ extension ViewController {
             descLabel.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16)
         ])
 
-        // Appearance Section
-        let appearanceLabel = UILabel()
-        appearanceLabel.translatesAutoresizingMaskIntoConstraints = false
-        appearanceLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
-        appearanceLabel.textColor = secondaryTextColor()
-        appearanceLabel.text = "APPEARANCE"
-        appearanceLabel.letterSpacing(1.2)
-        page0.addSubview(appearanceLabel)
-
-        // Player Background Setting Card
-        let bgCard = UIView()
-        bgCard.translatesAutoresizingMaskIntoConstraints = false
-        bgCard.backgroundColor = cardBackgroundColor()
-        bgCard.layer.cornerRadius = 18
-        bgCard.layer.borderWidth = 1.0
-        bgCard.layer.borderColor = cardBorderColor().cgColor
-        page0.addSubview(bgCard)
-
-        let bgLabel = UILabel()
-        bgLabel.translatesAutoresizingMaskIntoConstraints = false
-        bgLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
-        bgLabel.textColor = primaryTextColor()
-        bgLabel.text = "Player Background"
-        bgCard.addSubview(bgLabel)
-
-        let bgDescLabel = UILabel()
-        bgDescLabel.translatesAutoresizingMaskIntoConstraints = false
-        bgDescLabel.font = UIFont.systemFont(ofSize: 12, weight: .regular)
-        bgDescLabel.textColor = secondaryTextColor()
-        bgDescLabel.numberOfLines = 0
-        bgDescLabel.text = "Animated liquid plasma synthesized purely from artwork colors, or classic album gradient."
-        bgCard.addSubview(bgDescLabel)
-
-        let bgSegmented = UISegmentedControl(items: ["Fluid Plasma", "Gradient"])
-        bgSegmented.translatesAutoresizingMaskIntoConstraints = false
-        bgSegmented.selectedSegmentIndex = (persistedSettings.playerBackgroundStyle == "gradient") ? 1 : 0
-        bgSegmented.addTarget(self, action: #selector(playerBackgroundStyleChanged(_:)), for: .valueChanged)
-        bgCard.addSubview(bgSegmented)
-
-        NSLayoutConstraint.activate([
-            appearanceLabel.topAnchor.constraint(equalTo: card.bottomAnchor, constant: 28),
-            appearanceLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-
-            bgCard.topAnchor.constraint(equalTo: appearanceLabel.bottomAnchor, constant: 12),
-            bgCard.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-            bgCard.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24),
-
-            bgLabel.topAnchor.constraint(equalTo: bgCard.topAnchor, constant: 18),
-            bgLabel.leadingAnchor.constraint(equalTo: bgCard.leadingAnchor, constant: 20),
-            bgLabel.trailingAnchor.constraint(equalTo: bgCard.trailingAnchor, constant: -20),
-
-            bgDescLabel.topAnchor.constraint(equalTo: bgLabel.bottomAnchor, constant: 4),
-            bgDescLabel.leadingAnchor.constraint(equalTo: bgCard.leadingAnchor, constant: 20),
-            bgDescLabel.trailingAnchor.constraint(equalTo: bgCard.trailingAnchor, constant: -20),
-
-            bgSegmented.topAnchor.constraint(equalTo: bgDescLabel.bottomAnchor, constant: 14),
-            bgSegmented.leadingAnchor.constraint(equalTo: bgCard.leadingAnchor, constant: 20),
-            bgSegmented.trailingAnchor.constraint(equalTo: bgCard.trailingAnchor, constant: -20),
-            bgSegmented.heightAnchor.constraint(equalToConstant: 32),
-            bgSegmented.bottomAnchor.constraint(equalTo: bgCard.bottomAnchor, constant: -16)
-        ])
-
         // Bottom Plain Text: Experimental Build Information
         let expInfoLabel = UILabel()
         expInfoLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -324,16 +262,6 @@ extension ViewController {
     @objc func aidjToggleChanged(_ sender: UISwitch) {
         UserDefaults.standard.set(sender.isOn, forKey: "Metal_AIDJEnabled")
         saveSettings()
-
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.prepare()
-        generator.impactOccurred()
-    }
-
-    @objc func playerBackgroundStyleChanged(_ sender: UISegmentedControl) {
-        persistedSettings.playerBackgroundStyle = (sender.selectedSegmentIndex == 1) ? "gradient" : "fluid"
-        saveSettings()
-        applyPlayerBackgroundStyle()
 
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.prepare()
@@ -685,12 +613,6 @@ extension ViewController {
     func setupPage2NowPlaying() {
         page2.backgroundColor = .clear
 
-        // 0. Metal-based Ambient Fluid Plasma (synthesized solely from artwork colors)
-        playerFluidView = PlayerFluidBackgroundView()
-        playerFluidView.translatesAutoresizingMaskIntoConstraints = false
-        playerFluidView.isUserInteractionEnabled = false
-        page2.insertSubview(playerFluidView, at: 0)
-
         // Full Edge-to-Edge Dynamic Ambient Gradient Background (Fills status bar notch & home indicator)
         let gradient = CAGradientLayer()
         gradient.colors = [
@@ -765,21 +687,107 @@ extension ViewController {
         // --- 3. Vertically Centered Main Body (Y-Center of Screen) ---
         let centerContentView = UIView()
         centerContentView.translatesAutoresizingMaskIntoConstraints = false
+        centerContentView.clipsToBounds = false
         page2.addSubview(centerContentView)
 
-        // Artwork Card (Square Container)
+        // 0. Cover Art Carousel (Peek Left, Dominant Center, Peek Right)
+        coverCarouselContainer = UIView()
+        coverCarouselContainer.translatesAutoresizingMaskIntoConstraints = false
+        coverCarouselContainer.clipsToBounds = false
+        coverCarouselContainer.isUserInteractionEnabled = true
+        centerContentView.addSubview(coverCarouselContainer)
+
+        let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(carouselSwipeLeft))
+        swipeLeft.direction = .left
+        coverCarouselContainer.addGestureRecognizer(swipeLeft)
+
+        let swipeRight = UISwipeGestureRecognizer(target: self, action: #selector(carouselSwipeRight))
+        swipeRight.direction = .right
+        coverCarouselContainer.addGestureRecognizer(swipeRight)
+
+        // Previous Cover (Left)
+        leftCoverCard = UIView()
+        leftCoverCard.translatesAutoresizingMaskIntoConstraints = false
+        leftCoverCard.backgroundColor = UIColor.white.withAlphaComponent(0.08)
+        leftCoverCard.layer.cornerRadius = 18
+        leftCoverCard.layer.cornerCurve = .continuous
+        leftCoverCard.layer.borderWidth = 0.5
+        leftCoverCard.layer.borderColor = UIColor.white.withAlphaComponent(0.12).cgColor
+        leftCoverCard.layer.shadowColor = UIColor.black.cgColor
+        leftCoverCard.layer.shadowOpacity = 0.25
+        leftCoverCard.layer.shadowRadius = 12
+        leftCoverCard.layer.shadowOffset = CGSize(width: 0, height: 6)
+        leftCoverCard.clipsToBounds = false
+        leftCoverCard.layer.zPosition = 1
+        leftCoverCard.isUserInteractionEnabled = true
+        coverCarouselContainer.addSubview(leftCoverCard)
+
+        leftCoverImageView = UIImageView()
+        leftCoverImageView.translatesAutoresizingMaskIntoConstraints = false
+        leftCoverImageView.contentMode = .scaleAspectFill
+        leftCoverImageView.layer.cornerRadius = 18
+        leftCoverImageView.layer.cornerCurve = .continuous
+        leftCoverImageView.clipsToBounds = true
+        leftCoverCard.addSubview(leftCoverImageView)
+
+        let leftTap = UITapGestureRecognizer(target: self, action: #selector(leftCoverTapped))
+        leftCoverCard.addGestureRecognizer(leftTap)
+
+        // Next Cover (Right)
+        rightCoverCard = UIView()
+        rightCoverCard.translatesAutoresizingMaskIntoConstraints = false
+        rightCoverCard.backgroundColor = UIColor.white.withAlphaComponent(0.08)
+        rightCoverCard.layer.cornerRadius = 18
+        rightCoverCard.layer.cornerCurve = .continuous
+        rightCoverCard.layer.borderWidth = 0.5
+        rightCoverCard.layer.borderColor = UIColor.white.withAlphaComponent(0.12).cgColor
+        rightCoverCard.layer.shadowColor = UIColor.black.cgColor
+        rightCoverCard.layer.shadowOpacity = 0.25
+        rightCoverCard.layer.shadowRadius = 12
+        rightCoverCard.layer.shadowOffset = CGSize(width: 0, height: 6)
+        rightCoverCard.clipsToBounds = false
+        rightCoverCard.layer.zPosition = 1
+        rightCoverCard.isUserInteractionEnabled = true
+        coverCarouselContainer.addSubview(rightCoverCard)
+
+        rightCoverImageView = UIImageView()
+        rightCoverImageView.translatesAutoresizingMaskIntoConstraints = false
+        rightCoverImageView.contentMode = .scaleAspectFill
+        rightCoverImageView.layer.cornerRadius = 18
+        rightCoverImageView.layer.cornerCurve = .continuous
+        rightCoverImageView.clipsToBounds = true
+        rightCoverCard.addSubview(rightCoverImageView)
+
+        let rightTap = UITapGestureRecognizer(target: self, action: #selector(rightCoverTapped))
+        rightCoverCard.addGestureRecognizer(rightTap)
+
+        // Center Cover (Current Track)
         coverArtCard = UIView()
         coverArtCard.translatesAutoresizingMaskIntoConstraints = false
         coverArtCard.backgroundColor = UIColor.white.withAlphaComponent(0.08)
-        coverArtCard.layer.cornerRadius = 16
-        coverArtCard.clipsToBounds = true
-        centerContentView.addSubview(coverArtCard)
+        coverArtCard.layer.cornerRadius = 18
+        coverArtCard.layer.cornerCurve = .continuous
+        coverArtCard.layer.borderWidth = 0.5
+        coverArtCard.layer.borderColor = UIColor.white.withAlphaComponent(0.12).cgColor
+        coverArtCard.layer.shadowColor = UIColor.black.cgColor
+        coverArtCard.layer.shadowOpacity = 0.35
+        coverArtCard.layer.shadowRadius = 16
+        coverArtCard.layer.shadowOffset = CGSize(width: 0, height: 8)
+        coverArtCard.clipsToBounds = false
+        coverArtCard.layer.zPosition = 2
+        coverArtCard.isUserInteractionEnabled = true
+        coverCarouselContainer.addSubview(coverArtCard)
 
         coverImageView = UIImageView()
         coverImageView.translatesAutoresizingMaskIntoConstraints = false
         coverImageView.contentMode = .scaleAspectFill
+        coverImageView.layer.cornerRadius = 18
+        coverImageView.layer.cornerCurve = .continuous
         coverImageView.clipsToBounds = true
         coverArtCard.addSubview(coverImageView)
+
+        let centerTap = UITapGestureRecognizer(target: self, action: #selector(centerCoverTapped))
+        coverArtCard.addGestureRecognizer(centerTap)
 
         // Info Stack (Title + Artist on left, Heart Favorite button on right)
         let infoStack = UIStackView()
@@ -885,12 +893,6 @@ extension ViewController {
 
         // Layout Constraints
         NSLayoutConstraint.activate([
-            // Full Edge-to-Edge Player Fluid Plasma Background
-            playerFluidView.topAnchor.constraint(equalTo: page2.topAnchor),
-            playerFluidView.leadingAnchor.constraint(equalTo: page2.leadingAnchor),
-            playerFluidView.trailingAnchor.constraint(equalTo: page2.trailingAnchor),
-            playerFluidView.bottomAnchor.constraint(equalTo: page2.bottomAnchor),
-
             // Top Bar (SafeArea top)
             topBar.topAnchor.constraint(equalTo: page2.safeAreaLayoutGuide.topAnchor, constant: 8),
             topBar.leadingAnchor.constraint(equalTo: page2.leadingAnchor, constant: 20),
@@ -916,33 +918,61 @@ extension ViewController {
             bottomBar.trailingAnchor.constraint(equalTo: page2.trailingAnchor, constant: -28),
             bottomBar.heightAnchor.constraint(equalToConstant: 36),
 
-            // Center Content View (Vertically centered on Y axis!)
+            // Center Content View (Vertically centered on Y axis, edge-to-edge for carousel peek)
             centerContentView.centerYAnchor.constraint(equalTo: page2.centerYAnchor, constant: -8),
-            centerContentView.leadingAnchor.constraint(equalTo: page2.leadingAnchor, constant: 28),
-            centerContentView.trailingAnchor.constraint(equalTo: page2.trailingAnchor, constant: -28),
+            centerContentView.leadingAnchor.constraint(equalTo: page2.leadingAnchor),
+            centerContentView.trailingAnchor.constraint(equalTo: page2.trailingAnchor),
             centerContentView.topAnchor.constraint(greaterThanOrEqualTo: topBar.bottomAnchor, constant: 12),
             centerContentView.bottomAnchor.constraint(lessThanOrEqualTo: bottomBar.topAnchor, constant: -12),
 
-            // Artwork Card inside centerContentView
-            coverArtCard.topAnchor.constraint(equalTo: centerContentView.topAnchor),
-            coverArtCard.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor),
-            coverArtCard.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor),
-            coverArtCard.heightAnchor.constraint(equalTo: coverArtCard.widthAnchor),
+            // Cover Art Carousel Container
+            coverCarouselContainer.topAnchor.constraint(equalTo: centerContentView.topAnchor),
+            coverCarouselContainer.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor),
+            coverCarouselContainer.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor),
+            coverCarouselContainer.heightAnchor.constraint(equalToConstant: 326),
+
+            // Center Card (Base size 268x268, centered in container)
+            coverArtCard.widthAnchor.constraint(equalToConstant: 268),
+            coverArtCard.heightAnchor.constraint(equalToConstant: 268),
+            coverArtCard.centerXAnchor.constraint(equalTo: coverCarouselContainer.centerXAnchor),
+            coverArtCard.centerYAnchor.constraint(equalTo: coverCarouselContainer.centerYAnchor),
 
             coverImageView.topAnchor.constraint(equalTo: coverArtCard.topAnchor),
             coverImageView.leadingAnchor.constraint(equalTo: coverArtCard.leadingAnchor),
             coverImageView.trailingAnchor.constraint(equalTo: coverArtCard.trailingAnchor),
             coverImageView.bottomAnchor.constraint(equalTo: coverArtCard.bottomAnchor),
 
-            // Info Stack
-            infoStack.topAnchor.constraint(equalTo: coverArtCard.bottomAnchor, constant: 20),
-            infoStack.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor),
-            infoStack.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor),
+            // Left Card (Base size 268x268, centered in container, translated via transform)
+            leftCoverCard.widthAnchor.constraint(equalToConstant: 268),
+            leftCoverCard.heightAnchor.constraint(equalToConstant: 268),
+            leftCoverCard.centerXAnchor.constraint(equalTo: coverCarouselContainer.centerXAnchor),
+            leftCoverCard.centerYAnchor.constraint(equalTo: coverCarouselContainer.centerYAnchor),
+
+            leftCoverImageView.topAnchor.constraint(equalTo: leftCoverCard.topAnchor),
+            leftCoverImageView.leadingAnchor.constraint(equalTo: leftCoverCard.leadingAnchor),
+            leftCoverImageView.trailingAnchor.constraint(equalTo: leftCoverCard.trailingAnchor),
+            leftCoverImageView.bottomAnchor.constraint(equalTo: leftCoverCard.bottomAnchor),
+
+            // Right Card (Base size 268x268, centered in container, translated via transform)
+            rightCoverCard.widthAnchor.constraint(equalToConstant: 268),
+            rightCoverCard.heightAnchor.constraint(equalToConstant: 268),
+            rightCoverCard.centerXAnchor.constraint(equalTo: coverCarouselContainer.centerXAnchor),
+            rightCoverCard.centerYAnchor.constraint(equalTo: coverCarouselContainer.centerYAnchor),
+
+            rightCoverImageView.topAnchor.constraint(equalTo: rightCoverCard.topAnchor),
+            rightCoverImageView.leadingAnchor.constraint(equalTo: rightCoverCard.leadingAnchor),
+            rightCoverImageView.trailingAnchor.constraint(equalTo: rightCoverCard.trailingAnchor),
+            rightCoverImageView.bottomAnchor.constraint(equalTo: rightCoverCard.bottomAnchor),
+
+            // Info Stack (below coverCarouselContainer)
+            infoStack.topAnchor.constraint(equalTo: coverCarouselContainer.bottomAnchor, constant: 18),
+            infoStack.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor, constant: 28),
+            infoStack.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor, constant: -28),
 
             // Progress Slider & Labels
             progressSlider.topAnchor.constraint(equalTo: infoStack.bottomAnchor, constant: 18),
-            progressSlider.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor),
-            progressSlider.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor),
+            progressSlider.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor, constant: 28),
+            progressSlider.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor, constant: -28),
 
             elapsedLabel.topAnchor.constraint(equalTo: progressSlider.bottomAnchor, constant: 6),
             elapsedLabel.leadingAnchor.constraint(equalTo: progressSlider.leadingAnchor),
@@ -952,15 +982,15 @@ extension ViewController {
 
             // Main Controls Stack
             controlsStack.topAnchor.constraint(equalTo: elapsedLabel.bottomAnchor, constant: 18),
-            controlsStack.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor),
-            controlsStack.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor),
+            controlsStack.leadingAnchor.constraint(equalTo: centerContentView.leadingAnchor, constant: 28),
+            controlsStack.trailingAnchor.constraint(equalTo: centerContentView.trailingAnchor, constant: -28),
             controlsStack.bottomAnchor.constraint(equalTo: centerContentView.bottomAnchor),
 
             playPauseButton.widthAnchor.constraint(equalToConstant: 64),
             playPauseButton.heightAnchor.constraint(equalToConstant: 64)
         ])
 
-        applyPlayerBackgroundStyle()
+        updateCarouselArtworks(animated: false)
     }
 
     func updateCardBorders() {
@@ -1524,286 +1554,5 @@ func interpolateColor(from: UIColor, to: UIColor, progress: CGFloat) -> UIColor 
     )
 }
 
-// MARK: - Metal-based Player Fluid Plasma Background
-
-let playerFluidShaderSource = """
-#include <metal_stdlib>
-using namespace metal;
-
-struct VertexOut {
-    float4 position [[position]];
-    float2 uv;
-};
-
-struct PlayerFluidUniforms {
-    float2 resolution;
-    float time;
-    float amplitude;
-    float isPlaying;
-    float isDark;
-    float padding1;
-    float padding2;
-    float3 artworkColor;
-};
-
-vertex VertexOut playerFluidVertexShader(uint vertexID [[vertex_id]]) {
-    float2 positions[3] = {
-        float2(-1.0, -1.0),
-        float2( 3.0, -1.0),
-        float2(-1.0,  3.0)
-    };
-    VertexOut out;
-    out.position = float4(positions[vertexID], 0.0, 1.0);
-    out.uv = positions[vertexID] * 0.5 + 0.5;
-    return out;
-}
-
-// Modulo 289
-static inline float3 pf_mod289(float3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-static inline float2 pf_mod289(float2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-static inline float3 pf_permute(float3 x) { return pf_mod289(((x * 34.0) + 1.0) * x); }
-
-// 2D Simplex Noise
-static inline float pf_snoise(float2 v) {
-    const float4 C = float4(0.211324865405187,
-                            0.366025403784439,
-                           -0.577350269189626,
-                            0.024390243902439);
-    float2 i  = floor(v + dot(v, C.yy));
-    float2 x0 = v -   i + dot(i, C.xx);
-    float2 i1 = (x0.x > x0.y) ? float2(1.0, 0.0) : float2(0.0, 1.0);
-    float4 x12 = x0.xyxy + C.xxzz;
-    x12.xy -= i1;
-    i = pf_mod289(i);
-    float3 p = pf_permute(pf_permute(i.y + float3(0.0, i1.y, 1.0))
-                     + i.x + float3(0.0, i1.x, 1.0));
-    float3 m = max(0.5 - float3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
-    m = m * m;
-    m = m * m;
-    float3 x = 2.0 * fract(p * C.www) - 1.0;
-    float3 h = abs(x) - 0.5;
-    float3 ox = floor(x + 0.5);
-    float3 a0 = x - ox;
-    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
-    float3 g;
-    g.x  = a0.x  * x0.x  + h.x  * x0.y;
-    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-    return 130.0 * dot(m, g);
-}
-
-fragment float4 playerFluidFragmentShader(
-    VertexOut in [[stage_in]],
-    constant PlayerFluidUniforms &uniforms [[buffer(0)]]
-) {
-    float2 res = uniforms.resolution;
-    if (res.x <= 0.0 || res.y <= 0.0) {
-        return float4(0.0);
-    }
-
-    float2 uv = in.position.xy / res;
-    float minDim = min(res.x, res.y);
-    float2 p = (in.position.xy - 0.5 * res) / minDim;
-
-    float t = uniforms.time * 0.16;
-    float amp = uniforms.amplitude;
-
-    // Multi-octave organic domain warping
-    float2 q = float2(
-        pf_snoise(p * 1.2 + float2(t * 0.10, t * 0.08)),
-        pf_snoise(p * 1.2 + float2(-t * 0.09, t * 0.11))
-    );
-
-    float2 r = float2(
-        pf_snoise(p * 1.8 + 1.2 * q + float2(1.7, 9.2) + float2(t * 0.06, -t * 0.08)),
-        pf_snoise(p * 1.8 + 1.2 * q + float2(8.3, 2.8) + float2(-t * 0.07, t * 0.05))
-    );
-
-    float f = pf_snoise(p * 1.5 + 1.4 * r + float2(t * 0.05, t * 0.04));
-
-    // Synthesize harmonious palette ONLY from artworkColor ("онли артворк цвета")
-    float3 rawColor = uniforms.artworkColor;
-    if (length(rawColor) < 0.02) {
-        rawColor = float3(0.18, 0.18, 0.22);
-    }
-
-    // Boost artwork saturation for vibrant fluid lobes
-    float maxC = max(rawColor.r, max(rawColor.g, rawColor.b));
-    float minC = min(rawColor.r, min(rawColor.g, rawColor.b));
-    float lum = (maxC + minC) * 0.5;
-    float3 satArt = saturate((rawColor - lum) * 1.35 + lum);
-
-    // Deep velvety background floor (keeps controls visible and provides deep contrast)
-    float3 cBase = satArt * 0.12 + float3(0.025, 0.025, 0.035);
-
-    // Primary rich artwork color
-    float3 cPrimary = satArt * 0.70 + float3(0.04, 0.04, 0.05);
-
-    // Harmonic shifted tone (subtle complementary/analogous variation from artwork color)
-    float3 cHarmonic = satArt.brg * 0.55 + satArt * 0.35 + float3(0.03, 0.02, 0.05);
-
-    // Soft luminous bloom highlight
-    float3 cHighlight = saturate(satArt * 1.1 + float3(0.14, 0.14, 0.16));
-
-    // Multi-layered organic blend
-    float weightPrimary = smoothstep(-0.45, 0.45, f + q.x * 0.35 * amp);
-    float weightHarmonic = smoothstep(-0.35, 0.55, r.y + q.y * 0.40 * amp);
-    float weightHighlight = smoothstep(0.30, 0.85, f * amp);
-
-    float3 fluidColor = mix(cBase, cPrimary, weightPrimary);
-    fluidColor = mix(fluidColor, cHarmonic, weightHarmonic * 0.65);
-    fluidColor += cHighlight * weightHighlight * 0.38;
-
-    // Compositional vignette for player usability:
-    // Keep lower section (slider + buttons) darker and calmer
-    float bottomDamping = smoothstep(0.40, 0.95, uv.y);
-    fluidColor = mix(fluidColor, cBase, bottomDamping * 0.50);
-
-    // Soft radial contrast behind album artwork center
-    float centerDist = length(p);
-    float centerSoftness = smoothstep(0.15, 0.65, centerDist);
-    fluidColor = mix(fluidColor * 0.85, fluidColor, centerSoftness);
-
-    return float4(fluidColor, 1.0);
-}
-"""
-
-class PlayerFluidBackgroundView: UIView, MTKViewDelegate {
-    struct PlayerFluidUniforms {
-        var resolution: SIMD2<Float> = .zero
-        var time: Float = 0
-        var amplitude: Float = 0.7
-        var isPlaying: Float = 0.0
-        var isDark: Float = 1.0
-        var padding1: Float = 0.0
-        var padding2: Float = 0.0
-        var artworkColor: SIMD3<Float> = .zero
-    }
-
-    private var mtkView: MTKView?
-    private var commandQueue: MTLCommandQueue?
-    private var pipelineState: MTLRenderPipelineState?
-    private var startTime: CFTimeInterval = 0
-
-    private var isPlayingState: Bool = false
-    private var currentAmplitude: Float = 0.65
-    private var targetAmplitude: Float = 0.65
-
-    private var currentArtworkColor: SIMD3<Float> = SIMD3<Float>(0.13, 0.13, 0.15)
-    private var targetArtworkColor: SIMD3<Float> = SIMD3<Float>(0.13, 0.13, 0.15)
-
-    var isPaused: Bool {
-        get { mtkView?.isPaused ?? false }
-        set { mtkView?.isPaused = newValue }
-    }
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        setupMetalPipeline()
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setupMetalPipeline()
-    }
-
-    private func setupMetalPipeline() {
-        guard let device = MTLCreateSystemDefaultDevice() else { return }
-
-        let metalView = MTKView(frame: .zero, device: device)
-        metalView.translatesAutoresizingMaskIntoConstraints = false
-        metalView.clearColor = MTLClearColor(red: 0.035, green: 0.035, blue: 0.045, alpha: 1.0)
-        metalView.colorPixelFormat = .bgra8Unorm
-        metalView.delegate = self
-        metalView.isPaused = false
-        metalView.enableSetNeedsDisplay = false
-        metalView.preferredFramesPerSecond = 60
-        addSubview(metalView)
-        self.mtkView = metalView
-
-        NSLayoutConstraint.activate([
-            metalView.topAnchor.constraint(equalTo: topAnchor),
-            metalView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            metalView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            metalView.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
-
-        do {
-            let library = try device.makeLibrary(source: playerFluidShaderSource, options: nil)
-            let vertexFunction = library.makeFunction(name: "playerFluidVertexShader")
-            let fragmentFunction = library.makeFunction(name: "playerFluidFragmentShader")
-
-            let pipelineDescriptor = MTLRenderPipelineDescriptor()
-            pipelineDescriptor.vertexFunction = vertexFunction
-            pipelineDescriptor.fragmentFunction = fragmentFunction
-            pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
-
-            self.pipelineState = try device.makeRenderPipelineState(descriptor: pipelineDescriptor)
-            self.commandQueue = device.makeCommandQueue()
-            self.startTime = CACurrentMediaTime()
-        } catch {
-            print("Failed to compile player fluid Metal shader: \(error)")
-        }
-    }
-
-    func setPlaying(_ playing: Bool) {
-        isPlayingState = playing
-        targetAmplitude = playing ? 1.15 : 0.65
-    }
-
-    func setArtworkColor(_ color: UIColor?) {
-        guard let color = color else { return }
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        if color.getRed(&r, green: &g, blue: &b, alpha: &a) {
-            targetArtworkColor = SIMD3<Float>(Float(r), Float(g), Float(b))
-        }
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        mtkView?.isPaused = (window == nil)
-    }
-
-    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
-
-    func draw(in view: MTKView) {
-        guard let pipelineState = pipelineState,
-              let commandQueue = commandQueue,
-              let renderPassDescriptor = view.currentRenderPassDescriptor,
-              let drawable = view.currentDrawable else {
-            return
-        }
-
-        let elapsed = Float(CACurrentMediaTime() - startTime)
-        currentAmplitude += (targetAmplitude - currentAmplitude) * 0.04
-        currentArtworkColor += (targetArtworkColor - currentArtworkColor) * 0.03
-
-        let drawableSize = view.drawableSize
-        guard drawableSize.width > 0, drawableSize.height > 0 else { return }
-
-        var uniforms = PlayerFluidUniforms(
-            resolution: SIMD2<Float>(Float(drawableSize.width), Float(drawableSize.height)),
-            time: elapsed,
-            amplitude: currentAmplitude,
-            isPlaying: isPlayingState ? 1.0 : 0.0,
-            isDark: traitCollection.userInterfaceStyle == .dark ? 1.0 : 0.0,
-            padding1: 0.0,
-            padding2: 0.0,
-            artworkColor: currentArtworkColor
-        )
-
-        guard let commandBuffer = commandQueue.makeCommandBuffer(),
-              let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
-            return
-        }
-
-        renderEncoder.setRenderPipelineState(pipelineState)
-        renderEncoder.setFragmentBytes(&uniforms, length: MemoryLayout<PlayerFluidUniforms>.stride, index: 0)
-        renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-        renderEncoder.endEncoding()
-
-        commandBuffer.present(drawable)
-        commandBuffer.commit()
-    }
-}
 
 
