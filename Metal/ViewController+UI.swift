@@ -694,7 +694,7 @@ extension ViewController {
         // 0. Cover Art Carousel (Peek Left, Dominant Center, Peek Right)
         coverCarouselContainer = UIView()
         coverCarouselContainer.translatesAutoresizingMaskIntoConstraints = false
-        coverCarouselContainer.clipsToBounds = true
+        coverCarouselContainer.clipsToBounds = false
         coverCarouselContainer.isUserInteractionEnabled = true
         centerContentView.addSubview(coverCarouselContainer)
 
@@ -806,6 +806,16 @@ extension ViewController {
         coverImageView.layer.cornerCurve = .continuous
         coverImageView.clipsToBounds = true
         coverArtCard.addSubview(coverImageView)
+
+        coverDimOverlay = UIView()
+        coverDimOverlay.translatesAutoresizingMaskIntoConstraints = false
+        coverDimOverlay.backgroundColor = UIColor.black.withAlphaComponent(0.20)
+        coverDimOverlay.layer.cornerRadius = 18
+        coverDimOverlay.layer.cornerCurve = .continuous
+        coverDimOverlay.clipsToBounds = true
+        coverDimOverlay.isUserInteractionEnabled = false
+        coverDimOverlay.alpha = 0.0
+        coverArtCard.addSubview(coverDimOverlay)
 
         let centerTap = UITapGestureRecognizer(target: self, action: #selector(centerCoverTapped))
         coverArtCard.addGestureRecognizer(centerTap)
@@ -962,6 +972,11 @@ extension ViewController {
             coverImageView.leadingAnchor.constraint(equalTo: coverArtCard.leadingAnchor),
             coverImageView.trailingAnchor.constraint(equalTo: coverArtCard.trailingAnchor),
             coverImageView.bottomAnchor.constraint(equalTo: coverArtCard.bottomAnchor),
+
+            coverDimOverlay.topAnchor.constraint(equalTo: coverArtCard.topAnchor),
+            coverDimOverlay.leadingAnchor.constraint(equalTo: coverArtCard.leadingAnchor),
+            coverDimOverlay.trailingAnchor.constraint(equalTo: coverArtCard.trailingAnchor),
+            coverDimOverlay.bottomAnchor.constraint(equalTo: coverArtCard.bottomAnchor),
 
             // Left Card (Base size 264x264, centered in container, translated via transform)
             leftCoverCard.widthAnchor.constraint(equalToConstant: 264),
