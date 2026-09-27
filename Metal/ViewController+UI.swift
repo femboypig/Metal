@@ -236,6 +236,70 @@ extension ViewController {
             descLabel.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16)
         ])
 
+        // Section: Player Typography
+        let typoSectionLabel = UILabel()
+        typoSectionLabel.translatesAutoresizingMaskIntoConstraints = false
+        typoSectionLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        typoSectionLabel.textColor = secondaryTextColor()
+        typoSectionLabel.text = "PLAYER TYPOGRAPHY"
+        typoSectionLabel.letterSpacing(1.2)
+        page0.addSubview(typoSectionLabel)
+
+        let fontCard = UIView()
+        fontCard.translatesAutoresizingMaskIntoConstraints = false
+        fontCard.backgroundColor = cardBackgroundColor()
+        fontCard.layer.cornerRadius = 18
+        fontCard.layer.borderWidth = 1.0
+        fontCard.layer.borderColor = cardBorderColor().cgColor
+        page0.addSubview(fontCard)
+
+        let fontLabel = UILabel()
+        fontLabel.translatesAutoresizingMaskIntoConstraints = false
+        fontLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        fontLabel.textColor = primaryTextColor()
+        fontLabel.text = "Font Style"
+        fontCard.addSubview(fontLabel)
+
+        let fontDescLabel = UILabel()
+        fontDescLabel.translatesAutoresizingMaskIntoConstraints = false
+        fontDescLabel.font = UIFont.systemFont(ofSize: 12, weight: .regular)
+        fontDescLabel.textColor = secondaryTextColor()
+        fontDescLabel.text = "Track title, artist, and header in player."
+        fontCard.addSubview(fontDescLabel)
+
+        let fontSegmentedControl = UISegmentedControl(items: ["Serif", "Default", "Wide"])
+        fontSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
+        switch playerFontStyle {
+        case .serif: fontSegmentedControl.selectedSegmentIndex = 0
+        case .rounded: fontSegmentedControl.selectedSegmentIndex = 1
+        case .wide: fontSegmentedControl.selectedSegmentIndex = 2
+        }
+        fontSegmentedControl.addTarget(self, action: #selector(playerFontStyleChanged(_:)), for: .valueChanged)
+        fontCard.addSubview(fontSegmentedControl)
+
+        NSLayoutConstraint.activate([
+            typoSectionLabel.topAnchor.constraint(equalTo: card.bottomAnchor, constant: 28),
+            typoSectionLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
+
+            fontCard.topAnchor.constraint(equalTo: typoSectionLabel.bottomAnchor, constant: 12),
+            fontCard.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
+            fontCard.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24),
+            fontCard.heightAnchor.constraint(equalToConstant: 116),
+
+            fontLabel.topAnchor.constraint(equalTo: fontCard.topAnchor, constant: 16),
+            fontLabel.leadingAnchor.constraint(equalTo: fontCard.leadingAnchor, constant: 20),
+            fontLabel.trailingAnchor.constraint(equalTo: fontCard.trailingAnchor, constant: -20),
+
+            fontDescLabel.topAnchor.constraint(equalTo: fontLabel.bottomAnchor, constant: 4),
+            fontDescLabel.leadingAnchor.constraint(equalTo: fontCard.leadingAnchor, constant: 20),
+            fontDescLabel.trailingAnchor.constraint(equalTo: fontCard.trailingAnchor, constant: -20),
+
+            fontSegmentedControl.topAnchor.constraint(equalTo: fontDescLabel.bottomAnchor, constant: 12),
+            fontSegmentedControl.leadingAnchor.constraint(equalTo: fontCard.leadingAnchor, constant: 20),
+            fontSegmentedControl.trailingAnchor.constraint(equalTo: fontCard.trailingAnchor, constant: -20),
+            fontSegmentedControl.heightAnchor.constraint(equalToConstant: 32)
+        ])
+
         // Bottom Plain Text: Experimental Build Information
         let expInfoLabel = UILabel()
         expInfoLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -253,6 +317,17 @@ extension ViewController {
             expInfoLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
             expInfoLabel.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24)
         ])
+    }
+
+    @objc func playerFontStyleChanged(_ sender: UISegmentedControl) {
+        switch sender.selectedSegmentIndex {
+        case 0: playerFontStyle = .serif
+        case 1: playerFontStyle = .rounded
+        case 2: playerFontStyle = .wide
+        default: playerFontStyle = .serif
+        }
+        saveSettings()
+        updatePlayerFonts()
     }
 
     @objc func showLibraryTapped() {
@@ -637,6 +712,7 @@ extension ViewController {
         dismissButton.tintColor = .white
         dismissButton.addTarget(self, action: #selector(dismissPlayerTapped), for: .touchUpInside)
         topBar.addSubview(dismissButton)
+        playerDismissButton = dismissButton
 
         playerHeaderLabel = UILabel()
         playerHeaderLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -652,6 +728,7 @@ extension ViewController {
         topOptionsButton.tintColor = .white
         topOptionsButton.addTarget(self, action: #selector(optionsTapped), for: .touchUpInside)
         topBar.addSubview(topOptionsButton)
+        playerOptionsButton = topOptionsButton
 
         // --- 2. Bottom Secondary Bar (Positioned at Safe Area Bottom) ---
         let bottomBar = UIStackView()
@@ -666,6 +743,7 @@ extension ViewController {
         deviceButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         deviceButton.addTarget(self, action: #selector(deviceButtonTapped), for: .touchUpInside)
         bottomBar.addArrangedSubview(deviceButton)
+        playerDeviceButton = deviceButton
 
         let rightBottomStack = UIStackView()
         rightBottomStack.axis = .horizontal
@@ -678,12 +756,14 @@ extension ViewController {
         shareButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         shareButton.addTarget(self, action: #selector(shareButtonTapped), for: .touchUpInside)
         rightBottomStack.addArrangedSubview(shareButton)
+        playerShareButton = shareButton
 
         let queueButton = UIButton(type: .system)
         queueButton.setImage(UIImage(systemName: "list.bullet", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)), for: .normal)
         queueButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         queueButton.addTarget(self, action: #selector(queueButtonTapped), for: .touchUpInside)
         rightBottomStack.addArrangedSubview(queueButton)
+        playerQueueButton = queueButton
 
         // --- 3. Vertically Centered Main Body (Y-Center of Screen) ---
         let centerContentView = UIView()
@@ -900,6 +980,7 @@ extension ViewController {
         prevButton.tintColor = .white
         prevButton.addTarget(self, action: #selector(playPreviousTrack), for: .touchUpInside)
         controlsStack.addArrangedSubview(prevButton)
+        playerPrevButton = prevButton
 
         playPauseButton = UIButton(type: .custom)
         playPauseButton.translatesAutoresizingMaskIntoConstraints = false
@@ -915,6 +996,7 @@ extension ViewController {
         nextButton.tintColor = .white
         nextButton.addTarget(self, action: #selector(playNextTrack), for: .touchUpInside)
         controlsStack.addArrangedSubview(nextButton)
+        playerNextButton = nextButton
 
         repeatButton = UIButton(type: .system)
         repeatButton.setImage(UIImage(systemName: "repeat", withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)), for: .normal)
@@ -1037,6 +1119,8 @@ extension ViewController {
         ])
 
         updateCarouselArtworks(animated: false)
+        updatePlayerFonts()
+        updatePlayerControlsTheme(isDark: traitCollection.userInterfaceStyle == .dark)
     }
 
     func updateCardBorders() {
@@ -1054,18 +1138,96 @@ extension ViewController {
 
         playerGradientLayer?.frame = page2?.bounds ?? .zero
 
-        progressSlider?.setThumbImage(makeThumbImage(size: 10), for: .normal)
+        updatePlayerControlsTheme(isDark: traitCollection.userInterfaceStyle == .dark)
     }
 
     func makeThumbImage(size: CGFloat) -> UIImage? {
         let rect = CGRect(x: 0, y: 0, width: size, height: size)
         UIGraphicsBeginImageContextWithOptions(rect.size, false, 0)
         let context = UIGraphicsGetCurrentContext()
-        context?.setFillColor(UIColor.white.cgColor)
+        let isDark = traitCollection.userInterfaceStyle == .dark
+        let thumbColor = isDark ? UIColor.white : UIColor(red: 0.12, green: 0.12, blue: 0.15, alpha: 1.0)
+        context?.setFillColor(thumbColor.cgColor)
         context?.fillEllipse(in: rect)
         let image = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
         return image
+    }
+
+    func updatePlayerFonts() {
+        switch playerFontStyle {
+        case .serif:
+            playerHeaderLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? UIFont.systemFont(ofSize: 13, weight: .bold)
+            trackTitleLabel?.font = UIFont(name: "Georgia-Bold", size: 22) ?? UIFont.systemFont(ofSize: 22, weight: .bold)
+            artistLabel?.font = UIFont(name: "Georgia-Italic", size: 16) ?? UIFont.italicSystemFont(ofSize: 16)
+            elapsedLabel?.font = UIFont(name: "Georgia-Italic", size: 12) ?? UIFont.italicSystemFont(ofSize: 12)
+            remainingLabel?.font = UIFont(name: "Georgia-Italic", size: 12) ?? UIFont.italicSystemFont(ofSize: 12)
+        case .rounded:
+            let headerDesc = UIFont.systemFont(ofSize: 13, weight: .bold).fontDescriptor.withDesign(.rounded)
+            playerHeaderLabel?.font = headerDesc.map { UIFont(descriptor: $0, size: 13) } ?? UIFont.systemFont(ofSize: 13, weight: .bold)
+
+            let titleDesc = UIFont.systemFont(ofSize: 22, weight: .bold).fontDescriptor.withDesign(.rounded)
+            trackTitleLabel?.font = titleDesc.map { UIFont(descriptor: $0, size: 22) } ?? UIFont.systemFont(ofSize: 22, weight: .bold)
+
+            let artistDesc = UIFont.systemFont(ofSize: 16, weight: .semibold).fontDescriptor.withDesign(.rounded)
+            artistLabel?.font = artistDesc.map { UIFont(descriptor: $0, size: 16) } ?? UIFont.systemFont(ofSize: 16, weight: .semibold)
+
+            let timerDesc = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium).fontDescriptor.withDesign(.rounded)
+            elapsedLabel?.font = timerDesc.map { UIFont(descriptor: $0, size: 12) } ?? UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+            remainingLabel?.font = timerDesc.map { UIFont(descriptor: $0, size: 12) } ?? UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        case .wide:
+            let wideHeaderFont = UIFont(name: "DrukWide-Bold", size: 10) ?? UIFont.systemFont(ofSize: 11, weight: .heavy)
+            let wideTitleFont = UIFont(name: "DrukWide-Bold", size: 16) ?? UIFont.systemFont(ofSize: 17, weight: .heavy)
+            let wideArtistFont = UIFont(name: "DrukWide-Bold", size: 12) ?? UIFont.systemFont(ofSize: 13, weight: .bold)
+            let wideTimerFont = UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .bold)
+
+            playerHeaderLabel?.font = wideHeaderFont
+            trackTitleLabel?.font = wideTitleFont
+            artistLabel?.font = wideArtistFont
+            elapsedLabel?.font = wideTimerFont
+            remainingLabel?.font = wideTimerFont
+        }
+    }
+
+    func updatePlayerControlsTheme(isDark: Bool) {
+        let primaryText = isDark ? UIColor.white : UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0)
+        let secondaryText = isDark ? UIColor.white.withAlphaComponent(0.65) : UIColor(red: 0.38, green: 0.38, blue: 0.44, alpha: 1.0)
+        let headerText = isDark ? UIColor.white.withAlphaComponent(0.85) : UIColor(red: 0.30, green: 0.30, blue: 0.35, alpha: 1.0)
+        let iconTint = isDark ? UIColor.white.withAlphaComponent(0.85) : UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0)
+        let subtleIconTint = isDark ? UIColor.white.withAlphaComponent(0.8) : UIColor(red: 0.35, green: 0.35, blue: 0.40, alpha: 1.0)
+        let inactiveControl = isDark ? UIColor.white.withAlphaComponent(0.4) : UIColor(red: 0.55, green: 0.55, blue: 0.60, alpha: 0.6)
+        let accentColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
+
+        playerDismissButton?.tintColor = iconTint
+        playerOptionsButton?.tintColor = iconTint
+        playerHeaderLabel?.textColor = headerText
+        trackTitleLabel?.textColor = primaryText
+        artistLabel?.textColor = secondaryText
+        playerFavoriteButton?.tintColor = iconTint
+
+        progressSlider?.minimumTrackTintColor = isDark ? .white : UIColor(red: 0.12, green: 0.12, blue: 0.15, alpha: 1.0)
+        progressSlider?.maximumTrackTintColor = isDark ? UIColor.white.withAlphaComponent(0.25) : UIColor(red: 0.70, green: 0.70, blue: 0.75, alpha: 0.5)
+        progressSlider?.setThumbImage(makeThumbImage(size: 10), for: .normal)
+
+        elapsedLabel?.textColor = secondaryText
+        remainingLabel?.textColor = secondaryText
+
+        shuffleButton?.tintColor = isShuffleEnabled ? accentColor : inactiveControl
+        repeatButton?.tintColor = isRepeatEnabled ? accentColor : inactiveControl
+
+        playerPrevButton?.tintColor = primaryText
+        playPauseButton?.backgroundColor = isDark ? .white : UIColor(red: 0.12, green: 0.12, blue: 0.15, alpha: 1.0)
+        playPauseButton?.tintColor = isDark ? .black : .white
+        playerNextButton?.tintColor = primaryText
+
+        playerDeviceButton?.tintColor = subtleIconTint
+        playerShareButton?.tintColor = subtleIconTint
+        playerQueueButton?.tintColor = subtleIconTint
+
+        let cardBorder = isDark ? UIColor.white.withAlphaComponent(0.12).cgColor : UIColor.black.withAlphaComponent(0.08).cgColor
+        coverArtCard?.layer.borderColor = cardBorder
+        leftCoverCard?.layer.borderColor = cardBorder
+        rightCoverCard?.layer.borderColor = cardBorder
     }
 
     // MARK: - Cylinder / Drum-Roll Fade Overlays
