@@ -32,6 +32,7 @@ struct MetalSettingsDocument: Codable {
     var repeatEnabled: Bool = false
     var lastTrackFile: String?
     var playbackPosition: TimeInterval = 0
+    var playerFontStyle: String = "serif"
 }
 
 extension ViewController {
@@ -46,8 +47,11 @@ extension ViewController {
         if let data = try? Data(contentsOf: settingsFileURL),
            let savedSettings = try? JSONDecoder().decode(MetalSettingsDocument.self, from: data) {
             persistedSettings = savedSettings
+            playerFontStyle = PlayerFontStyle(rawValue: savedSettings.playerFontStyle) ?? .serif
         } else {
             let defaults = UserDefaults.standard
+            let savedStyle = defaults.string(forKey: "Metal_PlayerFontStyle") ?? "serif"
+            playerFontStyle = PlayerFontStyle(rawValue: savedStyle) ?? .serif
             persistedSettings = MetalSettingsDocument(
                 favoriteTracks: defaults.stringArray(forKey: "Metal_Favorites") ?? [],
                 aidjEnabled: defaults.object(forKey: "Metal_AIDJEnabled") == nil
@@ -56,7 +60,8 @@ extension ViewController {
                 shuffleEnabled: defaults.bool(forKey: "Metal_Shuffle"),
                 repeatEnabled: defaults.bool(forKey: "Metal_Repeat"),
                 lastTrackFile: defaults.string(forKey: "Metal_LastTrackFile"),
-                playbackPosition: 0
+                playbackPosition: 0,
+                playerFontStyle: playerFontStyle.rawValue
             )
             writeSettingsDocument()
         }
@@ -86,6 +91,8 @@ extension ViewController {
         persistedSettings.aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
         persistedSettings.shuffleEnabled = isShuffleEnabled
         persistedSettings.repeatEnabled = isRepeatEnabled
+        persistedSettings.playerFontStyle = playerFontStyle.rawValue
+        UserDefaults.standard.set(playerFontStyle.rawValue, forKey: "Metal_PlayerFontStyle")
 
         if let index = currentTrackIndex, index < filteredTracks.count {
             let filename = filteredTracks[index].url.lastPathComponent
