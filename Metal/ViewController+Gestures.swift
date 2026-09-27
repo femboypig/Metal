@@ -211,10 +211,12 @@ extension ViewController {
     // MARK: - Artwork Animations
     
     func startArtworkAnimation() {
+        guard !isCarouselAnimating else { return }
         applyCarouselLayout(isPlaying: true, animated: true)
     }
     
     func stopArtworkAnimation() {
+        guard !isCarouselAnimating else { return }
         applyCarouselLayout(isPlaying: false, animated: true)
     }
 
