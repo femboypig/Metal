@@ -211,11 +211,31 @@ extension ViewController {
     // MARK: - Artwork Animations
     
     func startArtworkAnimation() {
-        coverArtCard?.layer.removeAllAnimations()
+        applyCarouselLayout(isPlaying: true, animated: true)
     }
     
     func stopArtworkAnimation() {
-        coverArtCard?.layer.removeAllAnimations()
+        applyCarouselLayout(isPlaying: false, animated: true)
+    }
+
+    @objc func carouselSwipeLeft() {
+        playNextTrack()
+    }
+
+    @objc func carouselSwipeRight() {
+        playPreviousTrack()
+    }
+
+    @objc func leftCoverTapped() {
+        playPreviousTrack()
+    }
+
+    @objc func rightCoverTapped() {
+        playNextTrack()
+    }
+
+    @objc func centerCoverTapped() {
+        playPauseTapped()
     }
     
     // MARK: - Toast Notifications
