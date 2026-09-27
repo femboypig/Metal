@@ -221,11 +221,7 @@ extension ViewController {
                 artistLabel.isHidden = true
             }
 
-            if let artwork = track.artwork {
-                coverImageView.image = artwork
-            } else {
-                coverImageView.image = UIImage(named: "PlaceholderArtwork")
-            }
+            updateCarouselArtworks(animated: false)
 
             progressSlider.maximumValue = Float(track.duration)
             progressSlider.value = Float(audioPlayer?.currentTime ?? 0)
@@ -413,11 +409,7 @@ extension ViewController {
                 self.artistLabel.isHidden = true
             }
 
-            if let artwork = nextTrack.artwork {
-                self.coverImageView.image = artwork
-            } else {
-                self.coverImageView.image = UIImage(named: "PlaceholderArtwork")
-            }
+            self.updateCarouselArtworks(animated: true)
 
             self.progressSlider.maximumValue = Float(nextTrack.duration)
             self.progressSlider.value = 0
@@ -614,7 +606,6 @@ extension ViewController {
 
         currentDominantColor = dominantColor
         myWaveView?.setThemeColor(dominantColor)
-        playerFluidView?.setArtworkColor(dominantColor)
 
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.5)
@@ -686,6 +677,150 @@ extension ViewController {
         updatePlayerTheme(with: artwork)
         updateNowPlayingInfo()
         scheduleWidgetRecommendationsPublish()
+    }
+
+    // MARK: - Cover Art Carousel
+
+    func getPreviousTrack() -> Track? {
+        guard !filteredTracks.isEmpty else { return nil }
+        if isShuffleEnabled {
+            guard !shuffledIndices.isEmpty else { return nil }
+            if shuffledPosition > 0 {
+                let idx = shuffledIndices[shuffledPosition - 1]
+                if idx < filteredTracks.count { return filteredTracks[idx] }
+            } else if isRepeatEnabled && shuffledIndices.count > 1 {
+                let idx = shuffledIndices[shuffledIndices.count - 1]
+                if idx < filteredTracks.count { return filteredTracks[idx] }
+            }
+            return nil
+        } else {
+            guard let idx = currentTrackIndex else { return nil }
+            if idx > 0 {
+                return filteredTracks[idx - 1]
+            } else if isRepeatEnabled && filteredTracks.count > 1 {
+                return filteredTracks[filteredTracks.count - 1]
+            }
+            return nil
+        }
+    }
+
+    func getNextTrack() -> Track? {
+        guard !filteredTracks.isEmpty else { return nil }
+        if isShuffleEnabled {
+            guard !shuffledIndices.isEmpty else { return nil }
+            if shuffledPosition < shuffledIndices.count - 1 {
+                let idx = shuffledIndices[shuffledPosition + 1]
+                if idx < filteredTracks.count { return filteredTracks[idx] }
+            } else if isRepeatEnabled && shuffledIndices.count > 1 {
+                let idx = shuffledIndices[0]
+                if idx < filteredTracks.count { return filteredTracks[idx] }
+            }
+            return nil
+        } else {
+            guard let idx = currentTrackIndex else {
+                return filteredTracks.first
+            }
+            if idx < filteredTracks.count - 1 {
+                return filteredTracks[idx + 1]
+            } else if isRepeatEnabled && filteredTracks.count > 1 {
+                return filteredTracks[0]
+            }
+            return nil
+        }
+    }
+
+    func updateCarouselArtworks(animated: Bool = false) {
+        guard isViewLoaded else { return }
+
+        let currentTrack: Track?
+        if let idx = currentTrackIndex, idx >= 0, idx < filteredTracks.count {
+            currentTrack = filteredTracks[idx]
+        } else {
+            currentTrack = nil
+        }
+
+        let prevTrack = getPreviousTrack()
+        let nextTrack = getNextTrack()
+
+        let defaultPlaceholder = UIImage(named: "PlaceholderArtwork")
+
+        let applyImages = {
+            self.coverImageView?.image = currentTrack?.artwork ?? defaultPlaceholder
+            if let prev = prevTrack {
+                self.leftCoverCard?.isHidden = false
+                self.leftCoverImageView?.image = prev.artwork ?? defaultPlaceholder
+            } else {
+                self.leftCoverCard?.isHidden = true
+            }
+
+            if let next = nextTrack {
+                self.rightCoverCard?.isHidden = false
+                self.rightCoverImageView?.image = next.artwork ?? defaultPlaceholder
+            } else {
+                self.rightCoverCard?.isHidden = true
+            }
+        }
+
+        if animated, let container = coverCarouselContainer {
+            UIView.transition(with: container, duration: 0.28, options: [.transitionCrossDissolve, .allowUserInteraction], animations: {
+                applyImages()
+            }, completion: nil)
+        } else {
+            applyImages()
+        }
+    }
+
+    func applyCarouselLayout(isPlaying: Bool, animated: Bool) {
+        guard isViewLoaded, let coverArtCard = coverArtCard, let leftCoverCard = leftCoverCard, let rightCoverCard = rightCoverCard else { return }
+
+        let screenWidth = page2?.bounds.width ?? (view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width)
+        let baseCardSize: CGFloat = round(min(screenWidth * 0.68, 280))
+        let playingScale: CGFloat = 1.20
+        let gap: CGFloat = 16
+
+        let baseOffset = baseCardSize + gap
+        let expansion = (baseCardSize * (playingScale - 1.0)) / 2.0
+
+        let leftTargetTransform: CGAffineTransform
+        let rightTargetTransform: CGAffineTransform
+        let centerTargetTransform: CGAffineTransform
+        let centerShadowRadius: CGFloat
+        let centerShadowOpacity: Float
+
+        if isPlaying {
+            centerTargetTransform = CGAffineTransform(scaleX: playingScale, y: playingScale)
+            leftTargetTransform = CGAffineTransform(translationX: -(baseOffset + expansion), y: 0)
+            rightTargetTransform = CGAffineTransform(translationX: (baseOffset + expansion), y: 0)
+            centerShadowRadius = 20
+            centerShadowOpacity = 0.40
+        } else {
+            centerTargetTransform = .identity
+            leftTargetTransform = CGAffineTransform(translationX: -baseOffset, y: 0)
+            rightTargetTransform = CGAffineTransform(translationX: baseOffset, y: 0)
+            centerShadowRadius = 12
+            centerShadowOpacity = 0.28
+        }
+
+        let updates = {
+            coverArtCard.transform = centerTargetTransform
+            leftCoverCard.transform = leftTargetTransform
+            rightCoverCard.transform = rightTargetTransform
+            coverArtCard.layer.shadowRadius = centerShadowRadius
+            coverArtCard.layer.shadowOpacity = centerShadowOpacity
+        }
+
+        if animated {
+            UIView.animate(
+                withDuration: 0.45,
+                delay: 0,
+                usingSpringWithDamping: 0.82,
+                initialSpringVelocity: 0.2,
+                options: [.allowUserInteraction, .beginFromCurrentState],
+                animations: updates
+            )
+        } else {
+            updates()
+        }
     }
 }
 
