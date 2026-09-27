@@ -54,10 +54,14 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     // Page 2 (Now Playing) Subviews
     var page2: UIView!
     var playerGradientLayer: CAGradientLayer!
-    var playerFluidView: PlayerFluidBackgroundView!
     var playerHeaderLabel: UILabel!
+    var coverCarouselContainer: UIView!
+    var leftCoverCard: UIView!
+    var leftCoverImageView: UIImageView!
     var coverArtCard: UIView!
     var coverImageView: UIImageView!
+    var rightCoverCard: UIView!
+    var rightCoverImageView: UIImageView!
     var trackTitleLabel: UILabel!
     var artistLabel: UILabel!
     var progressSlider: UISlider!
@@ -193,6 +197,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         applyCylinderEffect()
         updateFilterPillBorders()
         updateOverlayAlphas()
+        applyCarouselLayout(isPlaying: audioPlayer?.isPlaying == true, animated: false)
         
         if !didInitialScroll && scrollView.frame.size.width > 0 {
             didInitialScroll = true
@@ -261,13 +266,6 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     func updateWavePlayingState() {
         let isPlaying = audioPlayer?.isPlaying == true
         myWaveView?.setPlaying(isPlaying)
-        playerFluidView?.setPlaying(isPlaying)
-    }
-
-    func applyPlayerBackgroundStyle() {
-        let isFluid = (persistedSettings.playerBackgroundStyle == "fluid")
-        playerFluidView?.isHidden = !isFluid
-        playerFluidView?.isPaused = !isFluid
-        playerGradientLayer?.isHidden = isFluid
+        applyCarouselLayout(isPlaying: isPlaying, animated: true)
     }
 }
