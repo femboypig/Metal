@@ -109,6 +109,8 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     // Playback State & Audio Player
     var tracks: [Track] = []
     var filteredTracks: [Track] = []
+    var playbackQueue: [Track] = []
+    var currentPlaybackContext: String = "ALL SONGS"
     var currentTrackIndex: Int? {
         didSet {
             savePlaybackState()
@@ -285,14 +287,8 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
 
     @objc func powerStateDidChange() {
         if audioPlayer?.isPlaying == true { startTimer() }
-        if ProcessInfo.processInfo.isLowPowerModeEnabled {
-            playbackPreparationGeneration += 1
-            preparedPlayer = nil
-            preparedPlayerURL = nil
-        } else {
-            prepareDailyMixVibes()
-            prepareUpcomingTrack()
-        }
+        prepareDailyMixVibes()
+        prepareUpcomingTrack()
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
