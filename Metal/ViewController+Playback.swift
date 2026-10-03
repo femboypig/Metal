@@ -650,14 +650,14 @@ extension ViewController {
             let base = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
             if isDark {
                 return PlayerArtworkPalette(
-                    topColor: UIColor(hue: 0.04, saturation: 0.65, brightness: 0.35, alpha: 1.0),
-                    bottomColor: UIColor(hue: 0.04, saturation: 0.25, brightness: 0.06, alpha: 1.0),
+                    topColor: UIColor(hue: 0.04, saturation: 0.75, brightness: 0.42, alpha: 1.0),
+                    bottomColor: UIColor(hue: 0.04, saturation: 0.35, brightness: 0.08, alpha: 1.0),
                     waveColor: base
                 )
             } else {
                 return PlayerArtworkPalette(
-                    topColor: UIColor(hue: 0.04, saturation: 0.18, brightness: 0.96, alpha: 1.0),
-                    bottomColor: UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0),
+                    topColor: UIColor(hue: 0.04, saturation: 0.52, brightness: 0.93, alpha: 1.0),
+                    bottomColor: UIColor(hue: 0.04, saturation: 0.25, brightness: 0.97, alpha: 1.0),
                     waveColor: base
                 )
             }
@@ -666,15 +666,15 @@ extension ViewController {
         let hue = CGFloat(hash % 360) / 360.0
         if isDark {
             return PlayerArtworkPalette(
-                topColor: UIColor(hue: hue, saturation: 0.65, brightness: 0.38, alpha: 1.0),
-                bottomColor: UIColor(hue: hue, saturation: 0.30, brightness: 0.06, alpha: 1.0),
-                waveColor: UIColor(hue: hue, saturation: 0.80, brightness: 0.75, alpha: 1.0)
+                topColor: UIColor(hue: hue, saturation: 0.75, brightness: 0.42, alpha: 1.0),
+                bottomColor: UIColor(hue: hue, saturation: 0.35, brightness: 0.08, alpha: 1.0),
+                waveColor: UIColor(hue: hue, saturation: 0.88, brightness: 0.82, alpha: 1.0)
             )
         } else {
             return PlayerArtworkPalette(
-                topColor: UIColor(hue: hue, saturation: 0.18, brightness: 0.96, alpha: 1.0),
-                bottomColor: UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0),
-                waveColor: UIColor(hue: hue, saturation: 0.75, brightness: 0.65, alpha: 1.0)
+                topColor: UIColor(hue: hue, saturation: 0.50, brightness: 0.93, alpha: 1.0),
+                bottomColor: UIColor(hue: hue, saturation: 0.22, brightness: 0.97, alpha: 1.0),
+                waveColor: UIColor(hue: hue, saturation: 0.80, brightness: 0.72, alpha: 1.0)
             )
         }
     }
@@ -1313,38 +1313,40 @@ fileprivate extension UIImage {
 
         // --- CASE 2: Dark Artwork with Small Accent (e.g. 80% black with a bit of red/blue/yellow) ---
         if darkFraction >= 0.60 && primary.fraction < 0.35 {
-            let accentWeight = min(max(primary.fraction / 0.35, 0.15), 0.60)
-            let s = min(primary.saturation * accentWeight, 0.38)
+            let accentWeight = min(max(primary.fraction / 0.35, 0.25), 0.75)
+            let sDark = min(max(primary.saturation * accentWeight * 1.25, 0.48), 0.70)
+            let bDark = min(max(primary.brightness * 0.48, 0.18), 0.28)
 
             if isDark {
-                let b = min(max(primary.brightness * 0.35, 0.11), 0.19)
-                let top = UIColor(hue: primary.hue, saturation: s, brightness: b, alpha: 1.0)
-                let bottom = UIColor(hue: primary.hue, saturation: s * 0.35, brightness: 0.045, alpha: 1.0)
-                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.90), brightness: 0.82, alpha: 1.0)
+                let top = UIColor(hue: primary.hue, saturation: sDark, brightness: bDark, alpha: 1.0)
+                let bottom = UIColor(hue: primary.hue, saturation: sDark * 0.45, brightness: 0.065, alpha: 1.0)
+                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation * 1.1, 0.95), brightness: 0.85, alpha: 1.0)
                 return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
             } else {
-                let top = UIColor(hue: primary.hue, saturation: s * 0.22, brightness: 0.95, alpha: 1.0)
-                let bottom = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0)
-                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.85), brightness: 0.70, alpha: 1.0)
+                let sLight = min(max(primary.saturation * 0.55, 0.38), 0.60)
+                let top = UIColor(hue: primary.hue, saturation: sLight, brightness: 0.93, alpha: 1.0)
+                let bottom = UIColor(hue: primary.hue, saturation: sLight * 0.38, brightness: 0.97, alpha: 1.0)
+                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.90), brightness: 0.75, alpha: 1.0)
                 return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
             }
         }
 
         // --- CASE 3: Light/White Artwork with a Colored Accent (e.g. White cover with colored logo/art) ---
         if lightFraction >= 0.50 && primary.fraction < 0.35 {
-            let accentWeight = min(max(primary.fraction / 0.35, 0.20), 0.65)
-            let s = min(primary.saturation * accentWeight, 0.42)
+            let accentWeight = min(max(primary.fraction / 0.35, 0.30), 0.80)
+            let sDark = min(max(primary.saturation * accentWeight * 1.15, 0.48), 0.70)
+            let bDark = min(max(primary.brightness * 0.55, 0.22), 0.35)
 
             if isDark {
-                let b = min(max(primary.brightness * 0.40, 0.15), 0.26)
-                let top = UIColor(hue: primary.hue, saturation: s, brightness: b, alpha: 1.0)
-                let bottom = UIColor(hue: primary.hue, saturation: s * 0.30, brightness: 0.06, alpha: 1.0)
-                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.88), brightness: 0.82, alpha: 1.0)
+                let top = UIColor(hue: primary.hue, saturation: sDark, brightness: bDark, alpha: 1.0)
+                let bottom = UIColor(hue: primary.hue, saturation: sDark * 0.40, brightness: 0.07, alpha: 1.0)
+                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation * 1.05, 0.92), brightness: 0.85, alpha: 1.0)
                 return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
             } else {
-                let top = UIColor(hue: primary.hue, saturation: min(primary.saturation * 0.18, 0.15), brightness: 0.96, alpha: 1.0)
-                let bottom = UIColor(red: 0.97, green: 0.97, blue: 0.99, alpha: 1.0)
-                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.80), brightness: 0.70, alpha: 1.0)
+                let sLight = min(max(primary.saturation * 0.52, 0.38), 0.58)
+                let top = UIColor(hue: primary.hue, saturation: sLight, brightness: 0.93, alpha: 1.0)
+                let bottom = UIColor(hue: primary.hue, saturation: sLight * 0.35, brightness: 0.97, alpha: 1.0)
+                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.88), brightness: 0.75, alpha: 1.0)
                 return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
             }
         }
@@ -1353,30 +1355,38 @@ fileprivate extension UIImage {
         let secondary = clusters.dropFirst().first { other in
             let hueDiff = abs(other.hue - primary.hue)
             let circularDiff = min(hueDiff, 1.0 - hueDiff)
-            return circularDiff >= 0.10 && other.fraction >= 0.10
+            return circularDiff >= 0.08 && other.fraction >= 0.08
         }
 
         if isDark {
-            let s = min(max(primary.saturation * 0.95, 0.45), 0.82)
-            let b = min(max(primary.brightness * 0.72, 0.26), 0.46)
+            let s = min(max(primary.saturation * 1.05, 0.62), 0.92)
+            let b = min(max(primary.brightness * 0.82, 0.34), 0.55)
             let top = UIColor(hue: primary.hue, saturation: s, brightness: b, alpha: 1.0)
 
             let bottom: UIColor
             if let sec = secondary {
-                let s2 = min(sec.saturation * 0.50, 0.35)
-                let b2 = min(max(sec.brightness * 0.14, 0.045), 0.08)
+                let s2 = min(max(sec.saturation * 0.60, 0.35), 0.55)
+                let b2 = min(max(sec.brightness * 0.22, 0.07), 0.14)
                 bottom = UIColor(hue: sec.hue, saturation: s2, brightness: b2, alpha: 1.0)
             } else {
-                bottom = UIColor(hue: primary.hue, saturation: min(s * 0.45, 0.30), brightness: 0.065, alpha: 1.0)
+                bottom = UIColor(hue: primary.hue, saturation: min(s * 0.60, 0.45), brightness: 0.085, alpha: 1.0)
             }
 
-            let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation * 1.05, 0.92), brightness: 0.82, alpha: 1.0)
+            let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation * 1.10, 0.96), brightness: 0.88, alpha: 1.0)
             return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
         } else {
-            let s = min(primary.saturation * 0.28, 0.22)
-            let top = UIColor(hue: primary.hue, saturation: s, brightness: 0.95, alpha: 1.0)
-            let bottom = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0)
-            let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.85), brightness: 0.65, alpha: 1.0)
+            let s = min(max(primary.saturation * 0.68, 0.45), 0.72)
+            let top = UIColor(hue: primary.hue, saturation: s, brightness: 0.92, alpha: 1.0)
+
+            let bottom: UIColor
+            if let sec = secondary {
+                let s2 = min(max(sec.saturation * 0.40, 0.22), 0.42)
+                bottom = UIColor(hue: sec.hue, saturation: s2, brightness: 0.96, alpha: 1.0)
+            } else {
+                bottom = UIColor(hue: primary.hue, saturation: min(s * 0.45, 0.30), brightness: 0.965, alpha: 1.0)
+            }
+
+            let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.90), brightness: 0.75, alpha: 1.0)
             return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
         }
     }
@@ -1390,45 +1400,45 @@ fileprivate extension UIImage {
             if isLightArtwork {
                 let top: UIColor
                 if isWarm {
-                    top = UIColor(red: 0.18, green: 0.17, blue: 0.16, alpha: 1.0)
+                    top = UIColor(red: 0.20, green: 0.19, blue: 0.18, alpha: 1.0)
                 } else if isCool {
-                    top = UIColor(red: 0.15, green: 0.16, blue: 0.19, alpha: 1.0)
+                    top = UIColor(red: 0.17, green: 0.19, blue: 0.23, alpha: 1.0)
                 } else {
-                    top = UIColor(red: 0.16, green: 0.16, blue: 0.18, alpha: 1.0)
+                    top = UIColor(red: 0.18, green: 0.18, blue: 0.20, alpha: 1.0)
                 }
-                let bottom = UIColor(red: 0.055, green: 0.055, blue: 0.065, alpha: 1.0)
-                let wave = UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1.0)
+                let bottom = UIColor(red: 0.065, green: 0.065, blue: 0.075, alpha: 1.0)
+                let wave = UIColor(red: 0.85, green: 0.87, blue: 0.92, alpha: 1.0)
                 return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
             } else {
                 let top: UIColor
                 if isWarm {
-                    top = UIColor(red: 0.12, green: 0.11, blue: 0.11, alpha: 1.0)
+                    top = UIColor(red: 0.14, green: 0.12, blue: 0.12, alpha: 1.0)
                 } else if isCool {
-                    top = UIColor(red: 0.10, green: 0.11, blue: 0.13, alpha: 1.0)
+                    top = UIColor(red: 0.11, green: 0.13, blue: 0.16, alpha: 1.0)
                 } else {
-                    top = UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1.0)
+                    top = UIColor(red: 0.13, green: 0.13, blue: 0.14, alpha: 1.0)
                 }
-                let bottom = UIColor(red: 0.04, green: 0.04, blue: 0.045, alpha: 1.0)
-                let wave = UIColor(red: 0.68, green: 0.70, blue: 0.76, alpha: 1.0)
+                let bottom = UIColor(red: 0.045, green: 0.045, blue: 0.05, alpha: 1.0)
+                let wave = UIColor(red: 0.72, green: 0.74, blue: 0.80, alpha: 1.0)
                 return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
             }
         } else {
             if isLightArtwork {
                 let top: UIColor
                 if isWarm {
-                    top = UIColor(red: 0.95, green: 0.94, blue: 0.93, alpha: 1.0)
+                    top = UIColor(red: 0.94, green: 0.92, blue: 0.90, alpha: 1.0)
                 } else if isCool {
-                    top = UIColor(red: 0.93, green: 0.94, blue: 0.96, alpha: 1.0)
+                    top = UIColor(red: 0.90, green: 0.92, blue: 0.96, alpha: 1.0)
                 } else {
-                    top = UIColor(red: 0.94, green: 0.94, blue: 0.95, alpha: 1.0)
+                    top = UIColor(red: 0.92, green: 0.92, blue: 0.94, alpha: 1.0)
                 }
-                let bottom = UIColor(red: 0.97, green: 0.97, blue: 0.99, alpha: 1.0)
-                let wave = UIColor(red: 0.50, green: 0.52, blue: 0.58, alpha: 1.0)
+                let bottom = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0)
+                let wave = UIColor(red: 0.50, green: 0.54, blue: 0.62, alpha: 1.0)
                 return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
             } else {
-                let top = UIColor(red: 0.88, green: 0.89, blue: 0.91, alpha: 1.0)
-                let bottom = UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1.0)
-                let wave = UIColor(red: 0.40, green: 0.42, blue: 0.46, alpha: 1.0)
+                let top = UIColor(red: 0.86, green: 0.87, blue: 0.90, alpha: 1.0)
+                let bottom = UIColor(red: 0.94, green: 0.94, blue: 0.96, alpha: 1.0)
+                let wave = UIColor(red: 0.42, green: 0.45, blue: 0.50, alpha: 1.0)
                 return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
             }
         }
