@@ -30,19 +30,21 @@ struct Track {
 
     private static let artworkCache: NSCache<NSURL, UIImage> = {
         let cache = NSCache<NSURL, UIImage>()
-        cache.countLimit = 80
-        cache.totalCostLimit = 96 * 1_024 * 1_024
+        cache.countLimit = 500
+        cache.totalCostLimit = 256 * 1024 * 1024
         return cache
     }()
-    private static let artworkRequestLock = NSLock()
-    private static var artworkRequests: Set<URL> = []
 
     var artwork: UIImage? {
         let nsURL = url as NSURL
         if let cached = Track.artworkCache.object(forKey: nsURL) {
             return cached
         }
-        Track.prepareArtwork(for: url)
+        if let image = Track.extractArtwork(from: url) {
+            let cost = Int(image.size.width * image.size.height * 4)
+            Track.artworkCache.setObject(image, forKey: nsURL, cost: cost)
+            return image
+        }
         return nil
     }
 
@@ -98,46 +100,94 @@ struct Track {
     }
 
     static func prepareArtwork(for url: URL) {
-        guard artworkCache.object(forKey: url as NSURL) == nil else { return }
-        artworkRequestLock.lock()
-        let shouldStart = artworkRequests.insert(url).inserted
-        artworkRequestLock.unlock()
-        guard shouldStart else { return }
-
-        Task.detached(priority: .utility) {
-            let image = await loadArtwork(for: url)
-            if let image {
-                let estimatedCost = Int(image.size.width * image.size.height * image.scale * image.scale * 4)
-                artworkCache.setObject(image, forKey: url as NSURL, cost: estimatedCost)
-            }
-
-            artworkRequestLock.lock()
-            artworkRequests.remove(url)
-            artworkRequestLock.unlock()
-
-            guard image != nil else { return }
-            await MainActor.run {
-                NotificationCenter.default.post(
-                    name: .metalTrackArtworkDidLoad,
-                    object: nil,
-                    userInfo: ["url": url]
-                )
+        let nsURL = url as NSURL
+        guard artworkCache.object(forKey: nsURL) == nil else { return }
+        DispatchQueue.global(qos: .utility).async {
+            if let image = extractArtwork(from: url) {
+                let cost = Int(image.size.width * image.size.height * 4)
+                artworkCache.setObject(image, forKey: nsURL, cost: cost)
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .metalTrackArtworkDidLoad,
+                        object: nil,
+                        userInfo: ["url": url]
+                    )
+                }
             }
         }
     }
 
     static func preheatArtwork(for urls: [URL]) {
-        urls.forEach(prepareArtwork(for:))
+        DispatchQueue.global(qos: .utility).async {
+            for url in urls {
+                let nsURL = url as NSURL
+                if artworkCache.object(forKey: nsURL) == nil {
+                    if let image = extractArtwork(from: url) {
+                        let cost = Int(image.size.width * image.size.height * 4)
+                        artworkCache.setObject(image, forKey: nsURL, cost: cost)
+                    }
+                }
+            }
+        }
     }
 
-    private static func loadArtwork(for url: URL) async -> UIImage? {
+    static func extractArtwork(from url: URL) -> UIImage? {
         let asset = AVURLAsset(url: url)
-        guard let metadata = try? await asset.load(.commonMetadata) else { return nil }
-        for item in metadata where item.commonKey == .commonKeyArtwork {
-            if let data = try? await item.load(.dataValue),
-               let image = UIImage(data: data) {
-                return image
+
+        // 1. Common metadata (ID3, iTunes, Vorbis, etc.)
+        for item in asset.commonMetadata where item.commonKey == .commonKeyArtwork {
+            if let img = imageFromMetadataItem(item) {
+                return img
             }
+        }
+
+        // 2. All metadata (APIC, covr, attached picture)
+        for item in asset.metadata {
+            if isArtworkMetadataItem(item), let img = imageFromMetadataItem(item) {
+                return img
+            }
+        }
+
+        // 3. Format-specific metadata
+        for format in asset.availableMetadataFormats {
+            for item in asset.metadata(forFormat: format) {
+                if isArtworkMetadataItem(item), let img = imageFromMetadataItem(item) {
+                    return img
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func isArtworkMetadataItem(_ item: AVMetadataItem) -> Bool {
+        if item.commonKey == .commonKeyArtwork { return true }
+        if let keyStr = item.keyString?.lowercased(), keyStr == "apic" || keyStr == "covr" { return true }
+        if let key = item.key as? String, key.caseInsensitiveCompare("APIC") == .orderedSame || key.caseInsensitiveCompare("covr") == .orderedSame { return true }
+        if let id = item.identifier {
+            if id == .commonIdentifierArtwork || id == .id3MetadataAttachedPicture || id == .iTunesMetadataCoverArt {
+                return true
+            }
+            let raw = id.rawValue.lowercased()
+            if raw.contains("artwork") || raw.contains("picture") || raw.contains("covr") {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func imageFromMetadataItem(_ item: AVMetadataItem) -> UIImage? {
+        if let data = item.dataValue, let img = UIImage(data: data) {
+            return img
+        }
+        if let data = item.value as? Data, let img = UIImage(data: data) {
+            return img
+        }
+        if let dict = item.value as? [String: Any], let data = dict["data"] as? Data, let img = UIImage(data: data) {
+            return img
+        }
+        if let dict = item.extraAttributes as? [String: Any], let data = dict["data"] as? Data, let img = UIImage(data: data) {
+            return img
         }
         return nil
     }
