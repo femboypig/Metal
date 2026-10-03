@@ -302,30 +302,41 @@ extension ViewController {
         presentCustomBottomSheet(title: "Delete Playlist", subtitle: "Are you sure you want to delete '\(title)'?", items: items)
     }
 
+    func activeFilterHeaderTitle() -> String {
+        switch activeFilter {
+        case .all:
+            return "ALL SONGS"
+        case .dailyMix:
+            return "DAILY MIX"
+        case .favorites:
+            return "FAVORITES"
+        case .playlist(let name):
+            return name.uppercased()
+        }
+    }
+
     func filterTracks() {
         let searchText = searchBar.text ?? ""
 
         // 1. Filter by category
         let categoryTracks: [Track]
-        let headerText: String
         switch activeFilter {
         case .all:
             categoryTracks = tracks
-            headerText = "ALL SONGS"
         case .dailyMix:
             refreshDailyMixIfNeeded()
             categoryTracks = dailyMixTracks
-            headerText = "DAILY MIX"
         case .favorites:
             categoryTracks = tracks.filter { favoriteTracks.contains($0.url.lastPathComponent) }
-            headerText = "FAVORITES"
         case .playlist(let name):
             let filenames = playlists[name] ?? []
             categoryTracks = tracks.filter { filenames.contains($0.url.lastPathComponent) }
-            headerText = name.uppercased()
         }
 
-        playerHeaderLabel?.text = headerText
+        // Only update player header if nothing is playing; when playing, playerHeaderLabel displays currentPlaybackContext
+        if audioPlayer == nil {
+            playerHeaderLabel?.text = activeFilterHeaderTitle()
+        }
 
         // 2. Filter by search text
         if searchText.isEmpty {
@@ -334,6 +345,15 @@ extension ViewController {
             filteredTracks = categoryTracks.filter { track in
                 track.title.localizedCaseInsensitiveContains(searchText) || track.artist.localizedCaseInsensitiveContains(searchText)
             }
+        }
+
+        // Synchronize currentTrackIndex with the actual playing track (if present in this filtered view)
+        if let playingURL = audioPlayer?.url {
+            currentTrackIndex = filteredTracks.firstIndex(where: { $0.url == playingURL })
+        } else if let savedTrackFile = persistedSettings.lastTrackFile {
+            currentTrackIndex = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == savedTrackFile })
+        } else {
+            currentTrackIndex = nil
         }
 
         tableView.reloadData()
@@ -506,10 +526,11 @@ extension ViewController {
 
             refreshDailyMixIfNeeded(force: true)
             filterTracks()
-            if !ProcessInfo.processInfo.isLowPowerModeEnabled {
-                prepareDailyMixVibes()
+            if playbackQueue.isEmpty {
+                playbackQueue = tracks
             }
-            Track.preheatArtwork(for: Array(tracks.prefix(8).map(\.url)))
+            prepareDailyMixVibes()
+            Track.preheatArtwork(for: tracks.map(\.url))
 
             if !uncachedURLs.isEmpty {
                 Task.detached(priority: .utility) { [weak self] in
@@ -739,7 +760,7 @@ extension ViewController {
     }
 
     func updateMiniPlayerUI() {
-        guard !filteredTracks.isEmpty else {
+        guard !tracks.isEmpty else {
             miniTitleLabel?.text = "No Tracks Loaded"
             miniArtistLabel?.text = "Import music files to begin"
             miniPlayPauseButton?.isEnabled = false
@@ -755,7 +776,18 @@ extension ViewController {
         miniPreviousButton?.isEnabled = true
         miniNextButton?.isEnabled = true
 
-        guard let index = currentTrackIndex, index < filteredTracks.count else {
+        let activeTrack: Track?
+        if let playing = currentPlaybackTrack() {
+            activeTrack = playing
+        } else if let index = currentTrackIndex, index < filteredTracks.count {
+            activeTrack = filteredTracks[index]
+        } else if let lastFile = persistedSettings.lastTrackFile, let saved = tracks.first(where: { $0.url.lastPathComponent == lastFile }) {
+            activeTrack = saved
+        } else {
+            activeTrack = filteredTracks.first ?? tracks.first
+        }
+
+        guard let track = activeTrack else {
             miniTitleLabel?.text = "No Track Selected"
             miniArtistLabel?.text = "Select a song below"
             miniPlayPauseButton?.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
@@ -765,7 +797,6 @@ extension ViewController {
             return
         }
 
-        let track = filteredTracks[index]
         miniTitleLabel?.text = track.title
         if track.artist != "Unknown Artist" && !track.artist.isEmpty {
             miniArtistLabel?.text = track.artist
