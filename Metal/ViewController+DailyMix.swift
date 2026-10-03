@@ -20,7 +20,6 @@ extension ViewController {
     }
 
     func prepareDailyMixVibes() {
-        guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
         let urls = tracks.map(\.url)
         dailyMixVibeAnalyzer.analyze(urls: urls, cached: dailyMixVibeCache) { [weak self] result in
             guard let self else { return }
