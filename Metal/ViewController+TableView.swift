@@ -16,7 +16,7 @@ extension ViewController {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.identifier, for: indexPath) as! TrackCell
         let track = filteredTracks[indexPath.row]
-        let isPlaying = (currentTrackIndex == indexPath.row && audioPlayer != nil)
+        let isPlaying = (audioPlayer != nil && audioPlayer?.url == track.url)
         
         cell.configure(with: track, index: indexPath.row, isPlaying: isPlaying, colors: self)
         
@@ -31,6 +31,8 @@ extension ViewController {
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         recordManualSelection(for: filteredTracks[indexPath.row])
+        playbackQueue = filteredTracks
+        currentPlaybackContext = activeFilterHeaderTitle()
         currentTrackIndex = indexPath.row
         if isShuffleEnabled {
             rebuildShuffleQueue()
