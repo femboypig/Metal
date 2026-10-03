@@ -162,7 +162,6 @@ struct Track {
 
     private static func isArtworkMetadataItem(_ item: AVMetadataItem) -> Bool {
         if item.commonKey == .commonKeyArtwork { return true }
-        if let keyStr = item.keyString?.lowercased(), keyStr == "apic" || keyStr == "covr" { return true }
         if let key = item.key as? String, key.caseInsensitiveCompare("APIC") == .orderedSame || key.caseInsensitiveCompare("covr") == .orderedSame { return true }
         if let id = item.identifier {
             if id == .commonIdentifierArtwork || id == .id3MetadataAttachedPicture || id == .iTunesMetadataCoverArt {
