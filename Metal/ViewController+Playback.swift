@@ -639,13 +639,48 @@ extension ViewController {
         updateWavePlayingState()
     }
 
-    func fallbackTrackColor(for trackTitle: String?) -> UIColor {
+    struct PlayerArtworkPalette {
+        let topColor: UIColor
+        let bottomColor: UIColor
+        let waveColor: UIColor
+    }
+
+    func fallbackPalette(for trackTitle: String?, isDark: Bool) -> PlayerArtworkPalette {
         guard let title = trackTitle, !title.isEmpty else {
-            return UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
+            let base = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
+            if isDark {
+                return PlayerArtworkPalette(
+                    topColor: UIColor(hue: 0.04, saturation: 0.65, brightness: 0.35, alpha: 1.0),
+                    bottomColor: UIColor(hue: 0.04, saturation: 0.25, brightness: 0.06, alpha: 1.0),
+                    waveColor: base
+                )
+            } else {
+                return PlayerArtworkPalette(
+                    topColor: UIColor(hue: 0.04, saturation: 0.18, brightness: 0.96, alpha: 1.0),
+                    bottomColor: UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0),
+                    waveColor: base
+                )
+            }
         }
         let hash = abs(title.hashValue)
         let hue = CGFloat(hash % 360) / 360.0
-        return UIColor(hue: hue, saturation: 0.68, brightness: 0.72, alpha: 1.0)
+        if isDark {
+            return PlayerArtworkPalette(
+                topColor: UIColor(hue: hue, saturation: 0.65, brightness: 0.38, alpha: 1.0),
+                bottomColor: UIColor(hue: hue, saturation: 0.30, brightness: 0.06, alpha: 1.0),
+                waveColor: UIColor(hue: hue, saturation: 0.80, brightness: 0.75, alpha: 1.0)
+            )
+        } else {
+            return PlayerArtworkPalette(
+                topColor: UIColor(hue: hue, saturation: 0.18, brightness: 0.96, alpha: 1.0),
+                bottomColor: UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0),
+                waveColor: UIColor(hue: hue, saturation: 0.75, brightness: 0.65, alpha: 1.0)
+            )
+        }
+    }
+
+    func fallbackTrackColor(for trackTitle: String?) -> UIColor {
+        fallbackPalette(for: trackTitle, isDark: traitCollection.userInterfaceStyle == .dark).waveColor
     }
 
     func updatePlayerTheme(with artwork: UIImage?) {
@@ -661,40 +696,26 @@ extension ViewController {
             return nil
         }()
 
-        let vibrantColor: UIColor
-        if let art = artwork, let extracted = art.extractVibrantColor() {
-            vibrantColor = extracted
+        let palette: PlayerArtworkPalette
+        if let art = artwork {
+            palette = art.extractPlayerPalette(isDark: isDark)
         } else {
-            vibrantColor = fallbackTrackColor(for: trackTitle)
+            palette = fallbackPalette(for: trackTitle, isDark: isDark)
         }
 
-        currentDominantColor = vibrantColor
-        myWaveView?.setThemeColor(vibrantColor)
-
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        vibrantColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-
-        let topColor: UIColor
-        let bottomColor: UIColor
-
-        if isDark {
-            topColor = UIColor(hue: h, saturation: min(s * 1.05, 0.85), brightness: min(max(b, 0.38), 0.52), alpha: 1.0)
-            bottomColor = UIColor(hue: h, saturation: min(s * 0.40, 0.30), brightness: 0.07, alpha: 1.0)
-        } else {
-            topColor = UIColor(hue: h, saturation: min(s * 0.38, 0.28), brightness: 0.96, alpha: 1.0)
-            bottomColor = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0)
-        }
+        currentDominantColor = palette.topColor
+        myWaveView?.setThemeColor(palette.waveColor)
 
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.5)
-        playerGradientLayer?.colors = [topColor.cgColor, bottomColor.cgColor]
+        playerGradientLayer?.colors = [palette.topColor.cgColor, palette.bottomColor.cgColor]
         CATransaction.commit()
 
         updatePlayerControlsTheme(isDark: isDark)
 
         if let sv = scrollView, sv.bounds.width > 0, sv.contentOffset.x >= sv.bounds.width * 1.5 {
-            view.backgroundColor = topColor
-            scrollView.backgroundColor = topColor
+            view.backgroundColor = palette.topColor
+            scrollView.backgroundColor = palette.topColor
             setNeedsStatusBarAppearanceUpdate()
         }
     }
@@ -1141,8 +1162,12 @@ extension ViewController {
 
 fileprivate extension UIImage {
     func extractVibrantColor() -> UIColor? {
-        let width = 32
-        let height = 32
+        extractPlayerPalette(isDark: true).waveColor
+    }
+
+    func extractPlayerPalette(isDark: Bool) -> ViewController.PlayerArtworkPalette {
+        let width = 36
+        let height = 36
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
 
@@ -1154,17 +1179,38 @@ fileprivate extension UIImage {
             bytesPerRow: width * 4,
             space: colorSpace,
             bitmapInfo: bitmapInfo
-        ) else { return nil }
+        ) else {
+            return defaultMonochromePalette(isDark: isDark, avgLuminance: 0.5)
+        }
 
         UIGraphicsPushContext(context)
         draw(in: CGRect(x: 0, y: 0, width: width, height: height))
         UIGraphicsPopContext()
 
-        guard let data = context.data else { return nil }
+        guard let data = context.data else {
+            return defaultMonochromePalette(isDark: isDark, avgLuminance: 0.5)
+        }
         let ptr = data.bindMemory(to: UInt8.self, capacity: width * height * 4)
 
-        var bestColor: UIColor?
-        var highestScore: CGFloat = -1.0
+        var totalValidPixels = 0
+        var sumLuminance: CGFloat = 0
+        var sumR: CGFloat = 0
+        var sumG: CGFloat = 0
+        var sumB: CGFloat = 0
+        var sumSat: CGFloat = 0
+
+        var darkPixelsCount = 0
+        var lightNeutralCount = 0
+        var neutralCount = 0
+        var chromaticCount = 0
+
+        let numBins = 16
+        var binCounts = [Int](repeating: 0, count: numBins)
+        var binSumR = [CGFloat](repeating: 0, count: numBins)
+        var binSumG = [CGFloat](repeating: 0, count: numBins)
+        var binSumB = [CGFloat](repeating: 0, count: numBins)
+        var binSumSat = [CGFloat](repeating: 0, count: numBins)
+        var binSumBr = [CGFloat](repeating: 0, count: numBins)
 
         for y in 0..<height {
             for x in 0..<width {
@@ -1176,24 +1222,219 @@ fileprivate extension UIImage {
                 let g = CGFloat(ptr[offset + 1]) / 255.0
                 let b = CGFloat(ptr[offset + 2]) / 255.0
 
+                let luminance = 0.299 * r + 0.587 * g + 0.114 * b
                 let color = UIColor(red: r, green: g, blue: b, alpha: 1.0)
                 var h: CGFloat = 0, s: CGFloat = 0, br: CGFloat = 0, a: CGFloat = 0
                 color.getHue(&h, saturation: &s, brightness: &br, alpha: &a)
 
-                // Skip washed out or near-black / near-white pixels
-                if s < 0.18 || br < 0.15 || br > 0.96 {
-                    continue
-                }
+                totalValidPixels += 1
+                sumLuminance += luminance
+                sumR += r
+                sumG += g
+                sumB += b
+                sumSat += s
 
-                // Score prioritizes vivid color with balanced luminance
-                let score = s * 1.8 + (1.0 - abs(br - 0.55)) * 0.8
-                if score > highestScore {
-                    highestScore = score
-                    bestColor = color
+                let isDarkPixel = br < 0.18 || luminance < 0.16
+                let isLightPixel = br > 0.82 && s < 0.22
+                let isNeutralPixel = s < 0.16
+
+                if isDarkPixel { darkPixelsCount += 1 }
+                if isLightPixel { lightNeutralCount += 1 }
+                if isNeutralPixel || isDarkPixel || isLightPixel { neutralCount += 1 }
+
+                if s >= 0.18 && br >= 0.14 && br <= 0.96 {
+                    chromaticCount += 1
+                    var bin = Int(h * CGFloat(numBins))
+                    if bin >= numBins { bin = numBins - 1 }
+                    binCounts[bin] += 1
+                    binSumR[bin] += r
+                    binSumG[bin] += g
+                    binSumB[bin] += b
+                    binSumSat[bin] += s
+                    binSumBr[bin] += br
                 }
             }
         }
 
-        return bestColor
+        guard totalValidPixels > 0 else {
+            return defaultMonochromePalette(isDark: isDark, avgLuminance: 0.5)
+        }
+
+        let totalF = CGFloat(totalValidPixels)
+        let avgLuminance = sumLuminance / totalF
+        let avgR = sumR / totalF
+        let avgG = sumG / totalF
+        let avgB = sumB / totalF
+        let darkFraction = CGFloat(darkPixelsCount) / totalF
+        let lightFraction = CGFloat(lightNeutralCount) / totalF
+        let neutralFraction = CGFloat(neutralCount) / totalF
+        let chromaticFraction = CGFloat(chromaticCount) / totalF
+
+        struct ColorCluster {
+            let hue: CGFloat
+            let saturation: CGFloat
+            let brightness: CGFloat
+            let fraction: CGFloat
+            let score: CGFloat
+        }
+
+        var clusters: [ColorCluster] = []
+        for i in 0..<numBins {
+            let count = binCounts[i]
+            guard count > 0 else { continue }
+            let frac = CGFloat(count) / totalF
+            let meanS = binSumSat[i] / CGFloat(count)
+            let meanBr = binSumBr[i] / CGFloat(count)
+            let meanH = (CGFloat(i) + 0.5) / CGFloat(numBins)
+
+            let score = frac * 2.5 + meanS * 1.2 + (1.0 - abs(meanBr - 0.55)) * 0.5
+            clusters.append(ColorCluster(
+                hue: meanH,
+                saturation: meanS,
+                brightness: meanBr,
+                fraction: frac,
+                score: score
+            ))
+        }
+
+        clusters.sort { $0.score > $1.score }
+
+        // --- CASE 1: Pure or near-monochrome artwork (White cover, Black cover, Grayscale) ---
+        let primaryCluster = clusters.first
+        let isMonochrome = chromaticFraction < 0.06 || (primaryCluster?.fraction ?? 0) < 0.04 || neutralFraction >= 0.88
+
+        if isMonochrome {
+            return makeMonochromePalette(isDark: isDark, avgLuminance: avgLuminance, avgR: avgR, avgG: avgG, avgB: avgB)
+        }
+
+        guard let primary = primaryCluster else {
+            return makeMonochromePalette(isDark: isDark, avgLuminance: avgLuminance, avgR: avgR, avgG: avgG, avgB: avgB)
+        }
+
+        // --- CASE 2: Dark Artwork with Small Accent (e.g. 80% black with a bit of red/blue/yellow) ---
+        if darkFraction >= 0.60 && primary.fraction < 0.35 {
+            let accentWeight = min(max(primary.fraction / 0.35, 0.15), 0.60)
+            let s = min(primary.saturation * accentWeight, 0.38)
+
+            if isDark {
+                let b = min(max(primary.brightness * 0.35, 0.11), 0.19)
+                let top = UIColor(hue: primary.hue, saturation: s, brightness: b, alpha: 1.0)
+                let bottom = UIColor(hue: primary.hue, saturation: s * 0.35, brightness: 0.045, alpha: 1.0)
+                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.90), brightness: 0.82, alpha: 1.0)
+                return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+            } else {
+                let top = UIColor(hue: primary.hue, saturation: s * 0.22, brightness: 0.95, alpha: 1.0)
+                let bottom = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0)
+                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.85), brightness: 0.70, alpha: 1.0)
+                return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+            }
+        }
+
+        // --- CASE 3: Light/White Artwork with a Colored Accent (e.g. White cover with colored logo/art) ---
+        if lightFraction >= 0.50 && primary.fraction < 0.35 {
+            let accentWeight = min(max(primary.fraction / 0.35, 0.20), 0.65)
+            let s = min(primary.saturation * accentWeight, 0.42)
+
+            if isDark {
+                let b = min(max(primary.brightness * 0.40, 0.15), 0.26)
+                let top = UIColor(hue: primary.hue, saturation: s, brightness: b, alpha: 1.0)
+                let bottom = UIColor(hue: primary.hue, saturation: s * 0.30, brightness: 0.06, alpha: 1.0)
+                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.88), brightness: 0.82, alpha: 1.0)
+                return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+            } else {
+                let top = UIColor(hue: primary.hue, saturation: min(primary.saturation * 0.18, 0.15), brightness: 0.96, alpha: 1.0)
+                let bottom = UIColor(red: 0.97, green: 0.97, blue: 0.99, alpha: 1.0)
+                let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.80), brightness: 0.70, alpha: 1.0)
+                return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+            }
+        }
+
+        // --- CASE 4: Truly Colorful / Chromatic Artwork ---
+        let secondary = clusters.dropFirst().first { other in
+            let hueDiff = abs(other.hue - primary.hue)
+            let circularDiff = min(hueDiff, 1.0 - hueDiff)
+            return circularDiff >= 0.10 && other.fraction >= 0.10
+        }
+
+        if isDark {
+            let s = min(max(primary.saturation * 0.95, 0.45), 0.82)
+            let b = min(max(primary.brightness * 0.72, 0.26), 0.46)
+            let top = UIColor(hue: primary.hue, saturation: s, brightness: b, alpha: 1.0)
+
+            let bottom: UIColor
+            if let sec = secondary {
+                let s2 = min(sec.saturation * 0.50, 0.35)
+                let b2 = min(max(sec.brightness * 0.14, 0.045), 0.08)
+                bottom = UIColor(hue: sec.hue, saturation: s2, brightness: b2, alpha: 1.0)
+            } else {
+                bottom = UIColor(hue: primary.hue, saturation: min(s * 0.45, 0.30), brightness: 0.065, alpha: 1.0)
+            }
+
+            let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation * 1.05, 0.92), brightness: 0.82, alpha: 1.0)
+            return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+        } else {
+            let s = min(primary.saturation * 0.28, 0.22)
+            let top = UIColor(hue: primary.hue, saturation: s, brightness: 0.95, alpha: 1.0)
+            let bottom = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0)
+            let wave = UIColor(hue: primary.hue, saturation: min(primary.saturation, 0.85), brightness: 0.65, alpha: 1.0)
+            return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+        }
+    }
+
+    private func makeMonochromePalette(isDark: Bool, avgLuminance: CGFloat, avgR: CGFloat, avgG: CGFloat, avgB: CGFloat) -> ViewController.PlayerArtworkPalette {
+        let isLightArtwork = avgLuminance > 0.60
+        let isWarm = avgR > avgB + 0.03
+        let isCool = avgB > avgR + 0.03
+
+        if isDark {
+            if isLightArtwork {
+                let top: UIColor
+                if isWarm {
+                    top = UIColor(red: 0.18, green: 0.17, blue: 0.16, alpha: 1.0)
+                } else if isCool {
+                    top = UIColor(red: 0.15, green: 0.16, blue: 0.19, alpha: 1.0)
+                } else {
+                    top = UIColor(red: 0.16, green: 0.16, blue: 0.18, alpha: 1.0)
+                }
+                let bottom = UIColor(red: 0.055, green: 0.055, blue: 0.065, alpha: 1.0)
+                let wave = UIColor(red: 0.82, green: 0.84, blue: 0.88, alpha: 1.0)
+                return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+            } else {
+                let top: UIColor
+                if isWarm {
+                    top = UIColor(red: 0.12, green: 0.11, blue: 0.11, alpha: 1.0)
+                } else if isCool {
+                    top = UIColor(red: 0.10, green: 0.11, blue: 0.13, alpha: 1.0)
+                } else {
+                    top = UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1.0)
+                }
+                let bottom = UIColor(red: 0.04, green: 0.04, blue: 0.045, alpha: 1.0)
+                let wave = UIColor(red: 0.68, green: 0.70, blue: 0.76, alpha: 1.0)
+                return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+            }
+        } else {
+            if isLightArtwork {
+                let top: UIColor
+                if isWarm {
+                    top = UIColor(red: 0.95, green: 0.94, blue: 0.93, alpha: 1.0)
+                } else if isCool {
+                    top = UIColor(red: 0.93, green: 0.94, blue: 0.96, alpha: 1.0)
+                } else {
+                    top = UIColor(red: 0.94, green: 0.94, blue: 0.95, alpha: 1.0)
+                }
+                let bottom = UIColor(red: 0.97, green: 0.97, blue: 0.99, alpha: 1.0)
+                let wave = UIColor(red: 0.50, green: 0.52, blue: 0.58, alpha: 1.0)
+                return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+            } else {
+                let top = UIColor(red: 0.88, green: 0.89, blue: 0.91, alpha: 1.0)
+                let bottom = UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1.0)
+                let wave = UIColor(red: 0.40, green: 0.42, blue: 0.46, alpha: 1.0)
+                return ViewController.PlayerArtworkPalette(topColor: top, bottomColor: bottom, waveColor: wave)
+            }
+        }
+    }
+
+    private func defaultMonochromePalette(isDark: Bool, avgLuminance: CGFloat) -> ViewController.PlayerArtworkPalette {
+        makeMonochromePalette(isDark: isDark, avgLuminance: avgLuminance, avgR: 0.5, avgG: 0.5, avgB: 0.5)
     }
 }
