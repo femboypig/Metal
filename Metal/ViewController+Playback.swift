@@ -74,12 +74,12 @@ extension ViewController {
             return .success
         }
         commandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            guard let self, !self.filteredTracks.isEmpty else { return .noSuchContent }
+            guard let self, !self.currentQueue.isEmpty else { return .noSuchContent }
             DispatchQueue.main.async { self.playNextTrack() }
             return .success
         }
         commandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            guard let self, !self.filteredTracks.isEmpty else { return .noSuchContent }
+            guard let self, !self.currentQueue.isEmpty else { return .noSuchContent }
             DispatchQueue.main.async { self.playPreviousTrack() }
             return .success
         }
@@ -105,6 +105,13 @@ extension ViewController {
             }
             return .success
         }
+    }
+
+    var currentQueue: [Track] {
+        if !playbackQueue.isEmpty {
+            return playbackQueue
+        }
+        return !filteredTracks.isEmpty ? filteredTracks : tracks
     }
 
     func currentPlaybackTrack() -> Track? {
@@ -135,6 +142,8 @@ extension ViewController {
             return
         }
 
+        playbackQueue = filteredTracks
+        currentPlaybackContext = "ALL SONGS"
         recordManualSelection(for: filteredTracks[index])
         currentTrackIndex = index
         if isShuffleEnabled {
@@ -154,9 +163,11 @@ extension ViewController {
     }
 
     func playCurrentTrack() {
-        guard !filteredTracks.isEmpty, let index = currentTrackIndex, index < filteredTracks.count else { return }
+        let queue = currentQueue
+        guard !queue.isEmpty, let index = currentTrackIndex, index < queue.count else { return }
 
-        let track = filteredTracks[index]
+        let track = queue[index]
+        playerHeaderLabel?.text = currentPlaybackContext
         let savedPosition = persistedSettings.lastTrackFile == track.url.lastPathComponent
             ? persistedSettings.playbackPosition
             : 0
@@ -254,7 +265,8 @@ extension ViewController {
 
     func playOrPause() {
         guard let player = audioPlayer else {
-            if !filteredTracks.isEmpty {
+            let queue = currentQueue
+            if !queue.isEmpty {
                 if currentTrackIndex == nil {
                     currentTrackIndex = 0
                 }
@@ -292,7 +304,7 @@ extension ViewController {
     // MARK: - Playback Queue Navigation
 
     func rebuildShuffleQueue() {
-        let count = filteredTracks.count
+        let count = currentQueue.count
         guard count > 0 else { return }
 
         var indices = Array(0..<count)
@@ -309,12 +321,13 @@ extension ViewController {
     }
 
     @objc func playNextTrack() {
-        guard !filteredTracks.isEmpty else { return }
+        let queue = currentQueue
+        guard !queue.isEmpty else { return }
         guard !isCarouselAnimating else { return }
 
         if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
 
-        if isPlayerPageVisible && filteredTracks.count > 1 {
+        if isPlayerPageVisible && queue.count > 1 {
             let nextTrack = getNextTrack()
             let trackAfterNext = getTrackAfterNext()
             if nextTrack != nil {
@@ -326,6 +339,8 @@ extension ViewController {
     }
 
     func forcePlayNextTrack() {
+        let queue = currentQueue
+        guard !queue.isEmpty else { return }
         if isShuffleEnabled {
             if shuffledIndices.isEmpty {
                 rebuildShuffleQueue()
@@ -347,7 +362,7 @@ extension ViewController {
             }
         } else {
             if let index = currentTrackIndex {
-                currentTrackIndex = (index + 1) % filteredTracks.count
+                currentTrackIndex = (index + 1) % queue.count
             } else {
                 currentTrackIndex = 0
             }
@@ -356,7 +371,8 @@ extension ViewController {
     }
 
     func transitionToNextTrack() {
-        guard !filteredTracks.isEmpty, let currentPlayer = audioPlayer else {
+        let queue = currentQueue
+        guard !queue.isEmpty, let currentPlayer = audioPlayer else {
             forcePlayNextTrack()
             return
         }
@@ -378,13 +394,18 @@ extension ViewController {
             nextIndex = shuffledIndices[nextPos]
         } else {
             if let index = currentTrackIndex {
-                nextIndex = (index + 1) % filteredTracks.count
+                nextIndex = (index + 1) % queue.count
             } else {
                 nextIndex = 0
             }
         }
 
-        let nextTrack = filteredTracks[nextIndex]
+        guard nextIndex < queue.count else {
+            forcePlayNextTrack()
+            return
+        }
+
+        let nextTrack = queue[nextIndex]
 
         let didStart = aidj.startTransition(from: currentPlayer, toTrack: nextTrack.url, onPlayStarted: { [weak self] playerB in
             guard let self else { return }
@@ -396,6 +417,7 @@ extension ViewController {
             self.audioPlayer = playerB
             self.audioPlayer?.delegate = self
             self.currentTrackIndex = nextIndex
+            self.playerHeaderLabel?.text = self.currentPlaybackContext
             self.startListeningTelemetry(for: nextTrack, resumed: false)
 
             if self.isShuffleEnabled {
@@ -444,12 +466,13 @@ extension ViewController {
     }
 
     @objc func playPreviousTrack() {
-        guard !filteredTracks.isEmpty else { return }
+        let queue = currentQueue
+        guard !queue.isEmpty else { return }
         guard !isCarouselAnimating else { return }
 
         if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
 
-        if isPlayerPageVisible && filteredTracks.count > 1 {
+        if isPlayerPageVisible && queue.count > 1 {
             let prevTrack = getPreviousTrack()
             let trackBeforePrev = getTrackBeforePrevious()
             if prevTrack != nil {
@@ -474,7 +497,7 @@ extension ViewController {
             }
         } else {
             if let index = currentTrackIndex {
-                currentTrackIndex = (index - 1 + filteredTracks.count) % filteredTracks.count
+                currentTrackIndex = (index - 1 + queue.count) % queue.count
             } else {
                 currentTrackIndex = 0
             }
@@ -581,8 +604,8 @@ extension ViewController {
     }
 
     @objc func shareButtonTapped() {
-        guard let index = currentTrackIndex, index < filteredTracks.count else { return }
-        let track = filteredTracks[index]
+        let queue = currentQueue
+        guard let track = currentPlaybackTrack() ?? (currentTrackIndex.flatMap { queue.indices.contains($0) ? queue[$0] : nil }) else { return }
         let shareVC = UIActivityViewController(activityItems: [track.url], applicationActivities: nil)
         present(shareVC, animated: true)
     }
@@ -590,16 +613,17 @@ extension ViewController {
     @objc func queueButtonTapped() {
         let impact = UIImpactFeedbackGenerator(style: .light)
         impact.impactOccurred()
-        let items = filteredTracks.prefix(15).map { tr in
+        let queue = currentQueue
+        let items = queue.prefix(15).map { tr in
             BottomSheetItem(title: tr.title, iconName: "music.note", isDestructive: false, action: { [weak self] in
-                if let idx = self?.filteredTracks.firstIndex(where: { $0.url == tr.url }) {
+                if let idx = self?.currentQueue.firstIndex(where: { $0.url == tr.url }) {
                     self?.recordManualSelection(for: tr)
                     self?.currentTrackIndex = idx
                     self?.playCurrentTrack()
                 }
             })
         }
-        presentCustomBottomSheet(title: "Up Next Queue", subtitle: "\(filteredTracks.count) songs in filter", items: Array(items))
+        presentCustomBottomSheet(title: "Up Next Queue", subtitle: "\(queue.count) songs in queue", items: Array(items))
     }
 
     @objc func volumeSliderChanged(_ sender: UISlider) {
@@ -626,9 +650,13 @@ extension ViewController {
 
     func updatePlayerTheme(with artwork: UIImage?) {
         let isDark = traitCollection.userInterfaceStyle == .dark
+        let queue = currentQueue
         let trackTitle: String? = {
-            if let index = currentTrackIndex, index < filteredTracks.count {
-                return filteredTracks[index].title
+            if let current = currentPlaybackTrack() {
+                return current.title
+            }
+            if let index = currentTrackIndex, index < queue.count {
+                return queue[index].title
             }
             return nil
         }()
@@ -687,18 +715,18 @@ extension ViewController {
     }
 
     func prepareUpcomingTrack() {
-        guard !ProcessInfo.processInfo.isLowPowerModeEnabled,
-              let index = currentTrackIndex,
-              !filteredTracks.isEmpty else { return }
+        let queue = currentQueue
+        guard let index = currentTrackIndex,
+              !queue.isEmpty else { return }
 
         let nextIndex: Int
         if isShuffleEnabled, !shuffledIndices.isEmpty, shuffledPosition + 1 < shuffledIndices.count {
             nextIndex = shuffledIndices[shuffledPosition + 1]
         } else {
-            nextIndex = (index + 1) % filteredTracks.count
+            nextIndex = (index + 1) % queue.count
         }
-        guard nextIndex < filteredTracks.count else { return }
-        let url = filteredTracks[nextIndex].url
+        guard nextIndex < queue.count else { return }
+        let url = queue[nextIndex].url
         Track.preheatArtwork(for: [url])
         guard preparedPlayerURL != url else { return }
 
@@ -734,98 +762,102 @@ extension ViewController {
     // MARK: - Cover Art Carousel
 
     func getPreviousTrack() -> Track? {
-        guard !filteredTracks.isEmpty else { return nil }
+        let queue = currentQueue
+        guard !queue.isEmpty else { return nil }
         if isShuffleEnabled {
             guard !shuffledIndices.isEmpty else { return nil }
             if shuffledPosition > 0 {
                 let idx = shuffledIndices[shuffledPosition - 1]
-                if idx < filteredTracks.count { return filteredTracks[idx] }
+                if idx < queue.count { return queue[idx] }
             } else if isRepeatEnabled && shuffledIndices.count > 1 {
                 let idx = shuffledIndices[shuffledIndices.count - 1]
-                if idx < filteredTracks.count { return filteredTracks[idx] }
+                if idx < queue.count { return queue[idx] }
             }
             return nil
         } else {
             guard let idx = currentTrackIndex else { return nil }
-            if idx > 0 {
-                return filteredTracks[idx - 1]
-            } else if isRepeatEnabled && filteredTracks.count > 1 {
-                return filteredTracks[filteredTracks.count - 1]
+            if idx > 0 && idx - 1 < queue.count {
+                return queue[idx - 1]
+            } else if isRepeatEnabled && queue.count > 1 {
+                return queue[queue.count - 1]
             }
             return nil
         }
     }
 
     func getNextTrack() -> Track? {
-        guard !filteredTracks.isEmpty else { return nil }
+        let queue = currentQueue
+        guard !queue.isEmpty else { return nil }
         if isShuffleEnabled {
             guard !shuffledIndices.isEmpty else { return nil }
             if shuffledPosition < shuffledIndices.count - 1 {
                 let idx = shuffledIndices[shuffledPosition + 1]
-                if idx < filteredTracks.count { return filteredTracks[idx] }
+                if idx < queue.count { return queue[idx] }
             } else if isRepeatEnabled && shuffledIndices.count > 1 {
                 let idx = shuffledIndices[0]
-                if idx < filteredTracks.count { return filteredTracks[idx] }
+                if idx < queue.count { return queue[idx] }
             }
             return nil
         } else {
             guard let idx = currentTrackIndex else {
-                return filteredTracks.first
+                return queue.first
             }
-            if idx < filteredTracks.count - 1 {
-                return filteredTracks[idx + 1]
-            } else if isRepeatEnabled && filteredTracks.count > 1 {
-                return filteredTracks[0]
+            if idx < queue.count - 1 {
+                return queue[idx + 1]
+            } else if isRepeatEnabled && queue.count > 1 {
+                return queue[0]
             }
             return nil
         }
     }
 
     func getTrackAfterNext() -> Track? {
-        guard !filteredTracks.isEmpty else { return nil }
+        let queue = currentQueue
+        guard !queue.isEmpty else { return nil }
         if isShuffleEnabled {
             guard !shuffledIndices.isEmpty else { return nil }
             if shuffledPosition < shuffledIndices.count - 2 {
                 let idx = shuffledIndices[shuffledPosition + 2]
-                if idx < filteredTracks.count { return filteredTracks[idx] }
-            } else if isRepeatEnabled && filteredTracks.count >= 2 {
+                if idx < queue.count { return queue[idx] }
+            } else if isRepeatEnabled && queue.count >= 2 {
                 let wrappedPos = (shuffledPosition + 2) % shuffledIndices.count
                 let idx = shuffledIndices[wrappedPos]
-                if idx < filteredTracks.count { return filteredTracks[idx] }
+                if idx < queue.count { return queue[idx] }
             }
             return nil
         } else {
             guard let idx = currentTrackIndex else { return nil }
-            if idx < filteredTracks.count - 2 {
-                return filteredTracks[idx + 2]
-            } else if isRepeatEnabled && filteredTracks.count >= 2 {
-                let wrappedIdx = (idx + 2) % filteredTracks.count
-                return filteredTracks[wrappedIdx]
+            if idx < queue.count - 2 {
+                return queue[idx + 2]
+            } else if isRepeatEnabled && queue.count >= 2 {
+                let wrappedIdx = (idx + 2) % queue.count
+                return queue[wrappedIdx]
             }
             return nil
         }
     }
 
     func getTrackBeforePrevious() -> Track? {
-        guard !filteredTracks.isEmpty else { return nil }
+        let queue = currentQueue
+        guard !queue.isEmpty else { return nil }
         if isShuffleEnabled {
             guard !shuffledIndices.isEmpty else { return nil }
             if shuffledPosition >= 2 {
                 let idx = shuffledIndices[shuffledPosition - 2]
-                if idx < filteredTracks.count { return filteredTracks[idx] }
-            } else if isRepeatEnabled && filteredTracks.count >= 2 {
+                if idx < queue.count { return queue[idx] }
+            } else if isRepeatEnabled && queue.count >= 2 {
                 let wrappedPos = (shuffledPosition - 2 + shuffledIndices.count) % shuffledIndices.count
                 let idx = shuffledIndices[wrappedPos]
-                if idx < filteredTracks.count { return filteredTracks[idx] }
+                if idx < queue.count { return queue[idx] }
             }
             return nil
         } else {
             guard let idx = currentTrackIndex else { return nil }
-            if idx >= 2 {
-                return filteredTracks[idx - 2]
-            } else if isRepeatEnabled && filteredTracks.count >= 2 {
-                let wrappedIdx = (idx - 2 + filteredTracks.count) % filteredTracks.count
-                return filteredTracks[wrappedIdx]
+            if idx >= 2 && idx - 2 < queue.count {
+                return queue[idx - 2]
+            } else if isRepeatEnabled && queue.count >= 2 {
+                let wrappedIdx = (idx - 2 + queue.count) % queue.count
+                return queue[wrappedIdx]
             }
             return nil
         }
@@ -834,9 +866,12 @@ extension ViewController {
     func updateCarouselArtworks(animated: Bool = false) {
         guard isViewLoaded, !isCarouselAnimating else { return }
 
+        let queue = currentQueue
         let currentTrack: Track?
-        if let idx = currentTrackIndex, idx >= 0, idx < filteredTracks.count {
-            currentTrack = filteredTracks[idx]
+        if let current = currentPlaybackTrack() {
+            currentTrack = current
+        } else if let idx = currentTrackIndex, idx >= 0, idx < queue.count {
+            currentTrack = queue[idx]
         } else {
             currentTrack = nil
         }
@@ -1106,29 +1141,37 @@ extension ViewController {
 
 fileprivate extension UIImage {
     func extractVibrantColor() -> UIColor? {
-        let targetSize = CGSize(width: 32, height: 32)
-        UIGraphicsBeginImageContextWithOptions(targetSize, false, 1.0)
-        draw(in: CGRect(origin: .zero, size: targetSize))
-        guard let smallImage = UIGraphicsGetImageFromCurrentImageContext(),
-              let cgImage = smallImage.cgImage else {
-            UIGraphicsEndImageContext()
-            return nil
-        }
-        UIGraphicsEndImageContext()
+        let width = 32
+        let height = 32
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
 
-        guard let dataProvider = cgImage.dataProvider,
-              let data = dataProvider.data,
-              let ptr = CFDataGetBytePtr(data) else { return nil }
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else { return nil }
 
-        let bytesPerPixel = 4
-        let bytesPerRow = cgImage.bytesPerRow
+        UIGraphicsPushContext(context)
+        draw(in: CGRect(x: 0, y: 0, width: width, height: height))
+        UIGraphicsPopContext()
+
+        guard let data = context.data else { return nil }
+        let ptr = data.bindMemory(to: UInt8.self, capacity: width * height * 4)
 
         var bestColor: UIColor?
         var highestScore: CGFloat = -1.0
 
-        for y in 0..<32 {
-            for x in 0..<32 {
-                let offset = y * bytesPerRow + x * bytesPerPixel
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = (y * width + x) * 4
+                let alpha = CGFloat(ptr[offset + 3]) / 255.0
+                if alpha < 0.5 { continue }
+
                 let r = CGFloat(ptr[offset]) / 255.0
                 let g = CGFloat(ptr[offset + 1]) / 255.0
                 let b = CGFloat(ptr[offset + 2]) / 255.0
