@@ -88,6 +88,7 @@ extension ViewController {
                     artist: track.artist,
                     duration: track.duration
                 )
+            let fatigue = trackFatiguePenalty(for: filename, now: timestamp)
             return DailyMixCandidate(
                 id: filename,
                 artist: track.artist,
@@ -98,7 +99,8 @@ extension ViewController {
                 vibe: vibe,
                 contextAffinity: 1 - exp(-affinity / 2),
                 hasAnalyzedVibe: dailyMixVibeCache[filename] != nil,
-                recentRejection: min(1, rejection)
+                recentRejection: min(1, rejection),
+                fatiguePenalty: fatigue
             )
         }
 
@@ -130,13 +132,26 @@ extension ViewController {
 
     func startDailyMixRefreshTimer() {
         dailyMixRefreshTimer?.invalidate()
+        let now = Date()
         let calendar = Calendar.autoupdatingCurrent
-        let startOfToday = calendar.startOfDay(for: Date())
-        guard let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) else {
-            return
+        let hour = calendar.component(.hour, from: now)
+        let nextHour: Int
+        switch hour {
+        case 0..<6: nextHour = 6
+        case 6..<12: nextHour = 12
+        case 12..<18: nextHour = 18
+        case 18..<23: nextHour = 23
+        default: nextHour = 24
+        }
+        let startOfToday = calendar.startOfDay(for: now)
+        let fireDate: Date
+        if nextHour == 24 {
+            fireDate = calendar.date(byAdding: .day, value: 1, to: startOfToday)?.addingTimeInterval(0.25) ?? now.addingTimeInterval(3600)
+        } else {
+            fireDate = calendar.date(byAdding: .hour, value: nextHour, to: startOfToday)?.addingTimeInterval(0.25) ?? now.addingTimeInterval(3600)
         }
         let timer = Timer(
-            fireAt: startOfTomorrow.addingTimeInterval(0.25),
+            fireAt: fireDate,
             interval: 0,
             target: self,
             selector: #selector(dailyMixRefreshTimerFired),
