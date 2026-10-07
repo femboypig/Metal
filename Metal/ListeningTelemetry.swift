@@ -20,6 +20,79 @@ struct TrackListeningTelemetry: Codable {
     var lastPlayedAt: TimeInterval?
     var lastCompletedAt: TimeInterval?
     var recentPlayTimestamps: [TimeInterval] = []
+    var consecutiveEarlySkips: Int = 0
+    var lastEarlySkipAt: TimeInterval?
+
+    enum CodingKeys: String, CodingKey {
+        case playStarts
+        case manualSelections
+        case completedPlays
+        case skips
+        case earlySkips
+        case resumeCount
+        case totalListeningSeconds
+        case totalDurationAtStarts
+        case longestListeningSession
+        case firstPlayedAt
+        case lastPlayedAt
+        case lastCompletedAt
+        case recentPlayTimestamps
+        case consecutiveEarlySkips
+        case lastEarlySkipAt
+    }
+
+    init(
+        playStarts: Int = 0,
+        manualSelections: Int = 0,
+        completedPlays: Int = 0,
+        skips: Int = 0,
+        earlySkips: Int = 0,
+        resumeCount: Int = 0,
+        totalListeningSeconds: TimeInterval = 0,
+        totalDurationAtStarts: TimeInterval = 0,
+        longestListeningSession: TimeInterval = 0,
+        firstPlayedAt: TimeInterval? = nil,
+        lastPlayedAt: TimeInterval? = nil,
+        lastCompletedAt: TimeInterval? = nil,
+        recentPlayTimestamps: [TimeInterval] = [],
+        consecutiveEarlySkips: Int = 0,
+        lastEarlySkipAt: TimeInterval? = nil
+    ) {
+        self.playStarts = playStarts
+        self.manualSelections = manualSelections
+        self.completedPlays = completedPlays
+        self.skips = skips
+        self.earlySkips = earlySkips
+        self.resumeCount = resumeCount
+        self.totalListeningSeconds = totalListeningSeconds
+        self.totalDurationAtStarts = totalDurationAtStarts
+        self.longestListeningSession = longestListeningSession
+        self.firstPlayedAt = firstPlayedAt
+        self.lastPlayedAt = lastPlayedAt
+        self.lastCompletedAt = lastCompletedAt
+        self.recentPlayTimestamps = recentPlayTimestamps
+        self.consecutiveEarlySkips = consecutiveEarlySkips
+        self.lastEarlySkipAt = lastEarlySkipAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        playStarts = try container.decodeIfPresent(Int.self, forKey: .playStarts) ?? 0
+        manualSelections = try container.decodeIfPresent(Int.self, forKey: .manualSelections) ?? 0
+        completedPlays = try container.decodeIfPresent(Int.self, forKey: .completedPlays) ?? 0
+        skips = try container.decodeIfPresent(Int.self, forKey: .skips) ?? 0
+        earlySkips = try container.decodeIfPresent(Int.self, forKey: .earlySkips) ?? 0
+        resumeCount = try container.decodeIfPresent(Int.self, forKey: .resumeCount) ?? 0
+        totalListeningSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .totalListeningSeconds) ?? 0
+        totalDurationAtStarts = try container.decodeIfPresent(TimeInterval.self, forKey: .totalDurationAtStarts) ?? 0
+        longestListeningSession = try container.decodeIfPresent(TimeInterval.self, forKey: .longestListeningSession) ?? 0
+        firstPlayedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .firstPlayedAt)
+        lastPlayedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .lastPlayedAt)
+        lastCompletedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .lastCompletedAt)
+        recentPlayTimestamps = try container.decodeIfPresent([TimeInterval].self, forKey: .recentPlayTimestamps) ?? []
+        consecutiveEarlySkips = try container.decodeIfPresent(Int.self, forKey: .consecutiveEarlySkips) ?? 0
+        lastEarlySkipAt = try container.decodeIfPresent(TimeInterval.self, forKey: .lastEarlySkipAt)
+    }
 }
 
 struct ListeningTelemetryDocument: Codable {
@@ -117,10 +190,13 @@ extension ViewController {
         if completed {
             stats.completedPlays += 1
             stats.lastCompletedAt = Date().timeIntervalSince1970
+            stats.consecutiveEarlySkips = 0
         } else if skipped {
             stats.skips += 1
             if progress < 0.35 {
                 stats.earlySkips += 1
+                stats.consecutiveEarlySkips += 1
+                stats.lastEarlySkipAt = Date().timeIntervalSince1970
             }
         }
 
@@ -145,6 +221,15 @@ extension ViewController {
         telemetrySessionListeningSeconds = 0
         saveListeningTelemetry()
         publishWidgetRecommendations()
+    }
+
+    func trackFatiguePenalty(for filename: String, now: TimeInterval = Date().timeIntervalSince1970) -> Double {
+        guard let stats = listeningTelemetry.tracks[filename],
+              stats.consecutiveEarlySkips >= 2,
+              let lastSkip = stats.lastEarlySkipAt else { return 0 }
+        let elapsedDays = max(0, now - lastSkip) / 86_400
+        guard elapsedDays < 10 else { return 0 }
+        return max(0, 1.0 - (elapsedDays / 10.0))
     }
 
     func recommendedTracks(from source: [Track]) -> [Track] {
