@@ -1,8 +1,3 @@
-//
-//  DailyMixEngine.swift
-//  Metal
-//
-
 import Foundation
 
 struct AudioVibeProfile: Codable, Equatable {
@@ -10,6 +5,38 @@ struct AudioVibeProfile: Codable, Equatable {
     let energy: Double
     let brightness: Double
     let dynamics: Double
+    var musicalKey: Int = -1
+
+    enum CodingKeys: String, CodingKey {
+        case bpm
+        case energy
+        case brightness
+        case dynamics
+        case musicalKey
+    }
+
+    init(
+        bpm: Double,
+        energy: Double,
+        brightness: Double,
+        dynamics: Double,
+        musicalKey: Int = -1
+    ) {
+        self.bpm = bpm
+        self.energy = energy
+        self.brightness = brightness
+        self.dynamics = dynamics
+        self.musicalKey = musicalKey
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        bpm = try container.decode(Double.self, forKey: .bpm)
+        energy = try container.decode(Double.self, forKey: .energy)
+        brightness = try container.decode(Double.self, forKey: .brightness)
+        dynamics = try container.decode(Double.self, forKey: .dynamics)
+        musicalKey = try container.decodeIfPresent(Int.self, forKey: .musicalKey) ?? -1
+    }
 }
 
 struct DailyMixCandidate: Equatable {
@@ -23,16 +50,35 @@ struct DailyMixCandidate: Equatable {
     var contextAffinity: Double = 0
     var hasAnalyzedVibe: Bool = true
     var recentRejection: Double = 0
+    var fatiguePenalty: Double = 0
+}
+
+enum DayPart: Int, CaseIterable {
+    case morning = 1
+    case day = 2
+    case evening = 3
+    case night = 4
+
+    static func part(forHour hour: Int) -> DayPart {
+        switch hour {
+        case 6..<12: return .morning
+        case 12..<18: return .day
+        case 18..<23: return .evening
+        default: return .night
+        }
+    }
 }
 
 enum DailyMixEngine {
     static let maximumTrackCount = 30
 
     static func dayKey(for date: Date = Date(), calendar: Calendar = .autoupdatingCurrent) -> Int64 {
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return Int64((components.year ?? 0) * 10_000
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: date)
+        let base = Int64((components.year ?? 0) * 10_000
             + (components.month ?? 0) * 100
             + (components.day ?? 0))
+        let part = DayPart.part(forHour: components.hour ?? 0).rawValue
+        return base * 10 + Int64(part)
     }
 
     static func fallbackVibe(
@@ -40,9 +86,8 @@ enum DailyMixEngine {
         artist: String,
         duration: TimeInterval
     ) -> AudioVibeProfile {
-        // Unknown audio is neutral, never a fabricated artist/filename mood.
         return AudioVibeProfile(
-            bpm: 120, energy: 0.5, brightness: 0.5, dynamics: 0.5
+            bpm: 120, energy: 0.5, brightness: 0.5, dynamics: 0.5, musicalKey: -1
         )
     }
 
@@ -54,18 +99,19 @@ enum DailyMixEngine {
     ) -> [String] {
         guard limit > 0, !candidates.isEmpty else { return [] }
 
-        let eligible = candidates.filter { $0.recentRejection < 0.7 }
+        let eligible = candidates.filter { $0.recentRejection < 0.7 && $0.fatiguePenalty < 0.6 }
         let pool = eligible.isEmpty ? candidates : eligible
         let anchor = pool.max { lhs, rhs in
             anchorScore(lhs, dayKey: dayKey, now: now)
                 < anchorScore(rhs, dayKey: dayKey, now: now)
         } ?? candidates[0]
-        // Learn a coherent neighborhood around the strongest contextual seed,
-        // rather than averaging incompatible calm/energetic listening sessions.
+
         let neighbors = pool.filter {
             $0.hasAnalyzedVibe && vibeDistance($0.vibe, anchor.vibe, duration: $0.duration) < 0.22
         }
         let theme = learnedTheme(neighbors, fallback: anchor.vibe)
+        let currentHour = Calendar.autoupdatingCurrent.component(.hour, from: Date(timeIntervalSince1970: now))
+        let currentDayPart = DayPart.part(forHour: currentHour)
 
         let ranked = pool.map { candidate in
             let similarity = candidate.hasAnalyzedVibe
@@ -82,6 +128,7 @@ enum DailyMixEngine {
                     + jitter
                     - recentPenalty
                     - candidate.recentRejection * 0.5
+                    - candidate.fatiguePenalty * 0.6
             )
         }
         .sorted {
@@ -89,7 +136,6 @@ enum DailyMixEngine {
             return $0.candidate.id < $1.candidate.id
         }
 
-        // A mix is a focused session, not the whole library in another order.
         let sessionCount = pool.count <= 5 ? pool.count : max(5, Int(ceil(Double(pool.count) * 0.6)))
         let desiredCount = min(limit, sessionCount)
         if desiredCount == 1 { return [anchor.id] }
@@ -107,7 +153,6 @@ enum DailyMixEngine {
             if selected.count == desiredCount { break }
         }
 
-        // A small or single-artist library should still get a full session.
         if selected.count < desiredCount {
             for item in ranked where !selectedIDs.contains(item.candidate.id) {
                 selected.append(item.candidate)
@@ -116,7 +161,7 @@ enum DailyMixEngine {
             }
         }
 
-        return orderAsEnergyArc(selected, anchor: anchor, theme: theme, dayKey: dayKey)
+        return orderAsEnergyArc(selected, anchor: anchor, theme: theme, dayKey: dayKey, dayPart: currentDayPart)
             .map(\.id)
     }
 
@@ -130,14 +175,15 @@ enum DailyMixEngine {
         dayKey: Int64,
         now: TimeInterval
     ) -> Double {
+        if candidate.isUnheard { return -10.0 }
+        if candidate.fatiguePenalty > 0.3 { return -10.0 }
         let rotation = stableUnitValue(for: "anchor|\(dayKey)|\(candidate.id)") * 0.04
-        let discovery = candidate.isUnheard ? 0.02 : 0
-        return clamp(candidate.taste, 0, 1) * 0.30
+        return clamp(candidate.taste, 0, 1) * 0.35
             + candidate.contextAffinity * 0.60
             + (candidate.hasAnalyzedVibe ? 0.10 : 0)
             + rotation
-            + discovery
-            - candidate.recentRejection
+            - candidate.recentRejection * 1.5
+            - candidate.fatiguePenalty * 2.0
             - recencyPenalty(candidate.lastPlayedAt, now: now) * 0.8
     }
 
@@ -150,7 +196,8 @@ enum DailyMixEngine {
         }
         return AudioVibeProfile(
             bpm: mean(\.bpm), energy: mean(\.energy),
-            brightness: mean(\.brightness), dynamics: mean(\.dynamics)
+            brightness: mean(\.brightness), dynamics: mean(\.dynamics),
+            musicalKey: fallback.musicalKey
         )
     }
 
@@ -176,7 +223,8 @@ enum DailyMixEngine {
         _ candidates: [DailyMixCandidate],
         anchor: DailyMixCandidate,
         theme: AudioVibeProfile,
-        dayKey: Int64
+        dayKey: Int64,
+        dayPart: DayPart
     ) -> [DailyMixCandidate] {
         guard candidates.count > 1 else { return candidates }
         var ordered = [anchor]
@@ -185,7 +233,9 @@ enum DailyMixEngine {
         while !remaining.isEmpty {
             let progress = Double(ordered.count) / Double(max(1, candidates.count - 1))
             let arc = sin(progress * .pi)
-            let targetEnergy = clamp(theme.energy - 0.08 + arc * 0.24, 0, 1)
+            let baseEnergy = (dayPart == .night) ? min(theme.energy, 0.45) : theme.energy
+            let energySpread = (dayPart == .night) ? 0.14 : 0.24
+            let targetEnergy = clamp(baseEnergy - 0.08 + arc * energySpread, 0, 1)
             let targetTempo = clamp(theme.bpm - 5 + arc * 12, 70, 180)
             let previous = ordered[ordered.count - 1]
 
@@ -223,13 +273,24 @@ enum DailyMixEngine {
         let tempoFit = 1 - tempoDistance(candidate.vibe.bpm, targetTempo)
         let transitionTempo = 1 - tempoDistance(candidate.vibe.bpm, previous.vibe.bpm)
         let transitionTone = 1 - abs(candidate.vibe.brightness - previous.vibe.brightness)
+        let harmonicFit = harmonicCompatibility(candidate.vibe.musicalKey, previous.vibe.musicalKey)
         let tieBreak = stableUnitValue(for: "flow|\(dayKey)|\(position)|\(candidate.id)")
-        return energyFit * 0.30
-            + tempoFit * 0.22
-            + transitionTempo * 0.22
-            + transitionTone * 0.14
+        return energyFit * 0.26
+            + tempoFit * 0.18
+            + transitionTempo * 0.18
+            + transitionTone * 0.12
+            + harmonicFit * 0.14
             + clamp(candidate.taste, 0, 1) * 0.09
             + tieBreak * 0.03
+    }
+
+    private static func harmonicCompatibility(_ key1: Int, _ key2: Int) -> Double {
+        guard key1 >= 0, key2 >= 0 else { return 0.5 }
+        let fifths1 = (key1 * 7) % 12
+        let fifths2 = (key2 * 7) % 12
+        let directDist = abs(fifths1 - fifths2)
+        let circularDist = min(directDist, 12 - directDist)
+        return clamp(1.0 - (Double(circularDist) / 4.0), 0.0, 1.0)
     }
 
     private static func tempoDistance(_ lhs: Double, _ rhs: Double) -> Double {
