@@ -128,8 +128,54 @@ final class AudioVibeAnalyzer {
             bpm: estimateBPM(envelope: onsetEnvelope, sampleRate: format.sampleRate, hopSize: hopSize),
             energy: energy,
             brightness: brightness,
-            dynamics: dynamics
+            dynamics: dynamics,
+            musicalKey: estimateMusicalKey(channels: channels, channelCount: channelCount, sampleCount: sampleCount, sampleRate: format.sampleRate)
         )
+    }
+
+    private static func estimateMusicalKey(
+        channels: UnsafePointer<UnsafeMutablePointer<Float>>,
+        channelCount: Int,
+        sampleCount: Int,
+        sampleRate: Double
+    ) -> Int {
+        guard sampleRate > 8_000, sampleCount > 4_096 else { return -1 }
+        let step = max(1, sampleCount / 8_192)
+        var chromaEnergies = [Double](repeating: 0, count: 12)
+
+        for key in 0..<12 {
+            let baseFreq = 220.0 * pow(2.0, Double(key - 9) / 12.0)
+            let octaveFreq = baseFreq * 2.0
+            var real1 = 0.0
+            var imag1 = 0.0
+            var real2 = 0.0
+            var imag2 = 0.0
+            let omega1 = 2.0 * .pi * baseFreq / sampleRate
+            let omega2 = 2.0 * .pi * octaveFreq / sampleRate
+
+            var i = 0
+            while i < sampleCount {
+                var mono = 0.0
+                for c in 0..<channelCount {
+                    mono += Double(channels[c][i])
+                }
+                mono /= Double(channelCount)
+
+                let t = Double(i)
+                real1 += mono * cos(omega1 * t)
+                imag1 += mono * sin(omega1 * t)
+                real2 += mono * cos(omega2 * t)
+                imag2 += mono * sin(omega2 * t)
+                i += step
+            }
+
+            chromaEnergies[key] = (real1 * real1 + imag1 * imag1) + (real2 * real2 + imag2 * imag2)
+        }
+
+        guard let maxEnergy = chromaEnergies.max(), maxEnergy > 0.000_1 else { return -1 }
+        let meanEnergy = chromaEnergies.reduce(0, +) / 12.0
+        guard maxEnergy > meanEnergy * 1.25 else { return -1 }
+        return chromaEnergies.firstIndex(of: maxEnergy) ?? -1
     }
 
     private static func estimateBPM(
