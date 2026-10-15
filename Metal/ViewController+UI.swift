@@ -4,6 +4,7 @@
 //
 
 import UIKit
+import AVKit
 import Darwin
 import Metal
 import MetalKit
@@ -299,24 +300,6 @@ extension ViewController {
             fontSegmentedControl.trailingAnchor.constraint(equalTo: fontCard.trailingAnchor, constant: -20),
             fontSegmentedControl.heightAnchor.constraint(equalToConstant: 32)
         ])
-
-        // Bottom Plain Text: Experimental Build Information
-        let expInfoLabel = UILabel()
-        expInfoLabel.translatesAutoresizingMaskIntoConstraints = false
-        expInfoLabel.font = UIFont.systemFont(ofSize: 12, weight: .regular)
-        expInfoLabel.textColor = secondaryTextColor()
-        expInfoLabel.textAlignment = .center
-        expInfoLabel.numberOfLines = 0
-        let buildVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "27.0"
-        expInfoLabel.text = "iOS \(UIDevice.current.systemVersion) • \(UIDevice.current.modelName)\nMetal v\(buildVersion) (\(buildNumber)) • Experimental Branch • iOS 26/27 SDK"
-        page0.addSubview(expInfoLabel)
-
-        NSLayoutConstraint.activate([
-            expInfoLabel.bottomAnchor.constraint(equalTo: page0.safeAreaLayoutGuide.bottomAnchor, constant: -16),
-            expInfoLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-            expInfoLabel.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24)
-        ])
     }
 
     @objc func playerFontStyleChanged(_ sender: UISegmentedControl) {
@@ -384,6 +367,9 @@ extension ViewController {
         page1.addSubview(tableView)
 
         applyTableGradientMask()
+
+        let cellLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handleCellLongPress(_:)))
+        tableView.addGestureRecognizer(cellLongPress)
 
         // 4. Unified Floating Pill Bar for Filters (All, Daily Mix, Favorites, etc.) - Floats ABOVE the songs list
         floatingFiltersContainer = UIView()
@@ -514,8 +500,8 @@ extension ViewController {
         let miniTap = UITapGestureRecognizer(target: self, action: #selector(miniPlayerTapped(_:)))
         miniPlayerView.addGestureRecognizer(miniTap)
         
-        let miniMenuInteraction = UIContextMenuInteraction(delegate: self)
-        miniPlayerView.addInteraction(miniMenuInteraction)
+        let miniLongPress = UILongPressGestureRecognizer(target: self, action: #selector(miniPlayerLongPressed(_:)))
+        miniPlayerView.addGestureRecognizer(miniLongPress)
 
         miniCoverCard = UIView()
         miniCoverCard.translatesAutoresizingMaskIntoConstraints = false
@@ -724,10 +710,8 @@ extension ViewController {
 
         let topOptionsButton = UIButton(type: .system)
         topOptionsButton.translatesAutoresizingMaskIntoConstraints = false
-        topOptionsButton.setImage(UIImage(systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)), for: .normal)
+        topOptionsButton.setImage(UIImage(systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .bold)), for: .normal)
         topOptionsButton.tintColor = .white
-        topOptionsButton.showsMenuAsPrimaryAction = true
-        topOptionsButton.menu = makePlayerOptionsMenu()
         topOptionsButton.addTarget(self, action: #selector(optionsTapped), for: .touchUpInside)
         topBar.addSubview(topOptionsButton)
         playerOptionsButton = topOptionsButton
@@ -740,12 +724,29 @@ extension ViewController {
         bottomBar.distribution = .equalSpacing
         page2.addSubview(bottomBar)
 
-        let deviceButton = UIButton(type: .system)
-        deviceButton.setImage(UIImage(systemName: "airplayaudio", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)), for: .normal)
-        deviceButton.tintColor = UIColor.white.withAlphaComponent(0.8)
+        let deviceButton = UIButton(type: .custom)
+        deviceButton.translatesAutoresizingMaskIntoConstraints = false
         deviceButton.addTarget(self, action: #selector(deviceButtonTapped), for: .touchUpInside)
+
+        let routePicker = AVRoutePickerView()
+        routePicker.tag = 8801
+        routePicker.translatesAutoresizingMaskIntoConstraints = false
+        routePicker.prioritizesVideoDevices = false
+        routePicker.tintColor = UIColor.white.withAlphaComponent(0.85)
+        routePicker.backgroundColor = .clear
+        deviceButton.addSubview(routePicker)
+
         bottomBar.addArrangedSubview(deviceButton)
         playerDeviceButton = deviceButton
+
+        NSLayoutConstraint.activate([
+            deviceButton.widthAnchor.constraint(equalToConstant: 36),
+            deviceButton.heightAnchor.constraint(equalToConstant: 36),
+            routePicker.topAnchor.constraint(equalTo: deviceButton.topAnchor),
+            routePicker.bottomAnchor.constraint(equalTo: deviceButton.bottomAnchor),
+            routePicker.leadingAnchor.constraint(equalTo: deviceButton.leadingAnchor),
+            routePicker.trailingAnchor.constraint(equalTo: deviceButton.trailingAnchor)
+        ])
 
         let rightBottomStack = UIStackView()
         rightBottomStack.axis = .horizontal
@@ -1024,8 +1025,8 @@ extension ViewController {
 
             topOptionsButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor),
             topOptionsButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
-            topOptionsButton.widthAnchor.constraint(equalToConstant: 32),
-            topOptionsButton.heightAnchor.constraint(equalToConstant: 32),
+            topOptionsButton.widthAnchor.constraint(equalToConstant: 44),
+            topOptionsButton.heightAnchor.constraint(equalToConstant: 44),
 
             // Bottom Bar (SafeArea bottom)
             bottomBar.bottomAnchor.constraint(equalTo: page2.safeAreaLayoutGuide.bottomAnchor, constant: -12),
@@ -1764,15 +1765,17 @@ func interpolateColor(from: UIColor, to: UIColor, progress: CGFloat) -> UIColor 
     )
 }
 
-// MARK: - UIContextMenuInteractionDelegate (Mini Player)
+// MARK: - Mini Player Long Press Handler
 
-extension ViewController: UIContextMenuInteractionDelegate {
-    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
-        guard let index = currentTrackIndex, index < filteredTracks.count else { return nil }
+extension ViewController {
+    @objc func miniPlayerLongPressed(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        guard let index = currentTrackIndex, index < filteredTracks.count else { return }
         let track = filteredTracks[index]
-        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
-            return self?.makeTrackContextMenu(for: track, at: index, isPlayer: true)
-        }
+        let feedback = UINotificationFeedbackGenerator()
+        feedback.prepare()
+        feedback.notificationOccurred(.success)
+        presentTrackContextMenu(for: track, at: index, isPlayer: false)
     }
 }
 
