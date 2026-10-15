@@ -248,6 +248,7 @@ extension ViewController {
             updatePlayerFavoriteButton()
             updateRemoteFavoriteCommand()
             updatePlayerTheme(with: track.artwork)
+            updatePlayerOptionsMenu()
 
             // Scroll to full player page ONLY if we are not already on the player page
             let width = scrollView.bounds.width
