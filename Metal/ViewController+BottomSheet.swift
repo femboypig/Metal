@@ -9,17 +9,17 @@ extension ViewController {
 
     // MARK: - Custom Bottom Sheet Presentation Engine (Floating Island Capsule style)
     
-    func presentCustomBottomSheet(title: String, subtitle: String? = nil, items: [BottomSheetItem]) {
+    func presentCustomBottomSheet(title: String, subtitle: String? = nil, artwork: UIImage? = nil, items: [BottomSheetItem]) {
         dismissActiveSheet { [weak self] in
             guard let self = self else { return }
-            self.setupAndPresentSheet(title: title, subtitle: subtitle, items: items)
+            self.setupAndPresentSheet(title: title, subtitle: subtitle, artwork: artwork, items: items)
         }
     }
     
-    func setupAndPresentSheet(title: String, subtitle: String?, items: [BottomSheetItem]) {
+    func setupAndPresentSheet(title: String, subtitle: String?, artwork: UIImage? = nil, items: [BottomSheetItem]) {
         let dimmedBg = UIView()
         dimmedBg.translatesAutoresizingMaskIntoConstraints = false
-        dimmedBg.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        dimmedBg.backgroundColor = UIColor.black.withAlphaComponent(0.45)
         dimmedBg.alpha = 0.0
         view.addSubview(dimmedBg)
         
@@ -29,15 +29,13 @@ extension ViewController {
         let sheetView = UIView()
         sheetView.translatesAutoresizingMaskIntoConstraints = false
         sheetView.backgroundColor = cardBackgroundColor()
-        sheetView.layer.cornerRadius = 22
+        sheetView.layer.cornerRadius = 24
         sheetView.layer.borderWidth = 1.0
         sheetView.layer.borderColor = cardBorderColor().cgColor
-        
-        // Floating shadow
         sheetView.layer.shadowColor = UIColor.black.cgColor
         sheetView.layer.shadowOffset = CGSize(width: 0, height: 8)
-        sheetView.layer.shadowOpacity = 0.08
-        sheetView.layer.shadowRadius = 12
+        sheetView.layer.shadowOpacity = 0.12
+        sheetView.layer.shadowRadius = 14
         sheetView.clipsToBounds = false
         view.addSubview(sheetView)
         
@@ -48,42 +46,79 @@ extension ViewController {
         contentStack.alignment = .fill
         sheetView.addSubview(contentStack)
         
+        // 1. Top Drag Handle Pill
+        let handleContainer = UIView()
+        handleContainer.translatesAutoresizingMaskIntoConstraints = false
+        let grabber = UIView()
+        grabber.translatesAutoresizingMaskIntoConstraints = false
+        grabber.backgroundColor = cardBorderColor().withAlphaComponent(0.7)
+        grabber.layer.cornerRadius = 2.5
+        handleContainer.addSubview(grabber)
+        contentStack.addArrangedSubview(handleContainer)
+        
+        NSLayoutConstraint.activate([
+            handleContainer.heightAnchor.constraint(equalToConstant: 16),
+            grabber.centerXAnchor.constraint(equalTo: handleContainer.centerXAnchor),
+            grabber.topAnchor.constraint(equalTo: handleContainer.topAnchor, constant: 8),
+            grabber.widthAnchor.constraint(equalToConstant: 36),
+            grabber.heightAnchor.constraint(equalToConstant: 5)
+        ])
+        
+        // 2. Header (with optional artwork thumbnail)
         let titleHeader = UIView()
         titleHeader.translatesAutoresizingMaskIntoConstraints = false
         contentStack.addArrangedSubview(titleHeader)
         
+        let headerContentStack = UIStackView()
+        headerContentStack.translatesAutoresizingMaskIntoConstraints = false
+        headerContentStack.axis = .horizontal
+        headerContentStack.spacing = 14
+        headerContentStack.alignment = .center
+        titleHeader.addSubview(headerContentStack)
+        
+        if let art = artwork ?? UIImage(named: "PlaceholderArtwork") {
+            let artView = UIImageView(image: art)
+            artView.translatesAutoresizingMaskIntoConstraints = false
+            artView.contentMode = .scaleAspectFill
+            artView.layer.cornerRadius = 10
+            artView.clipsToBounds = true
+            artView.layer.borderWidth = 0.5
+            artView.layer.borderColor = cardBorderColor().cgColor
+            headerContentStack.addArrangedSubview(artView)
+            
+            NSLayoutConstraint.activate([
+                artView.widthAnchor.constraint(equalToConstant: 48),
+                artView.heightAnchor.constraint(equalToConstant: 48)
+            ])
+        }
+        
+        let textStack = UIStackView()
+        textStack.axis = .vertical
+        textStack.spacing = 2
+        textStack.alignment = .leading
+        headerContentStack.addArrangedSubview(textStack)
+        
         let titleLabel = UILabel()
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = UIFont(name: "Georgia-Bold", size: 16)
+        titleLabel.font = UIFont(name: "Georgia-Bold", size: 16) ?? .boldSystemFont(ofSize: 16)
         titleLabel.textColor = primaryTextColor()
         titleLabel.text = title
-        titleLabel.textAlignment = .left
-        titleHeader.addSubview(titleLabel)
-        
-        var lastAnchor = titleLabel.bottomAnchor
+        titleLabel.numberOfLines = 1
+        textStack.addArrangedSubview(titleLabel)
         
         if let sub = subtitle {
             let subLabel = UILabel()
-            subLabel.translatesAutoresizingMaskIntoConstraints = false
-            subLabel.font = UIFont(name: "Georgia-Italic", size: 12)
+            subLabel.font = UIFont(name: "Georgia-Italic", size: 12) ?? .italicSystemFont(ofSize: 12)
             subLabel.textColor = secondaryTextColor()
             subLabel.text = sub
-            subLabel.textAlignment = .left
-            titleHeader.addSubview(subLabel)
-            
-            NSLayoutConstraint.activate([
-                subLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 1),
-                subLabel.leadingAnchor.constraint(equalTo: titleHeader.leadingAnchor, constant: 20),
-                subLabel.trailingAnchor.constraint(equalTo: titleHeader.trailingAnchor, constant: -20)
-            ])
-            lastAnchor = subLabel.bottomAnchor
+            subLabel.numberOfLines = 1
+            textStack.addArrangedSubview(subLabel)
         }
         
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: titleHeader.topAnchor, constant: 20),
-            titleLabel.leadingAnchor.constraint(equalTo: titleHeader.leadingAnchor, constant: 20),
-            titleLabel.trailingAnchor.constraint(equalTo: titleHeader.trailingAnchor, constant: -20),
-            lastAnchor.constraint(equalTo: titleHeader.bottomAnchor, constant: -16)
+            headerContentStack.topAnchor.constraint(equalTo: titleHeader.topAnchor, constant: 6),
+            headerContentStack.leadingAnchor.constraint(equalTo: titleHeader.leadingAnchor, constant: 20),
+            headerContentStack.trailingAnchor.constraint(equalTo: titleHeader.trailingAnchor, constant: -20),
+            headerContentStack.bottomAnchor.constraint(equalTo: titleHeader.bottomAnchor, constant: -14)
         ])
         
         let headerDivider = UIView()
@@ -92,6 +127,7 @@ extension ViewController {
         contentStack.addArrangedSubview(headerDivider)
         headerDivider.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
         
+        // 3. Action Items
         for (index, item) in items.enumerated() {
             let btnContainer = UIView()
             btnContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -110,21 +146,47 @@ extension ViewController {
             elementStack.isUserInteractionEnabled = false
             btn.addSubview(elementStack)
             
+            // Icon Pill Container
+            let iconBox = UIView()
+            iconBox.translatesAutoresizingMaskIntoConstraints = false
+            iconBox.layer.cornerRadius = 9
+            iconBox.backgroundColor = item.isDestructive
+                ? UIColor.systemRed.withAlphaComponent(0.12)
+                : cardBorderColor().withAlphaComponent(0.4)
+            elementStack.addArrangedSubview(iconBox)
+            
             let icon = UIImageView()
             icon.translatesAutoresizingMaskIntoConstraints = false
             icon.contentMode = .scaleAspectFit
-            icon.tintColor = item.isDestructive ? .systemRed : secondaryTextColor()
+            icon.tintColor = item.isDestructive ? .systemRed : primaryTextColor()
             icon.image = UIImage(systemName: item.iconName)
-            icon.setContentHuggingPriority(.required, for: .horizontal)
-            elementStack.addArrangedSubview(icon)
+            iconBox.addSubview(icon)
+            
+            NSLayoutConstraint.activate([
+                iconBox.widthAnchor.constraint(equalToConstant: 32),
+                iconBox.heightAnchor.constraint(equalToConstant: 32),
+                icon.centerXAnchor.constraint(equalTo: iconBox.centerXAnchor),
+                icon.centerYAnchor.constraint(equalTo: iconBox.centerYAnchor),
+                icon.widthAnchor.constraint(equalToConstant: 16),
+                icon.heightAnchor.constraint(equalToConstant: 16)
+            ])
             
             let label = UILabel()
             label.translatesAutoresizingMaskIntoConstraints = false
-            label.font = UIFont(name: "Georgia-Bold", size: 14)
+            label.font = UIFont(name: "Georgia-Bold", size: 14) ?? .boldSystemFont(ofSize: 14)
             label.textColor = item.isDestructive ? .systemRed : primaryTextColor()
             label.text = item.title
             label.textAlignment = .left
             elementStack.addArrangedSubview(label)
+            
+            if !item.isDestructive {
+                let chevron = UIImageView(image: UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)))
+                chevron.translatesAutoresizingMaskIntoConstraints = false
+                chevron.contentMode = .scaleAspectFit
+                chevron.tintColor = secondaryTextColor().withAlphaComponent(0.4)
+                chevron.setContentHuggingPriority(.required, for: .horizontal)
+                elementStack.addArrangedSubview(chevron)
+            }
             
             NSLayoutConstraint.activate([
                 btn.topAnchor.constraint(equalTo: btnContainer.topAnchor),
@@ -136,10 +198,7 @@ extension ViewController {
                 elementStack.leadingAnchor.constraint(equalTo: btn.leadingAnchor, constant: 20),
                 elementStack.trailingAnchor.constraint(equalTo: btn.trailingAnchor, constant: -20),
                 elementStack.topAnchor.constraint(equalTo: btn.topAnchor),
-                elementStack.bottomAnchor.constraint(equalTo: btn.bottomAnchor),
-                
-                icon.widthAnchor.constraint(equalToConstant: 18),
-                icon.heightAnchor.constraint(equalToConstant: 18)
+                elementStack.bottomAnchor.constraint(equalTo: btn.bottomAnchor)
             ])
             
             btn.addTarget(self, action: #selector(bottomSheetItemTapped(_:)), for: .touchUpInside)
@@ -157,8 +216,7 @@ extension ViewController {
         self.activeDimmedBg = dimmedBg
         self.activeSheetView = sheetView
         
-        // Floating layout margins (16pt gap from bottom, left, right)
-        self.activeSheetBottomConstraint = sheetView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 450)
+        self.activeSheetBottomConstraint = sheetView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 500)
         
         NSLayoutConstraint.activate([
             dimmedBg.topAnchor.constraint(equalTo: view.topAnchor),
@@ -173,13 +231,13 @@ extension ViewController {
             contentStack.topAnchor.constraint(equalTo: sheetView.topAnchor),
             contentStack.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor),
             contentStack.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor),
-            contentStack.bottomAnchor.constraint(equalTo: sheetView.bottomAnchor)
+            contentStack.bottomAnchor.constraint(equalTo: sheetView.bottomAnchor, constant: -8)
         ])
         
         view.layoutIfNeeded()
         
         self.activeSheetBottomConstraint?.constant = -16
-        UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.85, initialSpringVelocity: 0.5, options: [], animations: {
+        UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.82, initialSpringVelocity: 0.5, options: [], animations: {
             dimmedBg.alpha = 1.0
             self.view.layoutIfNeeded()
         }, completion: nil)
@@ -192,6 +250,233 @@ extension ViewController {
         }
     }
     
+    // MARK: - Custom Context Menus (Track & Playlist)
+    
+    func presentTrackContextMenu(for track: Track, at index: Int, isPlayer: Bool = false) {
+        var items: [BottomSheetItem] = []
+        
+        let isCurrent = (audioPlayer != nil && audioPlayer?.url == track.url && audioPlayer?.isPlaying == true)
+        if !isPlayer {
+            let playTitle = isCurrent ? "Pause" : "Play Now"
+            let playIcon = isCurrent ? "pause.fill" : "play.fill"
+            items.append(BottomSheetItem(title: playTitle, iconName: playIcon, isDestructive: false, action: { [weak self] in
+                guard let self = self else { return }
+                if isCurrent {
+                    self.playPauseTapped()
+                } else if index < self.filteredTracks.count {
+                    let indexPath = IndexPath(row: index, section: 0)
+                    self.tableView(self.tableView, didSelectRowAt: indexPath)
+                }
+            }))
+        }
+        
+        items.append(BottomSheetItem(title: "Add to Playlist", iconName: "plus.circle", isDestructive: false, action: { [weak self] in
+            self?.showAddToPlaylistSelector(track: track)
+        }))
+        
+        items.append(BottomSheetItem(title: "Share Song", iconName: "square.and.arrow.up", isDestructive: false, action: { [weak self] in
+            self?.shareTrack(track)
+        }))
+        
+        items.append(BottomSheetItem(title: "Sleep Timer", iconName: "timer", isDestructive: false, action: { [weak self] in
+            self?.showSleepTimerSelector()
+        }))
+        
+        if case .playlist(let playlistName) = activeFilter {
+            items.append(BottomSheetItem(title: "Remove from \(playlistName)", iconName: "minus.circle", isDestructive: true, action: { [weak self] in
+                self?.removeFromPlaylist(track: track, name: playlistName)
+            }))
+        }
+        
+        items.append(BottomSheetItem(title: "Delete Song", iconName: "trash", isDestructive: true, action: { [weak self] in
+            self?.deleteTrack(at: index)
+        }))
+        
+        presentCustomBottomSheet(title: track.title, subtitle: track.artist, artwork: track.artwork, items: items)
+    }
+    
+    func presentPlaylistContextMenu(name: String) {
+        let count = playlists[name]?.count ?? 0
+        let items = [
+            BottomSheetItem(title: "Play Playlist", iconName: "play.fill", isDestructive: false, action: { [weak self] in
+                guard let self = self else { return }
+                self.activeFilter = .playlist(name)
+                self.filterTracks()
+                self.rebuildFiltersRow()
+                if !self.filteredTracks.isEmpty {
+                    self.playbackQueue = self.filteredTracks
+                    self.currentPlaybackContext = name.uppercased()
+                    self.currentTrackIndex = 0
+                    self.playCurrentTrack()
+                }
+            }),
+            BottomSheetItem(title: "Delete Playlist", iconName: "trash", isDestructive: true, action: { [weak self] in
+                self?.deletePlaylist(named: name)
+            })
+        ]
+        presentCustomBottomSheet(title: name, subtitle: "\(count) songs", artwork: nil, items: items)
+    }
+    
+    
+    func shareTrack(_ track: Track) {
+        let shareVC = UIActivityViewController(activityItems: [track.url], applicationActivities: nil)
+        present(shareVC, animated: true)
+    }
+    
+    @objc func optionsTapped() {
+        guard let index = currentTrackIndex, index < filteredTracks.count else { return }
+        let track = filteredTracks[index]
+        let feedback = UIImpactFeedbackGenerator(style: .light)
+        feedback.impactOccurred()
+        presentTrackContextMenu(for: track, at: index, isPlayer: true)
+    }
+    
+    // MARK: - Dedicated Up Next Queue Sheet
+    
+    func presentQueueSheet() {
+        dismissActiveSheet { [weak self] in
+            guard let self = self else { return }
+            self.setupAndPresentQueueSheet()
+        }
+    }
+    
+    private func setupAndPresentQueueSheet() {
+        let queue = currentQueue
+        let dimmedBg = UIView()
+        dimmedBg.translatesAutoresizingMaskIntoConstraints = false
+        dimmedBg.backgroundColor = UIColor.black.withAlphaComponent(0.45)
+        dimmedBg.alpha = 0.0
+        view.addSubview(dimmedBg)
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissCustomBottomSheet))
+        dimmedBg.addGestureRecognizer(tap)
+        
+        let sheetView = UIView()
+        sheetView.translatesAutoresizingMaskIntoConstraints = false
+        sheetView.backgroundColor = cardBackgroundColor()
+        sheetView.layer.cornerRadius = 24
+        sheetView.layer.borderWidth = 1.0
+        sheetView.layer.borderColor = cardBorderColor().cgColor
+        sheetView.layer.shadowColor = UIColor.black.cgColor
+        sheetView.layer.shadowOffset = CGSize(width: 0, height: 8)
+        sheetView.layer.shadowOpacity = 0.12
+        sheetView.layer.shadowRadius = 14
+        sheetView.clipsToBounds = false
+        view.addSubview(sheetView)
+        
+        // Grabber
+        let grabber = UIView()
+        grabber.translatesAutoresizingMaskIntoConstraints = false
+        grabber.backgroundColor = cardBorderColor().withAlphaComponent(0.7)
+        grabber.layer.cornerRadius = 2.5
+        sheetView.addSubview(grabber)
+        
+        // Header
+        let titleLabel = UILabel()
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = UIFont(name: "Georgia-Bold", size: 17) ?? .boldSystemFont(ofSize: 17)
+        titleLabel.textColor = primaryTextColor()
+        titleLabel.text = "Up Next Queue"
+        sheetView.addSubview(titleLabel)
+        
+        let subLabel = UILabel()
+        subLabel.translatesAutoresizingMaskIntoConstraints = false
+        subLabel.font = UIFont(name: "Georgia-Italic", size: 12) ?? .italicSystemFont(ofSize: 12)
+        subLabel.textColor = secondaryTextColor()
+        subLabel.text = "\(queue.count) songs in queue"
+        sheetView.addSubview(subLabel)
+        
+        let closeBtn = UIButton(type: .system)
+        closeBtn.translatesAutoresizingMaskIntoConstraints = false
+        closeBtn.setImage(UIImage(systemName: "xmark.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)), for: .normal)
+        closeBtn.tintColor = secondaryTextColor().withAlphaComponent(0.7)
+        closeBtn.addTarget(self, action: #selector(dismissCustomBottomSheet), for: .touchUpInside)
+        sheetView.addSubview(closeBtn)
+        
+        let divider = UIView()
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        divider.backgroundColor = cardBorderColor()
+        sheetView.addSubview(divider)
+        
+        // Queue Table View
+        let queueTable = UITableView()
+        queueTable.translatesAutoresizingMaskIntoConstraints = false
+        queueTable.backgroundColor = .clear
+        queueTable.separatorStyle = .none
+        queueTable.showsVerticalScrollIndicator = true
+        sheetView.addSubview(queueTable)
+        
+        let dataSource = QueueSheetDataSource(parent: self, queue: queue) { [weak self] track, index in
+            guard let self = self else { return }
+            self.recordManualSelection(for: track)
+            self.currentTrackIndex = index
+            self.playCurrentTrack()
+            self.dismissActiveSheet()
+        }
+        queueTable.dataSource = dataSource
+        queueTable.delegate = dataSource
+        objc_setAssociatedObject(queueTable, &ViewController.categoryAssociationKey, dataSource, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        
+        // Scroll to currently playing row if possible
+        if let currentIdx = currentTrackIndex, currentIdx < queue.count {
+            DispatchQueue.main.async {
+                queueTable.scrollToRow(at: IndexPath(row: currentIdx, section: 0), at: .middle, animated: false)
+            }
+        }
+        
+        let tableHeight: CGFloat = min(440, max(200, CGFloat(queue.count) * 56))
+        
+        self.activeDimmedBg = dimmedBg
+        self.activeSheetView = sheetView
+        self.activeSheetBottomConstraint = sheetView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 600)
+        
+        NSLayoutConstraint.activate([
+            dimmedBg.topAnchor.constraint(equalTo: view.topAnchor),
+            dimmedBg.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            dimmedBg.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            dimmedBg.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            
+            sheetView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            sheetView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            self.activeSheetBottomConstraint!,
+            
+            grabber.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
+            grabber.topAnchor.constraint(equalTo: sheetView.topAnchor, constant: 8),
+            grabber.widthAnchor.constraint(equalToConstant: 36),
+            grabber.heightAnchor.constraint(equalToConstant: 5),
+            
+            titleLabel.topAnchor.constraint(equalTo: grabber.bottomAnchor, constant: 12),
+            titleLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
+            
+            subLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            subLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
+            
+            closeBtn.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            closeBtn.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -16),
+            closeBtn.widthAnchor.constraint(equalToConstant: 32),
+            closeBtn.heightAnchor.constraint(equalToConstant: 32),
+            
+            divider.topAnchor.constraint(equalTo: subLabel.bottomAnchor, constant: 12),
+            divider.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor),
+            divider.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor),
+            divider.heightAnchor.constraint(equalToConstant: 0.5),
+            
+            queueTable.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 4),
+            queueTable.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor),
+            queueTable.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor),
+            queueTable.heightAnchor.constraint(equalToConstant: tableHeight),
+            queueTable.bottomAnchor.constraint(equalTo: sheetView.bottomAnchor, constant: -16)
+        ])
+        
+        view.layoutIfNeeded()
+        
+        self.activeSheetBottomConstraint?.constant = -16
+        UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.82, initialSpringVelocity: 0.5, options: [], animations: {
+            dimmedBg.alpha = 1.0
+            self.view.layoutIfNeeded()
+        }, completion: nil)
+    }
+
     // MARK: - Custom Modal TextInput Sheet Presentation (Floating Island Capsule style)
     
     func presentCustomInputSheet(title: String, placeholder: String, submitTitle: String, onSubmit: @escaping (String) -> Void) {
@@ -214,21 +499,20 @@ extension ViewController {
         let sheetView = UIView()
         sheetView.translatesAutoresizingMaskIntoConstraints = false
         sheetView.backgroundColor = cardBackgroundColor()
-        sheetView.layer.cornerRadius = 22
+        sheetView.layer.cornerRadius = 24
         sheetView.layer.borderWidth = 1.0
         sheetView.layer.borderColor = cardBorderColor().cgColor
         
-        // Floating shadow
         sheetView.layer.shadowColor = UIColor.black.cgColor
         sheetView.layer.shadowOffset = CGSize(width: 0, height: 8)
-        sheetView.layer.shadowOpacity = 0.08
-        sheetView.layer.shadowRadius = 12
+        sheetView.layer.shadowOpacity = 0.12
+        sheetView.layer.shadowRadius = 14
         sheetView.clipsToBounds = false
         view.addSubview(sheetView)
         
         let titleLabel = UILabel()
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = UIFont(name: "Georgia-Bold", size: 16)
+        titleLabel.font = UIFont(name: "Georgia-Bold", size: 17) ?? .boldSystemFont(ofSize: 17)
         titleLabel.textColor = primaryTextColor()
         titleLabel.text = title
         titleLabel.textAlignment = .left
@@ -238,14 +522,14 @@ extension ViewController {
         textField.translatesAutoresizingMaskIntoConstraints = false
         textField.backgroundColor = primaryBackgroundColor()
         textField.textColor = primaryTextColor()
-        textField.font = UIFont(name: "Georgia-Italic", size: 15)
+        textField.font = UIFont(name: "Georgia-Italic", size: 15) ?? .italicSystemFont(ofSize: 15)
         textField.placeholder = placeholder
         textField.borderStyle = .none
-        textField.layer.cornerRadius = 10
+        textField.layer.cornerRadius = 12
         textField.layer.borderWidth = 1.0
         textField.layer.borderColor = cardBorderColor().cgColor
         
-        let paddingView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 40))
+        let paddingView = UIView(frame: CGRect(x: 0, y: 0, width: 14, height: 44))
         textField.leftView = paddingView
         textField.leftViewMode = .always
         sheetView.addSubview(textField)
@@ -259,9 +543,9 @@ extension ViewController {
         
         let cancelBtn = UIButton(type: .system)
         cancelBtn.setTitle("Cancel", for: .normal)
-        cancelBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 14)
+        cancelBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 14) ?? .boldSystemFont(ofSize: 14)
         cancelBtn.setTitleColor(secondaryTextColor(), for: .normal)
-        cancelBtn.layer.cornerRadius = 12
+        cancelBtn.layer.cornerRadius = 14
         cancelBtn.layer.borderWidth = 1.0
         cancelBtn.layer.borderColor = cardBorderColor().cgColor
         cancelBtn.addTarget(self, action: #selector(dismissCustomBottomSheet), for: .touchUpInside)
@@ -269,10 +553,10 @@ extension ViewController {
         
         let submitBtn = UIButton(type: .custom)
         submitBtn.setTitle(submitTitle, for: .normal)
-        submitBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 14)
+        submitBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 14) ?? .boldSystemFont(ofSize: 14)
         submitBtn.setTitleColor(primaryButtonTextColor(), for: .normal)
         submitBtn.backgroundColor = primaryButtonColor()
-        submitBtn.layer.cornerRadius = 12
+        submitBtn.layer.cornerRadius = 14
         buttonStack.addArrangedSubview(submitBtn)
         
         let wrapper = InputSubmitWrapper(onSubmit)
@@ -294,7 +578,7 @@ extension ViewController {
             sheetView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             self.activeSheetBottomConstraint!,
             
-            titleLabel.topAnchor.constraint(equalTo: sheetView.topAnchor, constant: 20),
+            titleLabel.topAnchor.constraint(equalTo: sheetView.topAnchor, constant: 22),
             titleLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
             titleLabel.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
             
@@ -337,7 +621,7 @@ extension ViewController {
             return
         }
         
-        activeSheetBottomConstraint?.constant = 450
+        activeSheetBottomConstraint?.constant = 650
         UIView.animate(withDuration: 0.28, delay: 0, options: .curveEaseIn, animations: {
             bg.alpha = 0.0
             self.view.layoutIfNeeded()
@@ -382,10 +666,19 @@ extension ViewController {
             }))
         }
         
-        presentCustomBottomSheet(title: "Add to Playlist", subtitle: track.title, items: items)
+        items.append(BottomSheetItem(title: "New Playlist...", iconName: "plus", isDestructive: false, action: { [weak self] in
+            self?.presentCustomInputSheet(title: "New Playlist", placeholder: "Playlist Name", submitTitle: "Create") { [weak self] name in
+                self?.playlists[name] = [track.url.lastPathComponent]
+                self?.savePlaylists()
+                self?.rebuildFiltersRow()
+                self?.showToast(message: "Created and added to \(name)", success: true)
+            }
+        }))
+        
+        presentCustomBottomSheet(title: "Add to Playlist", subtitle: track.title, artwork: track.artwork, items: items)
     }
     
-    // MARK: - Circular Sleep Timer & Native Context Menus
+    // MARK: - Circular Sleep Timer
     
     func showSleepTimerSelector() {
         presentCircularSleepTimerSheet()
@@ -405,7 +698,7 @@ extension ViewController {
     private func setupAndPresentCircularSleepTimerSheet() {
         let dimmedBg = UIView()
         dimmedBg.translatesAutoresizingMaskIntoConstraints = false
-        dimmedBg.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        dimmedBg.backgroundColor = UIColor.black.withAlphaComponent(0.45)
         dimmedBg.alpha = 0.0
         view.addSubview(dimmedBg)
         
@@ -425,25 +718,68 @@ extension ViewController {
         sheetView.clipsToBounds = false
         view.addSubview(sheetView)
         
+        // Grabber
+        let grabber = UIView()
+        grabber.translatesAutoresizingMaskIntoConstraints = false
+        grabber.backgroundColor = cardBorderColor().withAlphaComponent(0.7)
+        grabber.layer.cornerRadius = 2.5
+        sheetView.addSubview(grabber)
+        
         let titleLabel = UILabel()
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = UIFont(name: "Georgia-Bold", size: 17)
+        titleLabel.font = UIFont(name: "Georgia-Bold", size: 18) ?? .boldSystemFont(ofSize: 18)
         titleLabel.textColor = primaryTextColor()
         titleLabel.text = "Sleep Timer"
         sheetView.addSubview(titleLabel)
         
         let subLabel = UILabel()
         subLabel.translatesAutoresizingMaskIntoConstraints = false
-        subLabel.font = UIFont(name: "Georgia-Italic", size: 12)
+        subLabel.font = UIFont(name: "Georgia-Italic", size: 13) ?? .italicSystemFont(ofSize: 13)
         subLabel.textColor = secondaryTextColor()
         subLabel.text = "Rotate the dial to set sleep timer"
         sheetView.addSubview(subLabel)
         
-        let modeSegment = UISegmentedControl(items: ["Minutes", "Hours"])
-        modeSegment.translatesAutoresizingMaskIntoConstraints = false
-        modeSegment.selectedSegmentIndex = 0
-        sheetView.addSubview(modeSegment)
+        // Mode Selector: Custom Pill Bar
+        let modeContainer = UIView()
+        modeContainer.translatesAutoresizingMaskIntoConstraints = false
+        modeContainer.backgroundColor = cardBorderColor().withAlphaComponent(0.4)
+        modeContainer.layer.cornerRadius = 16
+        sheetView.addSubview(modeContainer)
         
+        let minBtn = UIButton(type: .custom)
+        minBtn.translatesAutoresizingMaskIntoConstraints = false
+        minBtn.setTitle("Minutes", for: .normal)
+        minBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? .boldSystemFont(ofSize: 13)
+        minBtn.setTitleColor(primaryButtonTextColor(), for: .normal)
+        minBtn.backgroundColor = primaryButtonColor()
+        minBtn.layer.cornerRadius = 14
+        modeContainer.addSubview(minBtn)
+        
+        let hrBtn = UIButton(type: .custom)
+        hrBtn.translatesAutoresizingMaskIntoConstraints = false
+        hrBtn.setTitle("Hours", for: .normal)
+        hrBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? .boldSystemFont(ofSize: 13)
+        hrBtn.setTitleColor(secondaryTextColor(), for: .normal)
+        hrBtn.backgroundColor = .clear
+        hrBtn.layer.cornerRadius = 14
+        modeContainer.addSubview(hrBtn)
+        
+        NSLayoutConstraint.activate([
+            modeContainer.widthAnchor.constraint(equalToConstant: 180),
+            modeContainer.heightAnchor.constraint(equalToConstant: 34),
+            
+            minBtn.leadingAnchor.constraint(equalTo: modeContainer.leadingAnchor, constant: 2),
+            minBtn.topAnchor.constraint(equalTo: modeContainer.topAnchor, constant: 2),
+            minBtn.bottomAnchor.constraint(equalTo: modeContainer.bottomAnchor, constant: -2),
+            minBtn.widthAnchor.constraint(equalToConstant: 86),
+            
+            hrBtn.trailingAnchor.constraint(equalTo: modeContainer.trailingAnchor, constant: -2),
+            hrBtn.topAnchor.constraint(equalTo: modeContainer.topAnchor, constant: 2),
+            hrBtn.bottomAnchor.constraint(equalTo: modeContainer.bottomAnchor, constant: -2),
+            hrBtn.widthAnchor.constraint(equalToConstant: 86)
+        ])
+        
+        // Circular Dial
         let dial = CircularTimerDialView()
         dial.translatesAutoresizingMaskIntoConstraints = false
         dial.trackColor = cardBorderColor()
@@ -452,18 +788,35 @@ extension ViewController {
         dial.subtitleColor = secondaryTextColor()
         sheetView.addSubview(dial)
         
+        let updateModeUI: (CircularTimerDialView.Mode) -> Void = { mode in
+            let feedback = UIImpactFeedbackGenerator(style: .light)
+            feedback.impactOccurred()
+            dial.mode = mode
+            if mode == .minutes {
+                minBtn.backgroundColor = self.primaryButtonColor()
+                minBtn.setTitleColor(self.primaryButtonTextColor(), for: .normal)
+                hrBtn.backgroundColor = .clear
+                hrBtn.setTitleColor(self.secondaryTextColor(), for: .normal)
+            } else {
+                hrBtn.backgroundColor = self.primaryButtonColor()
+                hrBtn.setTitleColor(self.primaryButtonTextColor(), for: .normal)
+                minBtn.backgroundColor = .clear
+                minBtn.setTitleColor(self.secondaryTextColor(), for: .normal)
+            }
+        }
+        
+        minBtn.addAction(UIAction { _ in updateModeUI(.minutes) }, for: .touchUpInside)
+        hrBtn.addAction(UIAction { _ in updateModeUI(.hours) }, for: .touchUpInside)
+        
         if let endDate = sleepTimerEndDate, endDate > Date() {
             let remaining = max(5.0, ceil(endDate.timeIntervalSinceNow / 60.0))
             dial.setDuration(minutes: remaining)
             if remaining > 60.0 {
-                modeSegment.selectedSegmentIndex = 1
+                updateModeUI(.hours)
             }
         }
         
-        modeSegment.addAction(UIAction { _ in
-            dial.mode = (modeSegment.selectedSegmentIndex == 0) ? .minutes : .hours
-        }, for: .valueChanged)
-        
+        // Preset Chips
         let chipsStack = UIStackView()
         chipsStack.translatesAutoresizingMaskIntoConstraints = false
         chipsStack.axis = .horizontal
@@ -482,33 +835,44 @@ extension ViewController {
         for (name, val, targetMode) in presets {
             let chip = UIButton(type: .system)
             chip.setTitle(name, for: .normal)
-            chip.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13)
+            chip.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? .boldSystemFont(ofSize: 13)
             chip.setTitleColor(primaryTextColor(), for: .normal)
             chip.backgroundColor = primaryBackgroundColor()
             chip.layer.cornerRadius = 10
             chip.layer.borderWidth = 1.0
             chip.layer.borderColor = cardBorderColor().cgColor
             chip.addAction(UIAction { _ in
-                let feedback = UIImpactFeedbackGenerator(style: .light)
-                feedback.impactOccurred()
-                modeSegment.selectedSegmentIndex = (targetMode == .minutes) ? 0 : 1
-                dial.mode = targetMode
+                updateModeUI(targetMode)
                 dial.setDuration(minutes: val)
             }, for: .touchUpInside)
             chipsStack.addArrangedSubview(chip)
         }
         
-        var statusLabel: UILabel?
+        var statusBadge: UIView?
         if let endDate = sleepTimerEndDate, endDate > Date() {
             let remaining = Int(ceil(endDate.timeIntervalSinceNow / 60.0))
-            let lbl = UILabel()
-            lbl.translatesAutoresizingMaskIntoConstraints = false
-            lbl.font = UIFont(name: "Georgia-Italic", size: 12)
-            lbl.textColor = primaryButtonColor()
-            lbl.textAlignment = .center
-            lbl.text = "Active timer: \(remaining)m remaining"
-            sheetView.addSubview(lbl)
-            statusLabel = lbl
+            let badge = UIView()
+            badge.translatesAutoresizingMaskIntoConstraints = false
+            badge.backgroundColor = primaryButtonColor().withAlphaComponent(0.12)
+            badge.layer.cornerRadius = 10
+            sheetView.addSubview(badge)
+            
+            let badgeLabel = UILabel()
+            badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+            badgeLabel.font = UIFont(name: "Georgia-BoldItalic", size: 12) ?? .boldSystemFont(ofSize: 12)
+            badgeLabel.textColor = primaryButtonColor()
+            badgeLabel.text = "⏱ Active timer: \(remaining)m remaining"
+            badge.addSubview(badgeLabel)
+            
+            NSLayoutConstraint.activate([
+                badgeLabel.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
+                badgeLabel.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
+                badge.heightAnchor.constraint(equalToConstant: 28),
+                badge.leadingAnchor.constraint(greaterThanOrEqualTo: sheetView.leadingAnchor, constant: 20),
+                badge.trailingAnchor.constraint(lessThanOrEqualTo: sheetView.trailingAnchor, constant: -20),
+                badge.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor)
+            ])
+            statusBadge = badge
         }
         
         let buttonStack = UIStackView()
@@ -520,12 +884,12 @@ extension ViewController {
         
         let submitBtn = UIButton(type: .custom)
         submitBtn.translatesAutoresizingMaskIntoConstraints = false
-        submitBtn.setTitle("Set Sleep Timer", for: .normal)
-        submitBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 14)
+        submitBtn.setTitle("Start Sleep Timer", for: .normal)
+        submitBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 15) ?? .boldSystemFont(ofSize: 15)
         submitBtn.setTitleColor(primaryButtonTextColor(), for: .normal)
         submitBtn.backgroundColor = primaryButtonColor()
         submitBtn.layer.cornerRadius = 14
-        submitBtn.heightAnchor.constraint(equalToConstant: 46).isActive = true
+        submitBtn.heightAnchor.constraint(equalToConstant: 48).isActive = true
         submitBtn.addAction(UIAction { [weak self] _ in
             self?.dismissActiveSheet {
                 self?.startSleepTimer(minutes: dial.durationMinutes)
@@ -537,7 +901,7 @@ extension ViewController {
             let cancelTimerBtn = UIButton(type: .system)
             cancelTimerBtn.translatesAutoresizingMaskIntoConstraints = false
             cancelTimerBtn.setTitle("Cancel Active Timer", for: .normal)
-            cancelTimerBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 14)
+            cancelTimerBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 14) ?? .boldSystemFont(ofSize: 14)
             cancelTimerBtn.setTitleColor(.systemRed, for: .normal)
             cancelTimerBtn.layer.cornerRadius = 14
             cancelTimerBtn.layer.borderWidth = 1.0
@@ -554,7 +918,7 @@ extension ViewController {
         let closeBtn = UIButton(type: .system)
         closeBtn.translatesAutoresizingMaskIntoConstraints = false
         closeBtn.setTitle("Close", for: .normal)
-        closeBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13)
+        closeBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? .boldSystemFont(ofSize: 13)
         closeBtn.setTitleColor(secondaryTextColor(), for: .normal)
         closeBtn.heightAnchor.constraint(equalToConstant: 38).isActive = true
         closeBtn.addAction(UIAction { [weak self] _ in
@@ -576,7 +940,12 @@ extension ViewController {
             sheetView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             self.activeSheetBottomConstraint!,
             
-            titleLabel.topAnchor.constraint(equalTo: sheetView.topAnchor, constant: 20),
+            grabber.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
+            grabber.topAnchor.constraint(equalTo: sheetView.topAnchor, constant: 8),
+            grabber.widthAnchor.constraint(equalToConstant: 36),
+            grabber.heightAnchor.constraint(equalToConstant: 5),
+            
+            titleLabel.topAnchor.constraint(equalTo: grabber.bottomAnchor, constant: 12),
             titleLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
             titleLabel.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
             
@@ -584,12 +953,10 @@ extension ViewController {
             subLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
             subLabel.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
             
-            modeSegment.topAnchor.constraint(equalTo: subLabel.bottomAnchor, constant: 14),
-            modeSegment.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
-            modeSegment.widthAnchor.constraint(equalToConstant: 180),
-            modeSegment.heightAnchor.constraint(equalToConstant: 32),
+            modeContainer.topAnchor.constraint(equalTo: subLabel.bottomAnchor, constant: 14),
+            modeContainer.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
             
-            dial.topAnchor.constraint(equalTo: modeSegment.bottomAnchor, constant: 12),
+            dial.topAnchor.constraint(equalTo: modeContainer.bottomAnchor, constant: 12),
             dial.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
             dial.widthAnchor.constraint(equalToConstant: 220),
             dial.heightAnchor.constraint(equalToConstant: 220),
@@ -600,12 +967,10 @@ extension ViewController {
             chipsStack.heightAnchor.constraint(equalToConstant: 34)
         ]
         
-        if let status = statusLabel {
+        if let badge = statusBadge {
             layoutConstraints.append(contentsOf: [
-                status.topAnchor.constraint(equalTo: chipsStack.bottomAnchor, constant: 10),
-                status.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
-                status.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
-                buttonStack.topAnchor.constraint(equalTo: status.bottomAnchor, constant: 14)
+                badge.topAnchor.constraint(equalTo: chipsStack.bottomAnchor, constant: 10),
+                buttonStack.topAnchor.constraint(equalTo: badge.bottomAnchor, constant: 14)
             ])
         } else {
             layoutConstraints.append(
@@ -623,7 +988,7 @@ extension ViewController {
         view.layoutIfNeeded()
         
         self.activeSheetBottomConstraint?.constant = -16
-        UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.85, initialSpringVelocity: 0.5, options: [], animations: {
+        UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.82, initialSpringVelocity: 0.5, options: [], animations: {
             dimmedBg.alpha = 1.0
             self.view.layoutIfNeeded()
         }, completion: nil)
@@ -694,115 +1059,69 @@ extension ViewController {
             }
         }
     }
+}
+
+// MARK: - Queue Sheet Data Source Helper
+
+private class QueueSheetDataSource: NSObject, UITableViewDataSource, UITableViewDelegate {
+    weak var parent: ViewController?
+    let queue: [Track]
+    let onSelect: (Track, Int) -> Void
     
-    // MARK: - Native Context Menus (Track & Player)
-    
-    func makeTrackContextMenu(for track: Track, at index: Int, isPlayer: Bool = false) -> UIMenu {
-        var actions: [UIMenuElement] = []
-        
-        // 1. Play / Pause Action
-        if !isPlayer {
-            let isCurrent = (audioPlayer != nil && audioPlayer?.url == track.url && audioPlayer?.isPlaying == true)
-            let playTitle = isCurrent ? "Pause" : "Play"
-            let playIcon = isCurrent ? "pause.fill" : "play.fill"
-            let playAction = UIAction(title: playTitle, image: UIImage(systemName: playIcon)) { [weak self] _ in
-                guard let self = self else { return }
-                if isCurrent {
-                    self.playPauseTapped()
-                } else if index < self.filteredTracks.count {
-                    let indexPath = IndexPath(row: index, section: 0)
-                    self.tableView(self.tableView, didSelectRowAt: indexPath)
-                }
-            }
-            actions.append(playAction)
-        }
-        
-        // 2. Add to Playlist Submenu
-        var playlistElements: [UIMenuElement] = []
-        let sortedPlaylists = playlists.keys.sorted()
-        for name in sortedPlaylists {
-            let inPlaylist = playlists[name]?.contains(track.url.lastPathComponent) == true
-            let icon = inPlaylist ? "checkmark" : "music.note.list"
-            let item = UIAction(title: name, image: UIImage(systemName: icon)) { [weak self] _ in
-                self?.addTrackToPlaylist(track: track, playlistName: name)
-            }
-            playlistElements.append(item)
-        }
-        
-        let newPlaylistAction = UIAction(title: "New Playlist...", image: UIImage(systemName: "plus")) { [weak self] _ in
-            self?.presentCustomInputSheet(title: "New Playlist", placeholder: "Playlist Name", submitTitle: "Create") { [weak self] name in
-                self?.playlists[name] = [track.url.lastPathComponent]
-                self?.savePlaylists()
-                self?.rebuildFiltersRow()
-                self?.showToast(message: "Created and added to \(name)", success: true)
-            }
-        }
-        playlistElements.append(newPlaylistAction)
-        
-        let playlistMenu = UIMenu(title: "Add to Playlist", image: UIImage(systemName: "plus.circle"), children: playlistElements)
-        actions.append(playlistMenu)
-        
-        // 3. Share Song
-        let shareAction = UIAction(title: "Share Song", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
-            self?.shareTrack(track)
-        }
-        actions.append(shareAction)
-        
-        // 4. Sleep Timer
-        let sleepTimerAction = UIAction(title: "Sleep Timer", image: UIImage(systemName: "timer")) { [weak self] _ in
-            self?.showSleepTimerSelector()
-        }
-        actions.append(sleepTimerAction)
-        
-        // 5. Remove from Playlist (if activeFilter is playlist)
-        if case .playlist(let playlistName) = activeFilter {
-            let removeAction = UIAction(title: "Remove from \(playlistName)", image: UIImage(systemName: "minus.circle"), attributes: .destructive) { [weak self] _ in
-                self?.removeFromPlaylist(track: track, name: playlistName)
-            }
-            actions.append(removeAction)
-        }
-        
-        // 6. Delete Song
-        let deleteAction = UIAction(title: "Delete Song", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
-            self?.deleteTrack(at: index)
-        }
-        actions.append(deleteAction)
-        
-        return UIMenu(title: track.title, subtitle: track.artist, children: actions)
+    init(parent: ViewController, queue: [Track], onSelect: @escaping (Track, Int) -> Void) {
+        self.parent = parent
+        self.queue = queue
+        self.onSelect = onSelect
     }
     
-    func makePlayerOptionsMenu() -> UIMenu {
-        guard let index = currentTrackIndex, index < filteredTracks.count else {
-            return UIMenu(title: "Options", children: [])
-        }
-        let track = filteredTracks[index]
-        return makeTrackContextMenu(for: track, at: index, isPlayer: true)
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return queue.count
     }
     
-    func updatePlayerOptionsMenu() {
-        playerOptionsButton?.menu = makePlayerOptionsMenu()
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        return 56.0
     }
     
-    func addTrackToPlaylist(track: Track, playlistName name: String) {
-        var list = playlists[name] ?? []
-        let filename = track.url.lastPathComponent
-        if !list.contains(filename) {
-            list.append(filename)
-            playlists[name] = list
-            savePlaylists()
-            showToast(message: "Added to \(name)", success: true)
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "QueueCell") ?? UITableViewCell(style: .subtitle, reuseIdentifier: "QueueCell")
+        let track = queue[indexPath.row]
+        let isPlaying = (parent?.audioPlayer != nil && parent?.audioPlayer?.url == track.url)
+        
+        cell.backgroundColor = .clear
+        cell.selectionStyle = .none
+        
+        cell.textLabel?.font = UIFont(name: "Georgia-Bold", size: 14) ?? .boldSystemFont(ofSize: 14)
+        cell.textLabel?.textColor = isPlaying ? (parent?.primaryButtonColor() ?? .systemOrange) : (parent?.primaryTextColor() ?? .white)
+        cell.textLabel?.text = track.title
+        
+        cell.detailTextLabel?.font = UIFont(name: "Georgia-Italic", size: 12) ?? .italicSystemFont(ofSize: 12)
+        cell.detailTextLabel?.textColor = parent?.secondaryTextColor() ?? .gray
+        cell.detailTextLabel?.text = track.artist != "Unknown Artist" ? track.artist : ""
+        
+        let artwork = track.artwork ?? UIImage(named: "PlaceholderArtwork")
+        cell.imageView?.image = artwork
+        cell.imageView?.layer.cornerRadius = 6
+        cell.imageView?.clipsToBounds = true
+        
+        if isPlaying {
+            let indicator = UIImageView(image: UIImage(systemName: "waveform", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)))
+            indicator.tintColor = parent?.primaryButtonColor() ?? .systemOrange
+            cell.accessoryView = indicator
         } else {
-            showToast(message: "Already in \(name)", success: false)
+            let durLabel = UILabel()
+            durLabel.font = UIFont(name: "Georgia-Italic", size: 12) ?? .italicSystemFont(ofSize: 12)
+            durLabel.textColor = parent?.secondaryTextColor() ?? .gray
+            durLabel.text = parent?.formatTime(track.duration) ?? ""
+            durLabel.sizeToFit()
+            cell.accessoryView = durLabel
         }
+        
+        return cell
     }
     
-    func shareTrack(_ track: Track) {
-        let shareVC = UIActivityViewController(activityItems: [track.url], applicationActivities: nil)
-        present(shareVC, animated: true)
-    }
-    
-    @objc func optionsTapped() {
-        updatePlayerOptionsMenu()
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let track = queue[indexPath.row]
+        onSelect(track, indexPath.row)
     }
 }
 
@@ -852,7 +1171,7 @@ class CircularTimerDialView: UIControl {
         contentMode = .redraw
         
         valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.font = UIFont(name: "Georgia-Bold", size: 42) ?? UIFont.systemFont(ofSize: 42, weight: .bold)
+        valueLabel.font = UIFont(name: "Georgia-Bold", size: 44) ?? UIFont.systemFont(ofSize: 44, weight: .bold)
         valueLabel.textAlignment = .center
         addSubview(valueLabel)
         
