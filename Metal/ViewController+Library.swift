@@ -141,9 +141,9 @@ extension ViewController {
         for name in playlists.keys.sorted() {
             let pill = createPillButton(title: name, category: .playlist(name))
 
-            // Native Context Menu on long press
-            pill.showsMenuAsPrimaryAction = false
-            pill.menu = makePlaylistContextMenu(name: name)
+            // Custom Context Menu on long press
+            let longPress = UILongPressGestureRecognizer(target: self, action: #selector(playlistPillLongPressed(_:)))
+            pill.addGestureRecognizer(longPress)
 
             filtersStackView.addArrangedSubview(pill)
         }
@@ -280,25 +280,12 @@ extension ViewController {
         }
     }
 
-    func makePlaylistContextMenu(name: String) -> UIMenu {
-        let playAction = UIAction(title: "Play Playlist", image: UIImage(systemName: "play.fill")) { [weak self] _ in
-            guard let self = self else { return }
-            self.activeFilter = .playlist(name)
-            self.filterTracks()
-            self.rebuildFiltersRow()
-            if !self.filteredTracks.isEmpty {
-                self.playbackQueue = self.filteredTracks
-                self.currentPlaybackContext = name.uppercased()
-                self.currentTrackIndex = 0
-                self.playCurrentTrack()
-            }
-        }
-        
-        let deleteAction = UIAction(title: "Delete Playlist", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
-            self?.deletePlaylist(named: name)
-        }
-        
-        return UIMenu(title: name, children: [playAction, deleteAction])
+    @objc func playlistPillLongPressed(_ sender: UILongPressGestureRecognizer) {
+        guard sender.state == .began, let button = sender.view as? UIButton else { return }
+        guard let title = button.title(for: .normal) else { return }
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+        presentPlaylistContextMenu(name: title)
     }
     
     func deletePlaylist(named title: String) {
@@ -312,12 +299,6 @@ extension ViewController {
         filterTracks()
         rebuildFiltersRow()
         showToast(message: "Deleted playlist \(title)", success: true)
-    }
-
-    @objc func playlistPillLongPressed(_ sender: UILongPressGestureRecognizer) {
-        guard sender.state == .began, let button = sender.view as? UIButton else { return }
-        guard let title = button.title(for: .normal) else { return }
-        deletePlaylist(named: title)
     }
 
     func activeFilterHeaderTitle() -> String {
