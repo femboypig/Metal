@@ -184,17 +184,30 @@ extension ViewController {
         }
         
         for cell in tableView.visibleCells {
+            guard let indexPath = tableView.indexPath(for: cell) else { continue }
             let cellMidY = cell.frame.midY
             let deltaY = cellMidY - centerY
 
             let normY = max(min(deltaY / (tableHeight / 2.0), 1.0), -1.0)
-            let theta = normY * maxAngle
+            
+            // Dampen curvature at list boundaries (beginning and end of list)
+            var boundaryFactor: CGFloat = 1.0
+            if normY < 0 {
+                let itemsAbove = CGFloat(indexPath.row)
+                boundaryFactor = min(max(itemsAbove / 2.0, 0.0), 1.0)
+            } else if normY > 0 {
+                let itemsBelow = CGFloat(max(0, maxRow - indexPath.row))
+                boundaryFactor = min(max(itemsBelow / 2.0, 0.0), 1.0)
+            }
+            
+            let effectiveNormY = normY * boundaryFactor
+            let theta = effectiveNormY * maxAngle
 
             let tz = -radius * (1.0 - cos(theta)) * 0.25
             let projectedY = radius * sin(theta)
             let ty = (projectedY - deltaY) * 0.20
             let angle = -theta * 0.35
-            let scale = 1.0 - abs(normY) * 0.04
+            let scale = 1.0 - abs(effectiveNormY) * 0.04
             let alpha = max(0.42, cos(theta))
 
             var transform = CATransform3DIdentity
