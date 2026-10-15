@@ -119,6 +119,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var audioPlayer: AVAudioPlayer?
     var updateTimer: Timer?
     var sleepTimer: Timer?
+    var sleepTimerEndDate: Date?
     var persistedSettings = MetalSettingsDocument()
     var isRestoringPersistentState = false
     var lastSavedPlaybackBucket = -1
