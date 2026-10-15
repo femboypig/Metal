@@ -41,8 +41,21 @@ extension ViewController {
     }
     
     func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
-        // Disabled native context menus to completely allow horizontal swipe transitions with zero conflicts
-        return nil
+        guard indexPath.row < filteredTracks.count else { return nil }
+        let track = filteredTracks[indexPath.row]
+        
+        return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { [weak self] _ in
+            return self?.makeTrackContextMenu(for: track, at: indexPath.row, isPlayer: false)
+        }
+    }
+    
+    func tableView(_ tableView: UITableView, willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionCommitAnimating) {
+        animator.addCompletion { [weak self] in
+            guard let indexPath = configuration.identifier as? IndexPath,
+                  let self = self,
+                  indexPath.row < self.filteredTracks.count else { return }
+            self.tableView(self.tableView, didSelectRowAt: indexPath)
+        }
     }
     
     // MARK: - Cell Long Press Gesture Handler
