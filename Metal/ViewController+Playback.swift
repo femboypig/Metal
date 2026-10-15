@@ -6,6 +6,7 @@
 import UIKit
 import AVFoundation
 import MediaPlayer
+import AVKit
 
 extension ViewController {
 
@@ -600,7 +601,14 @@ extension ViewController {
     @objc func deviceButtonTapped() {
         let impact = UIImpactFeedbackGenerator(style: .light)
         impact.impactOccurred()
-        showToast(message: "Output: iPhone Speaker / AirPlay", success: true)
+        if let picker = view.viewWithTag(8801) as? AVRoutePickerView {
+            for subview in picker.subviews {
+                if let btn = subview as? UIButton {
+                    btn.sendActions(for: .touchUpInside)
+                    return
+                }
+            }
+        }
     }
 
     @objc func shareButtonTapped() {
@@ -613,17 +621,7 @@ extension ViewController {
     @objc func queueButtonTapped() {
         let impact = UIImpactFeedbackGenerator(style: .light)
         impact.impactOccurred()
-        let queue = currentQueue
-        let items = queue.prefix(15).map { tr in
-            BottomSheetItem(title: tr.title, iconName: "music.note", isDestructive: false, action: { [weak self] in
-                if let idx = self?.currentQueue.firstIndex(where: { $0.url == tr.url }) {
-                    self?.recordManualSelection(for: tr)
-                    self?.currentTrackIndex = idx
-                    self?.playCurrentTrack()
-                }
-            })
-        }
-        presentCustomBottomSheet(title: "Up Next Queue", subtitle: "\(queue.count) songs in queue", items: Array(items))
+        presentQueueSheet()
     }
 
     @objc func volumeSliderChanged(_ sender: UISlider) {
