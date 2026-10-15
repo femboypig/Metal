@@ -183,32 +183,38 @@ extension ViewController {
             }
         }
         
+        // Soften overall drum curvature when overscrolling past edges
+        var curvatureFactor: CGFloat = 1.0
+        let maxOffset = max(0, tableView.contentSize.height - tableHeight)
+        if currentOffset < 0 {
+            curvatureFactor = max(0.3, 1.0 + currentOffset / 140.0)
+        } else if maxOffset > 0 && currentOffset > maxOffset {
+            curvatureFactor = max(0.3, 1.0 - (currentOffset - maxOffset) / 140.0)
+        }
+        
         for cell in tableView.visibleCells {
-            guard let indexPath = tableView.indexPath(for: cell) else { continue }
             let cellMidY = cell.frame.midY
             let deltaY = cellMidY - centerY
 
             let normY = max(min(deltaY / (tableHeight / 2.0), 1.0), -1.0)
-            
-            // Dampen curvature at list boundaries (beginning and end of list)
-            var boundaryFactor: CGFloat = 1.0
-            if normY < 0 {
-                let itemsAbove = CGFloat(indexPath.row)
-                boundaryFactor = min(max(itemsAbove / 2.0, 0.0), 1.0)
-            } else if normY > 0 {
-                let itemsBelow = CGFloat(max(0, maxRow - indexPath.row))
-                boundaryFactor = min(max(itemsBelow / 2.0, 0.0), 1.0)
-            }
-            
-            let effectiveNormY = normY * boundaryFactor
-            let theta = effectiveNormY * maxAngle
+            let theta = normY * (maxAngle * curvatureFactor)
 
             let tz = -radius * (1.0 - cos(theta)) * 0.25
             let projectedY = radius * sin(theta)
             let ty = (projectedY - deltaY) * 0.20
             let angle = -theta * 0.35
-            let scale = 1.0 - abs(effectiveNormY) * 0.04
-            let alpha = max(0.42, cos(theta))
+            let scale = 1.0 - abs(normY) * 0.04
+            
+            // Keep first and last items clearly visible rather than disappearing into the void
+            var minAlpha: CGFloat = 0.45
+            if let indexPath = tableView.indexPath(for: cell) {
+                if indexPath.row == 0 && normY < 0 {
+                    minAlpha = 0.90
+                } else if indexPath.row == maxRow && normY > 0 {
+                    minAlpha = 0.90
+                }
+            }
+            let alpha = max(minAlpha, cos(theta))
 
             var transform = CATransform3DIdentity
             transform.m34 = -1.0 / 1000.0
