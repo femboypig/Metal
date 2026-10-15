@@ -250,16 +250,17 @@ extension ViewController {
         }
     }
     
-    // MARK: - Custom Context Menus (Track & Playlist)
+    // MARK: - Native Context Menus (Track & Player)
     
-    func presentTrackContextMenu(for track: Track, at index: Int, isPlayer: Bool = false) {
-        var items: [BottomSheetItem] = []
+    func makeTrackContextMenu(for track: Track, at index: Int, isPlayer: Bool = false) -> UIMenu {
+        var actions: [UIMenuElement] = []
         
-        let isCurrent = (audioPlayer != nil && audioPlayer?.url == track.url && audioPlayer?.isPlaying == true)
+        // 1. Play / Pause Action
         if !isPlayer {
-            let playTitle = isCurrent ? "Pause" : "Play Now"
+            let isCurrent = (audioPlayer != nil && audioPlayer?.url == track.url && audioPlayer?.isPlaying == true)
+            let playTitle = isCurrent ? "Pause" : "Play"
             let playIcon = isCurrent ? "pause.fill" : "play.fill"
-            items.append(BottomSheetItem(title: playTitle, iconName: playIcon, isDestructive: false, action: { [weak self] in
+            let playAction = UIAction(title: playTitle, image: UIImage(systemName: playIcon)) { [weak self] _ in
                 guard let self = self else { return }
                 if isCurrent {
                     self.playPauseTapped()
@@ -267,56 +268,88 @@ extension ViewController {
                     let indexPath = IndexPath(row: index, section: 0)
                     self.tableView(self.tableView, didSelectRowAt: indexPath)
                 }
-            }))
+            }
+            actions.append(playAction)
         }
         
-        items.append(BottomSheetItem(title: "Add to Playlist", iconName: "plus.circle", isDestructive: false, action: { [weak self] in
-            self?.showAddToPlaylistSelector(track: track)
-        }))
+        // 2. Add to Playlist Submenu
+        var playlistElements: [UIMenuElement] = []
+        let sortedPlaylists = playlists.keys.sorted()
+        for name in sortedPlaylists {
+            let inPlaylist = playlists[name]?.contains(track.url.lastPathComponent) == true
+            let icon = inPlaylist ? "checkmark" : "music.note.list"
+            let item = UIAction(title: name, image: UIImage(systemName: icon)) { [weak self] _ in
+                self?.addTrackToPlaylist(track: track, playlistName: name)
+            }
+            playlistElements.append(item)
+        }
         
-        items.append(BottomSheetItem(title: "Share Song", iconName: "square.and.arrow.up", isDestructive: false, action: { [weak self] in
+        let newPlaylistAction = UIAction(title: "New Playlist...", image: UIImage(systemName: "plus")) { [weak self] _ in
+            self?.presentCustomInputSheet(title: "New Playlist", placeholder: "Playlist Name", submitTitle: "Create") { [weak self] name in
+                self?.playlists[name] = [track.url.lastPathComponent]
+                self?.savePlaylists()
+                self?.rebuildFiltersRow()
+                self?.showToast(message: "Created and added to \(name)", success: true)
+            }
+        }
+        playlistElements.append(newPlaylistAction)
+        
+        let playlistMenu = UIMenu(title: "Add to Playlist", image: UIImage(systemName: "plus.circle"), children: playlistElements)
+        actions.append(playlistMenu)
+        
+        // 3. Share Song
+        let shareAction = UIAction(title: "Share Song", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
             self?.shareTrack(track)
-        }))
+        }
+        actions.append(shareAction)
         
-        items.append(BottomSheetItem(title: "Sleep Timer", iconName: "timer", isDestructive: false, action: { [weak self] in
+        // 4. Sleep Timer
+        let sleepTimerAction = UIAction(title: "Sleep Timer", image: UIImage(systemName: "timer")) { [weak self] _ in
             self?.showSleepTimerSelector()
-        }))
+        }
+        actions.append(sleepTimerAction)
         
+        // 5. Remove from Playlist (if activeFilter is playlist)
         if case .playlist(let playlistName) = activeFilter {
-            items.append(BottomSheetItem(title: "Remove from \(playlistName)", iconName: "minus.circle", isDestructive: true, action: { [weak self] in
+            let removeAction = UIAction(title: "Remove from \(playlistName)", image: UIImage(systemName: "minus.circle"), attributes: .destructive) { [weak self] _ in
                 self?.removeFromPlaylist(track: track, name: playlistName)
-            }))
+            }
+            actions.append(removeAction)
         }
         
-        items.append(BottomSheetItem(title: "Delete Song", iconName: "trash", isDestructive: true, action: { [weak self] in
+        // 6. Delete Song
+        let deleteAction = UIAction(title: "Delete Song", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
             self?.deleteTrack(at: index)
-        }))
+        }
+        actions.append(deleteAction)
         
-        presentCustomBottomSheet(title: track.title, subtitle: track.artist, artwork: track.artwork, items: items)
+        return UIMenu(title: track.title, subtitle: track.artist, children: actions)
     }
     
-    func presentPlaylistContextMenu(name: String) {
-        let count = playlists[name]?.count ?? 0
-        let items = [
-            BottomSheetItem(title: "Play Playlist", iconName: "play.fill", isDestructive: false, action: { [weak self] in
-                guard let self = self else { return }
-                self.activeFilter = .playlist(name)
-                self.filterTracks()
-                self.rebuildFiltersRow()
-                if !self.filteredTracks.isEmpty {
-                    self.playbackQueue = self.filteredTracks
-                    self.currentPlaybackContext = name.uppercased()
-                    self.currentTrackIndex = 0
-                    self.playCurrentTrack()
-                }
-            }),
-            BottomSheetItem(title: "Delete Playlist", iconName: "trash", isDestructive: true, action: { [weak self] in
-                self?.deletePlaylist(named: name)
-            })
-        ]
-        presentCustomBottomSheet(title: name, subtitle: "\(count) songs", artwork: nil, items: items)
+    func makePlayerOptionsMenu() -> UIMenu {
+        guard let index = currentTrackIndex, index < filteredTracks.count else {
+            return UIMenu(title: "Options", children: [])
+        }
+        let track = filteredTracks[index]
+        return makeTrackContextMenu(for: track, at: index, isPlayer: true)
     }
     
+    func updatePlayerOptionsMenu() {
+        playerOptionsButton?.menu = makePlayerOptionsMenu()
+    }
+    
+    func addTrackToPlaylist(track: Track, playlistName name: String) {
+        var list = playlists[name] ?? []
+        let filename = track.url.lastPathComponent
+        if !list.contains(filename) {
+            list.append(filename)
+            playlists[name] = list
+            savePlaylists()
+            showToast(message: "Added to \(name)", success: true)
+        } else {
+            showToast(message: "Already in \(name)", success: false)
+        }
+    }
     
     func shareTrack(_ track: Track) {
         let shareVC = UIActivityViewController(activityItems: [track.url], applicationActivities: nil)
@@ -324,11 +357,7 @@ extension ViewController {
     }
     
     @objc func optionsTapped() {
-        guard let index = currentTrackIndex, index < filteredTracks.count else { return }
-        let track = filteredTracks[index]
-        let feedback = UIImpactFeedbackGenerator(style: .light)
-        feedback.impactOccurred()
-        presentTrackContextMenu(for: track, at: index, isPlayer: true)
+        updatePlayerOptionsMenu()
     }
     
     // MARK: - Dedicated Up Next Queue Sheet
@@ -404,6 +433,7 @@ extension ViewController {
         queueTable.backgroundColor = .clear
         queueTable.separatorStyle = .none
         queueTable.showsVerticalScrollIndicator = true
+        queueTable.register(TrackCell.self, forCellReuseIdentifier: TrackCell.identifier)
         sheetView.addSubview(queueTable)
         
         let dataSource = QueueSheetDataSource(parent: self, queue: queue) { [weak self] track, index in
@@ -739,46 +769,6 @@ extension ViewController {
         subLabel.text = "Rotate the dial to set sleep timer"
         sheetView.addSubview(subLabel)
         
-        // Mode Selector: Custom Pill Bar
-        let modeContainer = UIView()
-        modeContainer.translatesAutoresizingMaskIntoConstraints = false
-        modeContainer.backgroundColor = cardBorderColor().withAlphaComponent(0.4)
-        modeContainer.layer.cornerRadius = 16
-        sheetView.addSubview(modeContainer)
-        
-        let minBtn = UIButton(type: .custom)
-        minBtn.translatesAutoresizingMaskIntoConstraints = false
-        minBtn.setTitle("Minutes", for: .normal)
-        minBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? .boldSystemFont(ofSize: 13)
-        minBtn.setTitleColor(primaryButtonTextColor(), for: .normal)
-        minBtn.backgroundColor = primaryButtonColor()
-        minBtn.layer.cornerRadius = 14
-        modeContainer.addSubview(minBtn)
-        
-        let hrBtn = UIButton(type: .custom)
-        hrBtn.translatesAutoresizingMaskIntoConstraints = false
-        hrBtn.setTitle("Hours", for: .normal)
-        hrBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? .boldSystemFont(ofSize: 13)
-        hrBtn.setTitleColor(secondaryTextColor(), for: .normal)
-        hrBtn.backgroundColor = .clear
-        hrBtn.layer.cornerRadius = 14
-        modeContainer.addSubview(hrBtn)
-        
-        NSLayoutConstraint.activate([
-            modeContainer.widthAnchor.constraint(equalToConstant: 180),
-            modeContainer.heightAnchor.constraint(equalToConstant: 34),
-            
-            minBtn.leadingAnchor.constraint(equalTo: modeContainer.leadingAnchor, constant: 2),
-            minBtn.topAnchor.constraint(equalTo: modeContainer.topAnchor, constant: 2),
-            minBtn.bottomAnchor.constraint(equalTo: modeContainer.bottomAnchor, constant: -2),
-            minBtn.widthAnchor.constraint(equalToConstant: 86),
-            
-            hrBtn.trailingAnchor.constraint(equalTo: modeContainer.trailingAnchor, constant: -2),
-            hrBtn.topAnchor.constraint(equalTo: modeContainer.topAnchor, constant: 2),
-            hrBtn.bottomAnchor.constraint(equalTo: modeContainer.bottomAnchor, constant: -2),
-            hrBtn.widthAnchor.constraint(equalToConstant: 86)
-        ])
-        
         // Circular Dial
         let dial = CircularTimerDialView()
         dial.translatesAutoresizingMaskIntoConstraints = false
@@ -788,103 +778,23 @@ extension ViewController {
         dial.subtitleColor = secondaryTextColor()
         sheetView.addSubview(dial)
         
-        let updateModeUI: (CircularTimerDialView.Mode) -> Void = { mode in
-            let feedback = UIImpactFeedbackGenerator(style: .light)
-            feedback.impactOccurred()
-            dial.mode = mode
-            if mode == .minutes {
-                minBtn.backgroundColor = self.primaryButtonColor()
-                minBtn.setTitleColor(self.primaryButtonTextColor(), for: .normal)
-                hrBtn.backgroundColor = .clear
-                hrBtn.setTitleColor(self.secondaryTextColor(), for: .normal)
-            } else {
-                hrBtn.backgroundColor = self.primaryButtonColor()
-                hrBtn.setTitleColor(self.primaryButtonTextColor(), for: .normal)
-                minBtn.backgroundColor = .clear
-                minBtn.setTitleColor(self.secondaryTextColor(), for: .normal)
-            }
-        }
-        
-        minBtn.addAction(UIAction { _ in updateModeUI(.minutes) }, for: .touchUpInside)
-        hrBtn.addAction(UIAction { _ in updateModeUI(.hours) }, for: .touchUpInside)
-        
         if let endDate = sleepTimerEndDate, endDate > Date() {
             let remaining = max(5.0, ceil(endDate.timeIntervalSinceNow / 60.0))
             dial.setDuration(minutes: remaining)
-            if remaining > 60.0 {
-                updateModeUI(.hours)
-            }
-        }
-        
-        // Preset Chips
-        let chipsStack = UIStackView()
-        chipsStack.translatesAutoresizingMaskIntoConstraints = false
-        chipsStack.axis = .horizontal
-        chipsStack.spacing = 8
-        chipsStack.distribution = .fillEqually
-        sheetView.addSubview(chipsStack)
-        
-        let presets: [(String, Double, CircularTimerDialView.Mode)] = [
-            ("15m", 15.0, .minutes),
-            ("30m", 30.0, .minutes),
-            ("45m", 45.0, .minutes),
-            ("1h", 60.0, .minutes),
-            ("2h", 120.0, .hours)
-        ]
-        
-        for (name, val, targetMode) in presets {
-            let chip = UIButton(type: .system)
-            chip.setTitle(name, for: .normal)
-            chip.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? .boldSystemFont(ofSize: 13)
-            chip.setTitleColor(primaryTextColor(), for: .normal)
-            chip.backgroundColor = primaryBackgroundColor()
-            chip.layer.cornerRadius = 10
-            chip.layer.borderWidth = 1.0
-            chip.layer.borderColor = cardBorderColor().cgColor
-            chip.addAction(UIAction { _ in
-                updateModeUI(targetMode)
-                dial.setDuration(minutes: val)
-            }, for: .touchUpInside)
-            chipsStack.addArrangedSubview(chip)
-        }
-        
-        var statusBadge: UIView?
-        if let endDate = sleepTimerEndDate, endDate > Date() {
-            let remaining = Int(ceil(endDate.timeIntervalSinceNow / 60.0))
-            let badge = UIView()
-            badge.translatesAutoresizingMaskIntoConstraints = false
-            badge.backgroundColor = primaryButtonColor().withAlphaComponent(0.12)
-            badge.layer.cornerRadius = 10
-            sheetView.addSubview(badge)
-            
-            let badgeLabel = UILabel()
-            badgeLabel.translatesAutoresizingMaskIntoConstraints = false
-            badgeLabel.font = UIFont(name: "Georgia-BoldItalic", size: 12) ?? .boldSystemFont(ofSize: 12)
-            badgeLabel.textColor = primaryButtonColor()
-            badgeLabel.text = "⏱ Active timer: \(remaining)m remaining"
-            badge.addSubview(badgeLabel)
-            
-            NSLayoutConstraint.activate([
-                badgeLabel.centerXAnchor.constraint(equalTo: badge.centerXAnchor),
-                badgeLabel.centerYAnchor.constraint(equalTo: badge.centerYAnchor),
-                badge.heightAnchor.constraint(equalToConstant: 28),
-                badge.leadingAnchor.constraint(greaterThanOrEqualTo: sheetView.leadingAnchor, constant: 20),
-                badge.trailingAnchor.constraint(lessThanOrEqualTo: sheetView.trailingAnchor, constant: -20),
-                badge.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor)
-            ])
-            statusBadge = badge
         }
         
         let buttonStack = UIStackView()
         buttonStack.translatesAutoresizingMaskIntoConstraints = false
         buttonStack.axis = .vertical
-        buttonStack.spacing = 8
+        buttonStack.spacing = 10
         buttonStack.distribution = .fill
         sheetView.addSubview(buttonStack)
         
+        let isTimerActive = (sleepTimer != nil && sleepTimerEndDate != nil && sleepTimerEndDate! > Date())
+        
         let submitBtn = UIButton(type: .custom)
         submitBtn.translatesAutoresizingMaskIntoConstraints = false
-        submitBtn.setTitle("Start Sleep Timer", for: .normal)
+        submitBtn.setTitle(isTimerActive ? "Update Sleep Timer" : "Start Sleep Timer", for: .normal)
         submitBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 15) ?? .boldSystemFont(ofSize: 15)
         submitBtn.setTitleColor(primaryButtonTextColor(), for: .normal)
         submitBtn.backgroundColor = primaryButtonColor()
@@ -897,7 +807,7 @@ extension ViewController {
         }, for: .touchUpInside)
         buttonStack.addArrangedSubview(submitBtn)
         
-        if sleepTimer != nil {
+        if isTimerActive {
             let cancelTimerBtn = UIButton(type: .system)
             cancelTimerBtn.translatesAutoresizingMaskIntoConstraints = false
             cancelTimerBtn.setTitle("Cancel Active Timer", for: .normal)
@@ -915,22 +825,11 @@ extension ViewController {
             buttonStack.addArrangedSubview(cancelTimerBtn)
         }
         
-        let closeBtn = UIButton(type: .system)
-        closeBtn.translatesAutoresizingMaskIntoConstraints = false
-        closeBtn.setTitle("Close", for: .normal)
-        closeBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? .boldSystemFont(ofSize: 13)
-        closeBtn.setTitleColor(secondaryTextColor(), for: .normal)
-        closeBtn.heightAnchor.constraint(equalToConstant: 38).isActive = true
-        closeBtn.addAction(UIAction { [weak self] _ in
-            self?.dismissActiveSheet()
-        }, for: .touchUpInside)
-        buttonStack.addArrangedSubview(closeBtn)
-        
         self.activeDimmedBg = dimmedBg
         self.activeSheetView = sheetView
-        self.activeSheetBottomConstraint = sheetView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 650)
+        self.activeSheetBottomConstraint = sheetView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 500)
         
-        var layoutConstraints: [NSLayoutConstraint] = [
+        NSLayoutConstraint.activate([
             dimmedBg.topAnchor.constraint(equalTo: view.topAnchor),
             dimmedBg.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             dimmedBg.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -945,7 +844,7 @@ extension ViewController {
             grabber.widthAnchor.constraint(equalToConstant: 36),
             grabber.heightAnchor.constraint(equalToConstant: 5),
             
-            titleLabel.topAnchor.constraint(equalTo: grabber.bottomAnchor, constant: 12),
+            titleLabel.topAnchor.constraint(equalTo: grabber.bottomAnchor, constant: 14),
             titleLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
             titleLabel.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
             
@@ -953,38 +852,17 @@ extension ViewController {
             subLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
             subLabel.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
             
-            modeContainer.topAnchor.constraint(equalTo: subLabel.bottomAnchor, constant: 14),
-            modeContainer.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
-            
-            dial.topAnchor.constraint(equalTo: modeContainer.bottomAnchor, constant: 12),
+            dial.topAnchor.constraint(equalTo: subLabel.bottomAnchor, constant: 16),
             dial.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
             dial.widthAnchor.constraint(equalToConstant: 220),
             dial.heightAnchor.constraint(equalToConstant: 220),
             
-            chipsStack.topAnchor.constraint(equalTo: dial.bottomAnchor, constant: 10),
-            chipsStack.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
-            chipsStack.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
-            chipsStack.heightAnchor.constraint(equalToConstant: 34)
-        ]
-        
-        if let badge = statusBadge {
-            layoutConstraints.append(contentsOf: [
-                badge.topAnchor.constraint(equalTo: chipsStack.bottomAnchor, constant: 10),
-                buttonStack.topAnchor.constraint(equalTo: badge.bottomAnchor, constant: 14)
-            ])
-        } else {
-            layoutConstraints.append(
-                buttonStack.topAnchor.constraint(equalTo: chipsStack.bottomAnchor, constant: 16)
-            )
-        }
-        
-        layoutConstraints.append(contentsOf: [
+            buttonStack.topAnchor.constraint(equalTo: dial.bottomAnchor, constant: 20),
             buttonStack.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
             buttonStack.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
-            buttonStack.bottomAnchor.constraint(equalTo: sheetView.bottomAnchor, constant: -18)
+            buttonStack.bottomAnchor.constraint(equalTo: sheetView.bottomAnchor, constant: -20)
         ])
         
-        NSLayoutConstraint.activate(layoutConstraints)
         view.layoutIfNeeded()
         
         self.activeSheetBottomConstraint?.constant = -16
@@ -1083,39 +961,13 @@ private class QueueSheetDataSource: NSObject, UITableViewDataSource, UITableView
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "QueueCell") ?? UITableViewCell(style: .subtitle, reuseIdentifier: "QueueCell")
-        let track = queue[indexPath.row]
-        let isPlaying = (parent?.audioPlayer != nil && parent?.audioPlayer?.url == track.url)
-        
-        cell.backgroundColor = .clear
-        cell.selectionStyle = .none
-        
-        cell.textLabel?.font = UIFont(name: "Georgia-Bold", size: 14) ?? .boldSystemFont(ofSize: 14)
-        cell.textLabel?.textColor = isPlaying ? (parent?.primaryButtonColor() ?? .systemOrange) : (parent?.primaryTextColor() ?? .white)
-        cell.textLabel?.text = track.title
-        
-        cell.detailTextLabel?.font = UIFont(name: "Georgia-Italic", size: 12) ?? .italicSystemFont(ofSize: 12)
-        cell.detailTextLabel?.textColor = parent?.secondaryTextColor() ?? .gray
-        cell.detailTextLabel?.text = track.artist != "Unknown Artist" ? track.artist : ""
-        
-        let artwork = track.artwork ?? UIImage(named: "PlaceholderArtwork")
-        cell.imageView?.image = artwork
-        cell.imageView?.layer.cornerRadius = 6
-        cell.imageView?.clipsToBounds = true
-        
-        if isPlaying {
-            let indicator = UIImageView(image: UIImage(systemName: "waveform", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)))
-            indicator.tintColor = parent?.primaryButtonColor() ?? .systemOrange
-            cell.accessoryView = indicator
-        } else {
-            let durLabel = UILabel()
-            durLabel.font = UIFont(name: "Georgia-Italic", size: 12) ?? .italicSystemFont(ofSize: 12)
-            durLabel.textColor = parent?.secondaryTextColor() ?? .gray
-            durLabel.text = parent?.formatTime(track.duration) ?? ""
-            durLabel.sizeToFit()
-            cell.accessoryView = durLabel
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.identifier, for: indexPath) as? TrackCell,
+              let parent = parent else {
+            return UITableViewCell()
         }
-        
+        let track = queue[indexPath.row]
+        let isPlaying = (parent.audioPlayer != nil && parent.audioPlayer?.url == track.url)
+        cell.configure(with: track, index: indexPath.row, isPlaying: isPlaying, colors: parent)
         return cell
     }
     
@@ -1128,23 +980,10 @@ private class QueueSheetDataSource: NSObject, UITableViewDataSource, UITableView
 // MARK: - Circular Sleep Timer Dial View
 
 class CircularTimerDialView: UIControl {
-    enum Mode {
-        case minutes
-        case hours
-    }
-    
-    var mode: Mode = .minutes {
-        didSet {
-            syncAngleFromDuration()
-            updateDisplay()
-            setNeedsDisplay()
-        }
-    }
-    
     private(set) var durationMinutes: Double = 30.0
     var onDurationChanged: ((Double) -> Void)?
     
-    private var angle: CGFloat = .pi
+    private var angle: CGFloat = (.pi * 0.5) // ~30 minutes
     private let feedback = UISelectionFeedbackGenerator()
     
     var trackColor: UIColor = UIColor.white.withAlphaComponent(0.12)
@@ -1171,12 +1010,12 @@ class CircularTimerDialView: UIControl {
         contentMode = .redraw
         
         valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.font = UIFont(name: "Georgia-Bold", size: 44) ?? UIFont.systemFont(ofSize: 44, weight: .bold)
+        valueLabel.font = UIFont(name: "Georgia-Bold", size: 36) ?? UIFont.systemFont(ofSize: 36, weight: .bold)
         valueLabel.textAlignment = .center
         addSubview(valueLabel)
         
         unitLabel.translatesAutoresizingMaskIntoConstraints = false
-        unitLabel.font = UIFont(name: "Georgia-Italic", size: 13) ?? UIFont.systemFont(ofSize: 13, weight: .medium)
+        unitLabel.font = UIFont(name: "Georgia-Italic", size: 12) ?? UIFont.systemFont(ofSize: 12, weight: .medium)
         unitLabel.textAlignment = .center
         addSubview(unitLabel)
         
@@ -1193,44 +1032,36 @@ class CircularTimerDialView: UIControl {
     }
     
     func setDuration(minutes: Double) {
-        durationMinutes = max(5.0, minutes)
-        if durationMinutes > 60.0 && mode != .hours {
-            mode = .hours
-        } else {
-            syncAngleFromDuration()
-            updateDisplay()
-            setNeedsDisplay()
-        }
+        durationMinutes = min(120.0, max(5.0, minutes))
+        syncAngleFromDuration()
+        updateDisplay()
+        setNeedsDisplay()
     }
     
     private func syncAngleFromDuration() {
-        switch mode {
-        case .minutes:
-            let clamped = min(60.0, max(5.0, durationMinutes))
-            angle = CGFloat(clamped / 60.0) * 2 * .pi
-        case .hours:
-            let hours = min(12.0, max(0.5, durationMinutes / 60.0))
-            angle = CGFloat(hours / 12.0) * 2 * .pi
-        }
+        let fraction = (durationMinutes - 5.0) / 115.0
+        angle = CGFloat(fraction) * 2 * .pi
     }
     
     private func updateDisplay() {
         valueLabel.textColor = textColor
         unitLabel.textColor = subtitleColor
         
-        switch mode {
-        case .minutes:
-            valueLabel.text = "\(Int(durationMinutes))"
+        let mins = Int(durationMinutes)
+        if mins < 60 {
+            valueLabel.text = "\(mins)"
             unitLabel.text = "MINUTES"
-        case .hours:
-            let hours = durationMinutes / 60.0
-            if hours == floor(hours) {
-                valueLabel.text = "\(Int(hours))"
-                unitLabel.text = hours == 1 ? "HOUR" : "HOURS"
-            } else {
-                valueLabel.text = String(format: "%.1f", hours)
-                unitLabel.text = "HOURS"
-            }
+        } else if mins == 60 {
+            valueLabel.text = "1"
+            unitLabel.text = "HOUR"
+        } else if mins == 120 {
+            valueLabel.text = "2"
+            unitLabel.text = "HOURS"
+        } else {
+            let h = mins / 60
+            let m = mins % 60
+            valueLabel.text = "\(h)h \(m)m"
+            unitLabel.text = "SLEEP TIMER"
         }
     }
     
@@ -1268,22 +1099,12 @@ class CircularTimerDialView: UIControl {
         let fraction = min(max(rad / (2 * .pi), 0.0), 1.0)
         let oldDuration = durationMinutes
         
-        switch mode {
-        case .minutes:
-            let rawMins = fraction * 60.0
-            var snapped = round(rawMins / 5.0) * 5.0
-            if snapped < 5.0 { snapped = 5.0 }
-            if snapped > 60.0 { snapped = 60.0 }
-            durationMinutes = snapped
-            angle = CGFloat(snapped / 60.0) * 2 * .pi
-        case .hours:
-            let rawHours = fraction * 12.0
-            var snappedHours = round(rawHours / 0.5) * 0.5
-            if snappedHours < 0.5 { snappedHours = 0.5 }
-            if snappedHours > 12.0 { snappedHours = 12.0 }
-            durationMinutes = snappedHours * 60.0
-            angle = CGFloat(snappedHours / 12.0) * 2 * .pi
-        }
+        let rawMins = 5.0 + fraction * 115.0
+        var snapped = round(rawMins / 5.0) * 5.0
+        if snapped < 5.0 { snapped = 5.0 }
+        if snapped > 120.0 { snapped = 120.0 }
+        durationMinutes = snapped
+        angle = CGFloat((snapped - 5.0) / 115.0) * 2 * .pi
         
         if abs(durationMinutes - oldDuration) > 0.001 {
             feedback.selectionChanged()
@@ -1345,7 +1166,7 @@ class CircularTimerDialView: UIControl {
         knobPath.fill()
         ctx.restoreGState()
         
-        progressColor.withAlphaComponent(0.2).setStroke()
+        progressColor.withAlphaComponent(0.25).setStroke()
         knobPath.lineWidth = 1.0
         knobPath.stroke()
         
