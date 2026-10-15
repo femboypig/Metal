@@ -385,9 +385,6 @@ extension ViewController {
 
         applyTableGradientMask()
 
-        let cellLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handleCellLongPress(_:)))
-        tableView.addGestureRecognizer(cellLongPress)
-
         // 4. Unified Floating Pill Bar for Filters (All, Daily Mix, Favorites, etc.) - Floats ABOVE the songs list
         floatingFiltersContainer = UIView()
         floatingFiltersContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -516,6 +513,9 @@ extension ViewController {
 
         let miniTap = UITapGestureRecognizer(target: self, action: #selector(miniPlayerTapped(_:)))
         miniPlayerView.addGestureRecognizer(miniTap)
+        
+        let miniMenuInteraction = UIContextMenuInteraction(delegate: self)
+        miniPlayerView.addInteraction(miniMenuInteraction)
 
         miniCoverCard = UIView()
         miniCoverCard.translatesAutoresizingMaskIntoConstraints = false
@@ -726,6 +726,8 @@ extension ViewController {
         topOptionsButton.translatesAutoresizingMaskIntoConstraints = false
         topOptionsButton.setImage(UIImage(systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)), for: .normal)
         topOptionsButton.tintColor = .white
+        topOptionsButton.showsMenuAsPrimaryAction = true
+        topOptionsButton.menu = makePlayerOptionsMenu()
         topOptionsButton.addTarget(self, action: #selector(optionsTapped), for: .touchUpInside)
         topBar.addSubview(topOptionsButton)
         playerOptionsButton = topOptionsButton
@@ -1760,6 +1762,18 @@ func interpolateColor(from: UIColor, to: UIColor, progress: CGFloat) -> UIColor 
         blue: b1 + (b2 - b1) * p,
         alpha: a1 + (a2 - a1) * p
     )
+}
+
+// MARK: - UIContextMenuInteractionDelegate (Mini Player)
+
+extension ViewController: UIContextMenuInteractionDelegate {
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+        guard let index = currentTrackIndex, index < filteredTracks.count else { return nil }
+        let track = filteredTracks[index]
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            return self?.makeTrackContextMenu(for: track, at: index, isPlayer: true)
+        }
+    }
 }
 
 
