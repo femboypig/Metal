@@ -41,21 +41,7 @@ extension ViewController {
     }
     
     func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
-        guard indexPath.row < filteredTracks.count else { return nil }
-        let track = filteredTracks[indexPath.row]
-        
-        return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { [weak self] _ in
-            return self?.makeTrackContextMenu(for: track, at: indexPath.row, isPlayer: false)
-        }
-    }
-    
-    func tableView(_ tableView: UITableView, willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionCommitAnimating) {
-        animator.addCompletion { [weak self] in
-            guard let indexPath = configuration.identifier as? IndexPath,
-                  let self = self,
-                  indexPath.row < self.filteredTracks.count else { return }
-            self.tableView(self.tableView, didSelectRowAt: indexPath)
-        }
+        return nil
     }
     
     // MARK: - Cell Long Press Gesture Handler
@@ -63,28 +49,14 @@ extension ViewController {
     @objc func handleCellLongPress(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began else { return }
         let point = gesture.location(in: tableView)
-        guard let indexPath = tableView.indexPathForRow(at: point) else { return }
+        guard let indexPath = tableView.indexPathForRow(at: point),
+              indexPath.row < filteredTracks.count else { return }
         
         let track = filteredTracks[indexPath.row]
+        let feedback = UIImpactFeedbackGenerator(style: .medium)
+        feedback.impactOccurred()
         
-        let feedback = UINotificationFeedbackGenerator()
-        feedback.prepare()
-        feedback.notificationOccurred(.success)
-        
-        let items = [
-            BottomSheetItem(title: "Add to Playlist", iconName: "plus.circle", isDestructive: false, action: { [weak self] in
-                self?.showAddToPlaylistSelector(track: track)
-            }),
-            BottomSheetItem(title: "Share Song", iconName: "square.and.arrow.up", isDestructive: false, action: { [weak self] in
-                let shareVC = UIActivityViewController(activityItems: [track.url], applicationActivities: nil)
-                self?.present(shareVC, animated: true)
-            }),
-            BottomSheetItem(title: "Delete Song", iconName: "trash", isDestructive: true, action: { [weak self] in
-                self?.deleteTrack(at: indexPath.row)
-            })
-        ]
-        
-        presentCustomBottomSheet(title: track.title, subtitle: track.artist, items: items)
+        presentTrackContextMenu(for: track, at: indexPath.row, isPlayer: false)
     }
 }
 
