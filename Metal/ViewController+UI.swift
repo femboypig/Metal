@@ -368,9 +368,6 @@ extension ViewController {
 
         applyTableGradientMask()
 
-        let cellLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handleCellLongPress(_:)))
-        tableView.addGestureRecognizer(cellLongPress)
-
         // 4. Unified Floating Pill Bar for Filters (All, Daily Mix, Favorites, etc.) - Floats ABOVE the songs list
         floatingFiltersContainer = UIView()
         floatingFiltersContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -500,8 +497,8 @@ extension ViewController {
         let miniTap = UITapGestureRecognizer(target: self, action: #selector(miniPlayerTapped(_:)))
         miniPlayerView.addGestureRecognizer(miniTap)
         
-        let miniLongPress = UILongPressGestureRecognizer(target: self, action: #selector(miniPlayerLongPressed(_:)))
-        miniPlayerView.addGestureRecognizer(miniLongPress)
+        let miniMenuInteraction = UIContextMenuInteraction(delegate: self)
+        miniPlayerView.addInteraction(miniMenuInteraction)
 
         miniCoverCard = UIView()
         miniCoverCard.translatesAutoresizingMaskIntoConstraints = false
@@ -712,6 +709,8 @@ extension ViewController {
         topOptionsButton.translatesAutoresizingMaskIntoConstraints = false
         topOptionsButton.setImage(UIImage(systemName: "ellipsis", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .bold)), for: .normal)
         topOptionsButton.tintColor = .white
+        topOptionsButton.showsMenuAsPrimaryAction = true
+        topOptionsButton.menu = makePlayerOptionsMenu()
         topOptionsButton.addTarget(self, action: #selector(optionsTapped), for: .touchUpInside)
         topBar.addSubview(topOptionsButton)
         playerOptionsButton = topOptionsButton
@@ -1765,17 +1764,15 @@ func interpolateColor(from: UIColor, to: UIColor, progress: CGFloat) -> UIColor 
     )
 }
 
-// MARK: - Mini Player Long Press Handler
+// MARK: - UIContextMenuInteractionDelegate (Mini Player)
 
-extension ViewController {
-    @objc func miniPlayerLongPressed(_ gesture: UILongPressGestureRecognizer) {
-        guard gesture.state == .began else { return }
-        guard let index = currentTrackIndex, index < filteredTracks.count else { return }
+extension ViewController: UIContextMenuInteractionDelegate {
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+        guard let index = currentTrackIndex, index < filteredTracks.count else { return nil }
         let track = filteredTracks[index]
-        let feedback = UINotificationFeedbackGenerator()
-        feedback.prepare()
-        feedback.notificationOccurred(.success)
-        presentTrackContextMenu(for: track, at: index, isPlayer: false)
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            return self?.makeTrackContextMenu(for: track, at: index, isPlayer: true)
+        }
     }
 }
 
