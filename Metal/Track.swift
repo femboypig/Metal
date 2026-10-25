@@ -66,27 +66,47 @@ struct Track {
     static func loadMetadata(for url: URL) async -> TrackMetadataSnapshot {
         let signature = fileSignature(for: url)
         let asset = AVURLAsset(url: url)
-        let loadedDuration = try? await asset.load(.duration)
-        let metadata = (try? await asset.load(.commonMetadata)) ?? []
         var title = url.deletingPathExtension().lastPathComponent
         var artist = "Unknown Artist"
+        var duration: TimeInterval = 0
 
-        for item in metadata {
-            switch item.commonKey {
-            case .commonKeyTitle:
-                if let value = try? await item.load(.stringValue), !value.isEmpty {
-                    title = value
+        if #available(iOS 16.0, *) {
+            let loadedDuration = try? await asset.load(.duration)
+            duration = loadedDuration.map { CMTimeGetSeconds($0) } ?? 0
+            let metadata = (try? await asset.load(.commonMetadata)) ?? []
+            for item in metadata {
+                switch item.commonKey {
+                case .commonKeyTitle:
+                    if let value = try? await item.load(.stringValue), !value.isEmpty {
+                        title = value
+                    }
+                case .commonKeyArtist:
+                    if let value = try? await item.load(.stringValue), !value.isEmpty {
+                        artist = value
+                    }
+                default:
+                    break
                 }
-            case .commonKeyArtist:
-                if let value = try? await item.load(.stringValue), !value.isEmpty {
-                    artist = value
+            }
+        } else {
+            duration = CMTimeGetSeconds(asset.duration)
+            let metadata = asset.commonMetadata
+            for item in metadata {
+                switch item.commonKey {
+                case .commonKeyTitle:
+                    if let value = item.stringValue, !value.isEmpty {
+                        title = value
+                    }
+                case .commonKeyArtist:
+                    if let value = item.stringValue, !value.isEmpty {
+                        artist = value
+                    }
+                default:
+                    break
                 }
-            default:
-                break
             }
         }
 
-        var duration = loadedDuration.map { CMTimeGetSeconds($0) } ?? 0
         if duration.isNaN || duration.isInfinite || duration < 0 {
             duration = 0
         }
