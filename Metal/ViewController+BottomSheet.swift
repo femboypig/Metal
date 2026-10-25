@@ -323,7 +323,11 @@ extension ViewController {
         }
         actions.append(deleteAction)
         
-        return UIMenu(title: track.title, subtitle: track.artist, children: actions)
+        let menu = UIMenu(title: track.title, children: actions)
+        if #available(iOS 15.0, *) {
+            menu.subtitle = track.artist
+        }
+        return menu
     }
     
     func makePlayerOptionsMenu() -> UIMenu {
