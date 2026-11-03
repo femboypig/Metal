@@ -35,5 +35,7 @@ Device checks for the interaction changes:
   presets, use VoiceOver adjustments, and check light/dark appearance and large
   text. Set, update, cancel, and reopen an active timer. A deadline fades playback
   over five seconds; changing songs during the fade must restore normal volume.
+  With AI DJ and repeat enabled separately, let a song end during the fade: the
+  player must stop without a crossfade or automatic next/repeat.
 - Verify the timer while background audio is playing, and return after its
   deadline. Its stop must be tagged `sleepTimer`, without a negative taste signal.
