@@ -131,6 +131,16 @@ extension ViewController {
 
         // 2. Personalized, vibe-matched mix rebuilt once per local calendar day
         let dailyMixPill = createPillButton(title: "Daily Mix", category: .dailyMix)
+        dailyMixPill.accessibilityHint = "Shake your phone to reshape the next songs, or use the remix menu."
+        dailyMixPill.showsMenuAsPrimaryAction = false
+        dailyMixPill.menu = UIMenu(title: "Shake your mix", children: [
+            UIAction(title: "Reshape next songs", image: UIImage(systemName: "waveform.path")) { [weak self] _ in
+                self?.activeFilter = .dailyMix
+                self?.filterTracks()
+                self?.rebuildFiltersRow()
+                self?.shakeDailyMix()
+            }
+        ])
         filtersStackView.addArrangedSubview(dailyMixPill)
 
         // 3. "Favorites" Pill
@@ -260,6 +270,10 @@ extension ViewController {
               let newIdx = categories.firstIndex(of: category) else { return }
 
         activeFilter = category
+        if category == .dailyMix, !UserDefaults.standard.bool(forKey: "Metal_MixShakeHintShown") {
+            UserDefaults.standard.set(true, forKey: "Metal_MixShakeHintShown")
+            showToast(message: "Shake your phone to shake your mix", success: true)
+        }
         filterTracks()
         rebuildFiltersRow()
 

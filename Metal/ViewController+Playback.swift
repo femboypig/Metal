@@ -338,14 +338,6 @@ extension ViewController {
 
         if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
 
-        if isPlayerPageVisible && queue.count > 1 {
-            let nextTrack = getNextTrack()
-            let trackAfterNext = getTrackAfterNext()
-            if nextTrack != nil {
-                animateCarouselSlide(direction: .forward, incomingTrack: trackAfterNext)
-            }
-        }
-
         if let player = audioPlayer, telemetrySessionFilename != nil {
             updateListeningTelemetry(with: player)
             let reason: ListeningEndReason = pendingListeningEndReason == .dislike ? .dislike : (currentQueue.count > 1 ? .next : .selection)
@@ -353,6 +345,14 @@ extension ViewController {
                 progress: player.duration > 0 ? player.currentTime / player.duration : 0, reason: reason)
             adaptDailyMixQueueIfNeeded()
         }
+        if isPlayerPageVisible && currentQueue.count > 1 {
+            let nextTrack = getNextTrack()
+            let trackAfterNext = getTrackAfterNext()
+            if nextTrack != nil {
+                animateCarouselSlide(direction: .forward, incomingTrack: trackAfterNext)
+            }
+        }
+
         forcePlayNextTrack()
     }
 

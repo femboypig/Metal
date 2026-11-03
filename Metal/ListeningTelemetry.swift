@@ -102,7 +102,7 @@ extension ViewController {
         let engagement = telemetrySessionDuration > 0
             ? min(1, telemetrySessionListeningSeconds / telemetrySessionDuration) : 0
         let rejected = endReason == .dislike || (endReason == .next && engagement < 0.35)
-        if completed && engagement >= 0.85 {
+        if engagement >= 0.85, endReason != .dislike, endReason != .sleepTimer, endReason != .failure {
             stats.completedPlays += 1
             stats.lastCompletedAt = Date().timeIntervalSince1970
             stats.consecutiveEarlySkips = 0

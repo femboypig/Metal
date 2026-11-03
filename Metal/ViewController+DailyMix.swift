@@ -71,7 +71,7 @@ extension ViewController {
                 let positive = max(0, event.reward)
                 affinity += positive * recency * (0.25 + 0.75 * timeFit * dayFit)
                 if event.isRejection {
-                    rejection += exp(-ageDays / 3) * (event.reason == .dislike ? 1 : 0.55) * (1 - event.engagement)
+                    rejection += exp(-ageDays / 3) * (event.reason == .dislike ? 1 : 0.55 * (1 - event.engagement))
                 }
             }
             // Existing installations can learn time-of-day preferences before
@@ -137,6 +137,9 @@ extension ViewController {
             uniqueKeysWithValues: tracks.map { ($0.url.lastPathComponent, $0) }
         )
 
+        if dailyMixBucket != dayKey || selectedIDs != dailyMixTracks.map({ $0.url.lastPathComponent }) {
+            dailyMixID = UUID().uuidString
+        }
         dailyMixBucket = dayKey
         dailyMixTracks = selectedIDs.compactMap { tracksByFilename[$0] }
 
