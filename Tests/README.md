@@ -7,7 +7,9 @@ swiftc Metal/ListeningHistory.swift Tests/ListeningHistoryChecks.swift -o /tmp/l
 /tmp/listening-history-checks
 ```
 
-GitHub Actions runs both programs before the unsigned iOS build.
+GitHub Actions runs both programs before the unsigned iOS build. It also compiles
+the embedded wave and remix shader pipelines on runners with a Metal device.
+Runners without a GPU explicitly report that shader runtime validation is unavailable.
 
 Listening history is stored locally in `Documents/telemetry.json`. Version 1 data
 remains readable. New session records include source, end reason, actual listening
@@ -27,13 +29,17 @@ Device checks for the interaction changes:
   should not create early rejection events. A seek should not inflate listening.
 - Shake on the Daily Mix library page or while its player is visible. The current
   song and its position should continue. The wave ripples and a colored perimeter
-  appears. Undo restores the queue while the same song remains current. Repeat
+  appears after a soft pulse travels from the wave to the screen edges. There is
+  no text banner. Repeat
   shakes within three seconds, other library filters, and open sheets are ignored.
 - Long-press the Daily Mix filter to remix without moving the device. With Reduce
   Motion enabled, remix still works without the added motion effects.
 - Open Sleep Timer from the player menu. Drag the dial across both ends, select
   presets, use VoiceOver adjustments, and check light/dark appearance and large
-  text. Set, update, cancel, and reopen an active timer. A deadline fades playback
+  text. Drag the ring vertically and diagonally: the sheet and its scroll view
+  must stay still. Drag outside the dial to verify normal sheet gestures. Check
+  that the orange Set timer button has readable text in both themes.
+  Set, update, cancel, and reopen an active timer. A deadline fades playback
   over five seconds; changing songs during the fade must restore normal volume.
   With AI DJ and repeat enabled separately, let a song end during the fade: the
   player must stop without a crossfade or automatic next/repeat.

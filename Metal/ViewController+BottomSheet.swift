@@ -734,13 +734,14 @@ extension ViewController {
             controller.modalPresentationStyle = .pageSheet
             if let sheet = controller.sheetPresentationController {
                 if #available(iOS 16.0, *) {
-                    let height: CGFloat = controller.endDate.map { $0 > Date() } == true ? 660 : 610
+                    let height: CGFloat = controller.endDate.map { $0 > Date() } == true ? 528 : 476
                     sheet.detents = [.custom(identifier: .init("sleepTimer")) { context in
                         min(height, context.maximumDetentValue)
                     }]
                 } else {
                     sheet.detents = [.large()]
                 }
+                sheet.prefersScrollingExpandsWhenScrolledToEdge = false
                 sheet.prefersGrabberVisible = true
                 sheet.preferredCornerRadius = 32
             }
@@ -887,30 +888,32 @@ private final class SleepTimerViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         let scroll = UIScrollView()
+        scroll.delaysContentTouches = false
+        scroll.canCancelContentTouches = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scroll)
         let stack = UIStackView()
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.axis = .vertical
         stack.alignment = .fill
-        stack.spacing = 16
+        stack.spacing = 8
         scroll.addSubview(stack)
         NSLayoutConstraint.activate([
             scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scroll.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 24),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
             stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -24),
-            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -12),
             stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -48)
         ])
         let header = UIStackView()
         header.alignment = .center
         let title = UILabel()
         title.text = "Sleep timer"
-        title.font = .systemFont(ofSize: 28, weight: .semibold)
+        title.font = .systemFont(ofSize: 24, weight: .semibold)
         title.adjustsFontForContentSizeCategory = true
         title.accessibilityTraits = .header
         header.addArrangedSubview(title)
@@ -938,7 +941,7 @@ private final class SleepTimerViewController: UIViewController {
             dial.bottomAnchor.constraint(equalTo: dialContainer.bottomAnchor),
             dial.widthAnchor.constraint(equalTo: dial.heightAnchor),
             dial.widthAnchor.constraint(lessThanOrEqualTo: dialContainer.widthAnchor),
-            dial.heightAnchor.constraint(equalToConstant: 252)
+            dial.heightAnchor.constraint(equalToConstant: 216)
         ])
         stack.addArrangedSubview(dialContainer)
         if let endDate, endDate > Date() {
@@ -974,14 +977,14 @@ private final class SleepTimerViewController: UIViewController {
         }
         stack.addArrangedSubview(presets)
         var config = UIButton.Configuration.filled()
-        config.title = endDate.map { $0 > Date() } == true ? "Update timer" : "Start timer"
+        config.title = endDate.map { $0 > Date() } == true ? "Update timer" : "Set timer"
         config.image = UIImage(systemName: "moon.zzz.fill")
         config.imagePadding = 10
-        config.baseBackgroundColor = .label
-        config.baseForegroundColor = .systemBackground
+        config.baseBackgroundColor = UIColor(red: 0.78, green: 0.24, blue: 0.12, alpha: 1)
+        config.baseForegroundColor = .white
         config.cornerStyle = .capsule
         startButton.configuration = config
-        startButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 54).isActive = true
+        startButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
         startButton.addAction(UIAction { [weak self] _ in
             guard let self else { return }
             let minutes = self.dial.durationMinutes
@@ -1007,12 +1010,23 @@ private final class SleepTimerViewController: UIViewController {
         }
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        var ancestor = dial.superview
+        while let container = ancestor {
+            for case let pan as UIPanGestureRecognizer in container.gestureRecognizers ?? [] {
+                pan.require(toFail: dial.rotationGesture)
+            }
+            ancestor = container.superview
+        }
+    }
+
     private func updateStatus() {
         if let endDate, endDate > Date() {
             let seconds = Int(ceil(endDate.timeIntervalSinceNow))
             statusLabel.text = String(format: "Timer active · %d:%02d remaining", seconds / 60, seconds % 60)
         } else {
-            statusLabel.text = "Turn the dial. Let the music fade into sleep."
+            statusLabel.text = "Turn the dial to choose a duration."
         }
     }
 
@@ -1023,9 +1037,10 @@ private final class SleepTimerViewController: UIViewController {
     }
 }
 
-final class CircularTimerDialView: UIControl {
+final class CircularTimerDialView: UIControl, UIGestureRecognizerDelegate {
     private(set) var durationMinutes: Double = 30
     var onDurationChanged: ((Double) -> Void)?
+    private(set) lazy var rotationGesture = UIPanGestureRecognizer(target: self, action: #selector(rotateDial(_:)))
     private let feedback = UISelectionFeedbackGenerator()
     private let valueLabel = UILabel()
     private let unitLabel = UILabel()
@@ -1044,7 +1059,7 @@ final class CircularTimerDialView: UIControl {
         isAccessibilityElement = true
         accessibilityLabel = "Sleep duration"
         accessibilityTraits = .adjustable
-        valueLabel.font = .monospacedDigitSystemFont(ofSize: 54, weight: .light)
+        valueLabel.font = .monospacedDigitSystemFont(ofSize: 46, weight: .light)
         valueLabel.textAlignment = .center
         unitLabel.font = .systemFont(ofSize: 11, weight: .semibold)
         unitLabel.textAlignment = .center
@@ -1061,6 +1076,13 @@ final class CircularTimerDialView: UIControl {
             unitLabel.topAnchor.constraint(equalTo: valueLabel.bottomAnchor, constant: 2),
             unitLabel.centerXAnchor.constraint(equalTo: centerXAnchor)
         ])
+        rotationGesture.maximumNumberOfTouches = 1
+        rotationGesture.delegate = self
+        addGestureRecognizer(rotationGesture)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapDial(_:)))
+        tap.delegate = self
+        tap.require(toFail: rotationGesture)
+        addGestureRecognizer(tap)
         setDuration(minutes: 30)
     }
 
@@ -1084,25 +1106,39 @@ final class CircularTimerDialView: UIControl {
         }
     }
 
-    override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
-        let p = touch.location(in: self)
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        let point = touch.location(in: self)
         let radius = min(bounds.width, bounds.height) * 0.5 - 24
-        let distance = hypot(p.x - bounds.midX, p.y - bounds.midY)
-        guard abs(distance - radius) < 38 else { return false }
-        feedback.prepare()
-        previousTouchAngle = nil
-        handleTouch(touch)
-        return true
+        return abs(hypot(point.x - bounds.midX, point.y - bounds.midY) - radius) < 32
     }
-    override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
-        handleTouch(touch)
-        return true
-    }
-    override func endTracking(_ touch: UITouch?, with event: UIEvent?) { previousTouchAngle = nil }
-    override func cancelTracking(with event: UIEvent?) { previousTouchAngle = nil }
 
-    private func handleTouch(_ touch: UITouch) {
-        let p = touch.location(in: self)
+    @objc private func rotateDial(_ gesture: UIPanGestureRecognizer) {
+        let point = gesture.location(in: self)
+        switch gesture.state {
+        case .began:
+            feedback.prepare()
+            previousTouchAngle = nil
+            let translation = gesture.translation(in: self)
+            handlePoint(CGPoint(x: point.x - translation.x, y: point.y - translation.y))
+            handlePoint(point)
+        case .changed:
+            handlePoint(point)
+        case .ended:
+            handlePoint(point)
+            previousTouchAngle = nil
+        default:
+            previousTouchAngle = nil
+        }
+    }
+
+    @objc private func tapDial(_ gesture: UITapGestureRecognizer) {
+        previousTouchAngle = nil
+        feedback.prepare()
+        handlePoint(gesture.location(in: self))
+        previousTouchAngle = nil
+    }
+
+    private func handlePoint(_ p: CGPoint) {
         let dx = p.x - bounds.midX, dy = p.y - bounds.midY
         guard hypot(dx, dy) > 35 else { return }
         let angle = atan2(dy, dx)

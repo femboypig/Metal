@@ -1543,6 +1543,62 @@ fragment float4 waveFragmentShader(
     // Premultiplied alpha for seamless transparency
     return float4(finalRGB * alpha, alpha);
 }
+
+struct MixBurstUniforms {
+    float2 resolution;
+    float2 origin;
+    float time;
+    float isDark;
+    float cornerRadius;
+    float padding;
+};
+
+fragment float4 mixBurstFragmentShader(
+    VertexOut in [[stage_in]],
+    constant MixBurstUniforms &u [[buffer(0)]]
+) {
+    float2 res = max(u.resolution, float2(1.0));
+    float scale = min(res.x, res.y) / 390.0;
+    float2 pixel = in.position.xy;
+    float2 offset = pixel - u.origin;
+    float distance = length(offset);
+    float angle = atan2(offset.y, offset.x);
+    float t = u.time;
+    float progress = clamp((t - 0.06) / 0.92, 0.0, 1.0);
+    float farthest = length(max(u.origin, res - u.origin));
+    float radius = farthest * (1.0 - pow(1.0 - progress, 1.6));
+    float ripple = sin(angle * 5.0 - t * 18.0) * 6.0 * scale * (1.0 - progress);
+    float front = (distance - radius - ripple) / scale;
+    float launch = smoothstep(0.02, 0.10, t) * (1.0 - smoothstep(0.70, 1.02, t));
+    float shock = (exp(-front * front / 80.0) * 0.28
+                 + exp(-front * front / 1400.0) * 0.16) * launch;
+    float core = exp(-distance * distance / (2500.0 * scale * scale))
+                 * exp(-pow((t - 0.12) / 0.10, 2.0)) * 0.26;
+
+    // Signed distance to the screen contour. Multiple continuous falloffs create
+    // a luminous inner bloom rather than a hard stroked rectangle.
+    float corner = u.cornerRadius;
+    float2 q = abs(pixel - res * 0.5) - (res * 0.5 - corner - 1.5 * scale);
+    float sdf = length(max(q, float2(0.0))) + min(max(q.x, q.y), 0.0) - corner;
+    float edge = abs(sdf) / scale;
+    float localArrival = 0.06 + 0.92 * (1.0 - pow(max(0.0, 1.0 - distance / max(farthest, 1.0)), 0.625));
+    float arrival = exp(-pow((t - localArrival) / 0.16, 2.0));
+    float settle = smoothstep(0.3, 0.95, t) * (1.0 - smoothstep(1.35, 2.65, t));
+    float flow = 0.82 + 0.18 * sin(pixel.y / res.y * 9.0 - pixel.x / res.x * 5.0 - t * 3.5);
+    float rim = exp(-edge * edge / 12.0) * 0.65
+              + exp(-edge * edge / 220.0) * 0.33
+              + exp(-edge * edge / 1800.0) * 0.13;
+    float glow = rim * (settle * flow + arrival * 0.36);
+    float phase = pixel.x / res.x * 0.65 + pixel.y / res.y * 0.45 - t * 0.18;
+    float hueFlow = 0.5 + 0.5 * sin(6.2831853 * phase);
+    float3 color = mix(float3(0.20, 0.48, 1.0), float3(0.94, 0.18, 0.65), hueFlow);
+    float warmth = pow(0.5 + 0.5 * sin(6.2831853 * phase + 1.6), 5.0);
+    color = mix(color, float3(1.0, 0.46, 0.22), warmth * 0.65);
+    float alpha = clamp(shock + core + glow, 0.0, 0.88);
+    alpha *= 1.0 - smoothstep(0.0, 2.0 * scale, sdf);
+    alpha *= u.isDark > 0.5 ? 1.0 : 0.82;
+    return float4(color * alpha, alpha);
+}
 """
 
 class YandexWaveView: UIView, MTKViewDelegate {
@@ -1714,6 +1770,99 @@ class YandexWaveView: UIView, MTKViewDelegate {
 
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+}
+
+
+// The same shader library renders both the ambient wave and the transient remix
+// effect. GPU resources are cached; the overlay releases itself after the pulse.
+final class MixBurstView: MTKView, MTKViewDelegate {
+    private struct Uniforms {
+        var resolution: SIMD2<Float>
+        var origin: SIMD2<Float>
+        var time: Float
+        var isDark: Float
+        var cornerRadius: Float
+        var padding: Float = 0
+    }
+
+    private static let resources: (device: MTLDevice, queue: MTLCommandQueue, pipeline: MTLRenderPipelineState)? = {
+        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return nil }
+        do {
+            let library = try device.makeLibrary(source: waveMetalShaderSource, options: nil)
+            let descriptor = MTLRenderPipelineDescriptor()
+            descriptor.vertexFunction = library.makeFunction(name: "waveVertexShader")
+            descriptor.fragmentFunction = library.makeFunction(name: "mixBurstFragmentShader")
+            let color = descriptor.colorAttachments[0]!
+            color.pixelFormat = .bgra8Unorm
+            color.isBlendingEnabled = true
+            color.sourceRGBBlendFactor = .one
+            color.destinationRGBBlendFactor = .oneMinusSourceAlpha
+            color.sourceAlphaBlendFactor = .one
+            color.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            return (device, queue, try device.makeRenderPipelineState(descriptor: descriptor))
+        } catch {
+            return nil
+        }
+    }()
+
+    private let queue: MTLCommandQueue
+    private let pipeline: MTLRenderPipelineState
+    private let originFraction: SIMD2<Float>
+    private var startTime: CFTimeInterval = 0
+
+    init?(frame: CGRect, origin: CGPoint) {
+        guard frame.width > 0, frame.height > 0, let resources = Self.resources else { return nil }
+        queue = resources.queue
+        pipeline = resources.pipeline
+        originFraction = SIMD2<Float>(Float(min(1, max(0, origin.x / frame.width))),
+                                      Float(min(1, max(0, origin.y / frame.height))))
+        super.init(frame: frame, device: resources.device)
+        colorPixelFormat = .bgra8Unorm
+        clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+        isOpaque = false
+        backgroundColor = .clear
+        layer.isOpaque = false
+        isUserInteractionEnabled = false
+        accessibilityElementsHidden = true
+        preferredFramesPerSecond = 60
+        delegate = self
+    }
+
+    required init(coder: NSCoder) { fatalError("MixBurstView is created programmatically") }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        isPaused = window == nil
+        if window != nil { startTime = CACurrentMediaTime() }
+    }
+
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+
+    func draw(in view: MTKView) {
+        guard startTime > 0 else { return }
+        let elapsed = Float(CACurrentMediaTime() - startTime)
+        if elapsed > 2.7 || UIAccessibility.isReduceMotionEnabled {
+            isPaused = true
+            delegate = nil
+            removeFromSuperview()
+            return
+        }
+        guard bounds.width > 0, drawableSize.width > 0, drawableSize.height > 0,
+              let drawable = currentDrawable, let pass = currentRenderPassDescriptor,
+              let command = queue.makeCommandBuffer(),
+              let encoder = command.makeRenderCommandEncoder(descriptor: pass) else { return }
+        let resolution = SIMD2<Float>(Float(drawableSize.width), Float(drawableSize.height))
+        let radius: CGFloat = (window?.safeAreaInsets.top ?? 0) > 20 ? 42 : 12
+        var uniforms = Uniforms(resolution: resolution, origin: originFraction * resolution,
+            time: elapsed, isDark: traitCollection.userInterfaceStyle == .dark ? 1 : 0,
+            cornerRadius: Float(radius * drawableSize.width / bounds.width))
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+        command.present(drawable)
+        command.commit()
     }
 }
 

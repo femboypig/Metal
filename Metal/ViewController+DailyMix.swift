@@ -311,87 +311,21 @@ extension ViewController {
               (libraryVisible && activeFilter == .dailyMix) || playerVisible,
               dailyMixTracks.count > 1, now - lastMixShakeTime > 3 else { return }
         lastMixShakeTime = now
-        let oldMix = dailyMixTracks
-        let oldQueue = playbackQueue
-        let oldMixID = dailyMixID
-        let playingURL = audioPlayer?.url
         dailyMixRevision &+= 1
         dailyMixID = UUID().uuidString
         rebuildDailyMixQueue(remix: true)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         myWaveView?.shakeMix()
-        showMixShakeAnimation { [weak self] in
-            guard let self else { return }
-            // Undo can only restore the queue while the same track is current.
-            guard self.audioPlayer?.url == playingURL else { return }
-            self.dailyMixTracks = oldMix
-            self.dailyMixID = oldMixID
-            self.playbackQueue = oldQueue
-            self.currentTrackIndex = oldQueue.firstIndex { $0.url == playingURL }
-            if self.isShuffleEnabled { self.rebuildShuffleQueue() }
-            if self.activeFilter == .dailyMix { self.filterTracks() }
-            self.prepareUpcomingTrack()
-            self.updateCarouselArtworks(animated: false)
-        }
+        showMixShakeAnimation()
     }
 
-    private func showMixShakeAnimation(undo: @escaping () -> Void) {
-        let banner = UIButton(type: .system)
-        var config = UIButton.Configuration.filled()
-        config.title = "Mix reshaped · Undo"
-        config.image = UIImage(systemName: "waveform.path")
-        config.imagePadding = 10
-        config.baseBackgroundColor = primaryTextColor()
-        config.baseForegroundColor = primaryBackgroundColor()
-        config.cornerStyle = .capsule
-        config.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 22, bottom: 14, trailing: 22)
-        banner.configuration = config
-        banner.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(banner)
-        NSLayoutConstraint.activate([
-            banner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            banner.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-            banner.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -32)
-        ])
-        banner.addAction(UIAction { _ in
-            undo()
-            banner.removeFromSuperview()
-        }, for: .touchUpInside)
+    private func showMixShakeAnimation() {
         UIAccessibility.post(notification: .announcement, argument: "Mix reshaped. Current song keeps playing.")
-        if !UIAccessibility.isReduceMotionEnabled {
-            banner.alpha = 0
-            UIView.animate(withDuration: 0.25) { banner.alpha = 1 }
-            let shake = CAKeyframeAnimation(keyPath: "transform.rotation.z")
-            shake.values = [0, -0.045, 0.04, -0.025, 0.015, 0]
-            shake.duration = 0.65
-            banner.layer.add(shake, forKey: "mixShake")
-            // A short luminous perimeter follows the same palette as the wave.
-            let glow = CAGradientLayer()
-            glow.frame = view.bounds
-            glow.type = .conic
-            glow.colors = [UIColor.systemCyan.cgColor, UIColor.systemPink.cgColor,
-                           UIColor.systemOrange.cgColor, UIColor.systemPurple.cgColor, UIColor.systemCyan.cgColor]
-            glow.startPoint = CGPoint(x: 0.5, y: 0.5)
-            glow.endPoint = CGPoint(x: 1, y: 0)
-            let outline = CAShapeLayer()
-            outline.path = UIBezierPath(roundedRect: view.bounds.insetBy(dx: 3, dy: 3), cornerRadius: 42).cgPath
-            outline.fillColor = UIColor.clear.cgColor
-            outline.strokeColor = UIColor.white.cgColor
-            outline.lineWidth = 5
-            glow.mask = outline
-            view.layer.addSublayer(glow)
-            let pulse = CAKeyframeAnimation(keyPath: "opacity")
-            pulse.values = [0, 1, 0.8, 0]
-            pulse.keyTimes = [0, 0.2, 0.5, 1]
-            pulse.duration = 1.6
-            glow.opacity = 0
-            glow.add(pulse, forKey: "mixGlow")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) { glow.removeFromSuperlayer() }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak banner] in
-            UIView.animate(withDuration: 0.2, animations: { banner?.alpha = 0 }) { _ in
-                banner?.removeFromSuperview()
-            }
-        }
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        let waveCenter = myWaveView.convert(CGPoint(x: myWaveView.bounds.midX, y: myWaveView.bounds.midY), to: view)
+        let origin = isPlayerPageVisible ? CGPoint(x: view.bounds.midX, y: view.bounds.midY) : waveCenter
+        guard let burst = MixBurstView(frame: view.bounds, origin: origin) else { return }
+        burst.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(burst)
     }
 }
