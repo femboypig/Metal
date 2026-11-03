@@ -169,5 +169,3 @@ enum ListeningTaste {
         return evidence / weight
     }
 }
-
-
