@@ -788,6 +788,21 @@ extension ViewController {
         sleepFadePlayer = nil
     }
 
+    func finishSleepTimerStop(for player: AVAudioPlayer) {
+        updateListeningTelemetry(with: player)
+        finishListeningTelemetry(completed: false, skipped: false,
+            progress: player.duration > 0 ? player.currentTime / player.duration : 0,
+            reason: .sleepTimer)
+        player.pause()
+        cancelSleepFade()
+        updateTimer?.invalidate()
+        savePlaybackState()
+        playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+        stopArtworkAnimation()
+        updateNowPlayingInfo()
+        updateMiniPlayerUI()
+    }
+
     func stopPlaybackDueToSleepTimer() {
         guard sleepFadeTimer == nil else { return }
         sleepTimer?.invalidate()
@@ -808,18 +823,7 @@ extension ViewController {
             let progress = min(1, (ProcessInfo.processInfo.systemUptime - started) / 5)
             player.volume = initialVolume * Float(1 - progress)
             if progress >= 1 {
-                self.updateListeningTelemetry(with: player)
-                self.finishListeningTelemetry(completed: false, skipped: false,
-                    progress: player.duration > 0 ? player.currentTime / player.duration : 0,
-                    reason: .sleepTimer)
-                player.pause()
-                self.cancelSleepFade()
-                self.updateTimer?.invalidate()
-                self.savePlaybackState()
-                self.playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
-                self.stopArtworkAnimation()
-                self.updateNowPlayingInfo()
-                self.updateMiniPlayerUI()
+                self.finishSleepTimerStop(for: player)
             }
         }
     }

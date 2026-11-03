@@ -560,7 +560,7 @@ extension ViewController {
         }
 
         let aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
-        if aidjEnabled && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
+        if aidjEnabled && sleepFadeTimer == nil && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
             transitionToNextTrack()
         }
     }
@@ -746,6 +746,10 @@ extension ViewController {
     // MARK: - AVAudioPlayerDelegate
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        if sleepFadeTimer != nil {
+            finishSleepTimerStop(for: player)
+            return
+        }
         updateListeningTelemetry(with: player)
         finishListeningTelemetry(completed: flag, skipped: false, progress: 1, reason: flag ? .completed : .failure)
         if isRepeatEnabled {
