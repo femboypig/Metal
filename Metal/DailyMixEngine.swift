@@ -51,6 +51,8 @@ struct DailyMixCandidate: Equatable {
     var hasAnalyzedVibe: Bool = true
     var recentRejection: Double = 0
     var fatiguePenalty: Double = 0
+    var sessionAffinity: Double = 0
+    var remixPenalty: Double = 0
 }
 
 enum DayPart: Int, CaseIterable {
@@ -124,6 +126,8 @@ enum DailyMixEngine {
                 score: similarity * 0.48
                     + clamp(candidate.taste, 0, 1) * 0.18
                     + candidate.contextAffinity * 0.28
+                    + candidate.sessionAffinity * 0.45
+                    - candidate.remixPenalty * 0.35
                     + discovery
                     + jitter
                     - recentPenalty
@@ -175,11 +179,16 @@ enum DailyMixEngine {
         dayKey: Int64,
         now: TimeInterval
     ) -> Double {
-        if candidate.isUnheard { return -10.0 }
+        if candidate.isUnheard {
+            return -0.3 + stableUnitValue(for: "new|\(dayKey)|\(candidate.id)") * 0.2
+                - candidate.remixPenalty * 0.75 + candidate.sessionAffinity * 0.5
+        }
         if candidate.fatiguePenalty > 0.3 { return -10.0 }
         let rotation = stableUnitValue(for: "anchor|\(dayKey)|\(candidate.id)") * 0.04
         return clamp(candidate.taste, 0, 1) * 0.35
             + candidate.contextAffinity * 0.60
+            + candidate.sessionAffinity * 0.85
+            - candidate.remixPenalty * 0.75
             + (candidate.hasAnalyzedVibe ? 0.10 : 0)
             + rotation
             - candidate.recentRejection * 1.5
@@ -201,7 +210,7 @@ enum DailyMixEngine {
         )
     }
 
-    private static func vibeDistance(
+    static func vibeDistance(
         _ lhs: AudioVibeProfile,
         _ rhs: AudioVibeProfile,
         duration: TimeInterval

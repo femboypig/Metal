@@ -33,6 +33,8 @@ jobs:
           set -euo pipefail
           xcrun swiftc Metal/DailyMixEngine.swift Tests/DailyMixEngineChecks.swift -o "$RUNNER_TEMP/daily-mix-checks"
           "$RUNNER_TEMP/daily-mix-checks"
+          xcrun swiftc Metal/ListeningHistory.swift Tests/ListeningHistoryChecks.swift -o "$RUNNER_TEMP/listening-history-checks"
+          "$RUNNER_TEMP/listening-history-checks"
 
       - name: Build unsigned app
         run: |

@@ -119,11 +119,27 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var audioPlayer: AVAudioPlayer?
     var updateTimer: Timer?
     var sleepTimer: Timer?
+    var sleepFadeTimer: Timer?
+    weak var sleepFadePlayer: AVAudioPlayer?
+    var sleepFadeVolume: Float = 1
     var sleepTimerEndDate: Date?
     var persistedSettings = MetalSettingsDocument()
     var isRestoringPersistentState = false
     var lastSavedPlaybackBucket = -1
     var listeningTelemetry = ListeningTelemetryDocument()
+    var playbackSource: ListeningSource = .library
+    var pendingListeningEndReason: ListeningEndReason = .selection
+    var pendingManualSelection: String?
+    var telemetrySessionSource: ListeningSource = .library
+    var telemetrySessionStartedAt = Date()
+    var telemetrySessionDuration: TimeInterval = 0
+    var telemetrySessionWasManual = false
+    var telemetrySessionFavoriteAtStart = false
+    var telemetrySessionMixID: String?
+    var telemetryLastUptime: TimeInterval = 0
+    var dailyMixRevision: Int64 = 0
+    var dailyMixID = UUID().uuidString
+    var lastMixShakeTime: TimeInterval = 0
     var telemetrySessionFilename: String?
     var telemetryLastPlaybackTime: TimeInterval = 0
     var telemetrySessionListeningSeconds: TimeInterval = 0
@@ -187,6 +203,18 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         NotificationCenter.default.removeObserver(self)
     }
     
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        becomeFirstResponder()
+    }
+
+    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+        if motion == .motionShake { shakeDailyMix() }
+        else { super.motionEnded(motion, with: event) }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         registerCustomFonts()
@@ -266,6 +294,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
     
     @objc func appWillEnterForeground() {
+        if let deadline = sleepTimerEndDate, deadline <= Date() { stopPlaybackDueToSleepTimer() }
         refreshDailyMixIfNeeded()
         startDailyMixRefreshTimer()
         updateMiniPlayerUI()

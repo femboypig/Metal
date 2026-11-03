@@ -30,6 +30,16 @@ enum DailyMixEngineChecks {
         precondition(mix([]).isEmpty)
         precondition(mix(Array(candidates.prefix(1))).count == 1)
         precondition(mix(Array(candidates.prefix(10)), limit: 30).count < 10)
+        var sessionShift = candidates
+        for index in sessionShift.indices {
+            sessionShift[index].contextAffinity = 0.5
+            sessionShift[index].sessionAffinity = index < 20 ? -0.8 : 0.8
+        }
+        precondition(mix(sessionShift).allSatisfy { Int($0.dropFirst(5))! >= 20 },
+            "Current-session reactions must change the direction")
+        var remixed = candidates
+        for index in remixed.indices { remixed[index].remixPenalty = index < 20 ? 1 : 0 }
+        precondition(mix(remixed) != result, "Remix must change the selection")
         print("Daily Mix behavioral checks passed")
     }
 }

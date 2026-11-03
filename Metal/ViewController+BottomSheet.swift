@@ -304,7 +304,8 @@ extension ViewController {
         actions.append(shareAction)
         
         // 4. Sleep Timer
-        let sleepTimerAction = UIAction(title: "Sleep Timer", image: UIImage(systemName: "timer")) { [weak self] _ in
+        let sleepTitle = sleepTimerEndDate.map { $0 > Date() ? "Sleep Timer · On" : "Sleep Timer" } ?? "Sleep Timer"
+        let sleepTimerAction = UIAction(title: sleepTitle, image: UIImage(systemName: "moon.zzz")) { [weak self] _ in
             self?.showSleepTimerSelector()
         }
         actions.append(sleepTimerAction)
@@ -319,7 +320,7 @@ extension ViewController {
         
         // 6. Delete Song
         let deleteAction = UIAction(title: "Delete Song", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
-            self?.deleteTrack(at: index)
+            self?.deleteTrack(track: track)
         }
         actions.append(deleteAction)
         
@@ -331,10 +332,10 @@ extension ViewController {
     }
     
     func makePlayerOptionsMenu() -> UIMenu {
-        guard let index = currentTrackIndex, index < filteredTracks.count else {
+        guard let track = currentPlaybackTrack() else {
             return UIMenu(title: "Options", children: [])
         }
-        let track = filteredTracks[index]
+        let index = filteredTracks.firstIndex { $0.url == track.url } ?? 0
         return makeTrackContextMenu(for: track, at: index, isPlayer: true)
     }
     
@@ -724,159 +725,31 @@ extension ViewController {
     
     func presentCircularSleepTimerSheet() {
         dismissActiveSheet { [weak self] in
-            guard let self = self else { return }
-            self.setupAndPresentCircularSleepTimerSheet()
-        }
-    }
-    
-    private func setupAndPresentCircularSleepTimerSheet() {
-        let dimmedBg = UIView()
-        dimmedBg.translatesAutoresizingMaskIntoConstraints = false
-        dimmedBg.backgroundColor = UIColor.black.withAlphaComponent(0.45)
-        dimmedBg.alpha = 0.0
-        view.addSubview(dimmedBg)
-        
-        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissCustomBottomSheet))
-        dimmedBg.addGestureRecognizer(tap)
-        
-        let sheetView = UIView()
-        sheetView.translatesAutoresizingMaskIntoConstraints = false
-        sheetView.backgroundColor = cardBackgroundColor()
-        sheetView.layer.cornerRadius = 24
-        sheetView.layer.borderWidth = 1.0
-        sheetView.layer.borderColor = cardBorderColor().cgColor
-        sheetView.layer.shadowColor = UIColor.black.cgColor
-        sheetView.layer.shadowOffset = CGSize(width: 0, height: 8)
-        sheetView.layer.shadowOpacity = 0.12
-        sheetView.layer.shadowRadius = 14
-        sheetView.clipsToBounds = false
-        view.addSubview(sheetView)
-        
-        // Grabber
-        let grabber = UIView()
-        grabber.translatesAutoresizingMaskIntoConstraints = false
-        grabber.backgroundColor = cardBorderColor().withAlphaComponent(0.7)
-        grabber.layer.cornerRadius = 2.5
-        sheetView.addSubview(grabber)
-        
-        let titleLabel = UILabel()
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = UIFont(name: "Georgia-Bold", size: 18) ?? .boldSystemFont(ofSize: 18)
-        titleLabel.textColor = primaryTextColor()
-        titleLabel.text = "Sleep Timer"
-        sheetView.addSubview(titleLabel)
-        
-        let subLabel = UILabel()
-        subLabel.translatesAutoresizingMaskIntoConstraints = false
-        subLabel.font = UIFont(name: "Georgia-Italic", size: 13) ?? .italicSystemFont(ofSize: 13)
-        subLabel.textColor = secondaryTextColor()
-        subLabel.text = "Rotate the dial to set sleep timer"
-        sheetView.addSubview(subLabel)
-        
-        // Circular Dial
-        let dial = CircularTimerDialView()
-        dial.translatesAutoresizingMaskIntoConstraints = false
-        dial.trackColor = cardBorderColor()
-        dial.progressColor = primaryButtonColor()
-        dial.textColor = primaryTextColor()
-        dial.subtitleColor = secondaryTextColor()
-        sheetView.addSubview(dial)
-        
-        if let endDate = sleepTimerEndDate, endDate > Date() {
-            let remaining = max(5.0, ceil(endDate.timeIntervalSinceNow / 60.0))
-            dial.setDuration(minutes: remaining)
-        }
-        
-        let buttonStack = UIStackView()
-        buttonStack.translatesAutoresizingMaskIntoConstraints = false
-        buttonStack.axis = .vertical
-        buttonStack.spacing = 10
-        buttonStack.distribution = .fill
-        sheetView.addSubview(buttonStack)
-        
-        let isTimerActive = (sleepTimer != nil && sleepTimerEndDate != nil && sleepTimerEndDate! > Date())
-        
-        let submitBtn = UIButton(type: .custom)
-        submitBtn.translatesAutoresizingMaskIntoConstraints = false
-        submitBtn.setTitle(isTimerActive ? "Update Sleep Timer" : "Start Sleep Timer", for: .normal)
-        submitBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 15) ?? .boldSystemFont(ofSize: 15)
-        submitBtn.setTitleColor(primaryButtonTextColor(), for: .normal)
-        submitBtn.backgroundColor = primaryButtonColor()
-        submitBtn.layer.cornerRadius = 14
-        submitBtn.heightAnchor.constraint(equalToConstant: 48).isActive = true
-        submitBtn.addAction(UIAction { [weak self] _ in
-            self?.dismissActiveSheet {
-                self?.startSleepTimer(minutes: dial.durationMinutes)
-            }
-        }, for: .touchUpInside)
-        buttonStack.addArrangedSubview(submitBtn)
-        
-        if isTimerActive {
-            let cancelTimerBtn = UIButton(type: .system)
-            cancelTimerBtn.translatesAutoresizingMaskIntoConstraints = false
-            cancelTimerBtn.setTitle("Cancel Active Timer", for: .normal)
-            cancelTimerBtn.titleLabel?.font = UIFont(name: "Georgia-Bold", size: 14) ?? .boldSystemFont(ofSize: 14)
-            cancelTimerBtn.setTitleColor(.systemRed, for: .normal)
-            cancelTimerBtn.layer.cornerRadius = 14
-            cancelTimerBtn.layer.borderWidth = 1.0
-            cancelTimerBtn.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.3).cgColor
-            cancelTimerBtn.heightAnchor.constraint(equalToConstant: 42).isActive = true
-            cancelTimerBtn.addAction(UIAction { [weak self] _ in
-                self?.dismissActiveSheet {
-                    self?.cancelSleepTimer()
+            guard let self, self.presentedViewController == nil else { return }
+            let controller = SleepTimerViewController()
+            controller.endDate = self.sleepTimerEndDate
+            controller.onStart = { [weak self] minutes in self?.startSleepTimer(minutes: minutes) }
+            controller.onCancel = { [weak self] in self?.cancelSleepTimer() }
+            controller.modalPresentationStyle = .pageSheet
+            if let sheet = controller.sheetPresentationController {
+                if #available(iOS 16.0, *) {
+                    let height: CGFloat = controller.endDate.map { $0 > Date() } == true ? 660 : 610
+                    sheet.detents = [.custom(identifier: .init("sleepTimer")) { context in
+                        min(height, context.maximumDetentValue)
+                    }]
+                } else {
+                    sheet.detents = [.large()]
                 }
-            }, for: .touchUpInside)
-            buttonStack.addArrangedSubview(cancelTimerBtn)
+                sheet.prefersGrabberVisible = true
+                sheet.preferredCornerRadius = 32
+            }
+            self.present(controller, animated: true)
         }
-        
-        self.activeDimmedBg = dimmedBg
-        self.activeSheetView = sheetView
-        self.activeSheetBottomConstraint = sheetView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 500)
-        
-        NSLayoutConstraint.activate([
-            dimmedBg.topAnchor.constraint(equalTo: view.topAnchor),
-            dimmedBg.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            dimmedBg.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            dimmedBg.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            
-            sheetView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            sheetView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            self.activeSheetBottomConstraint!,
-            
-            grabber.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
-            grabber.topAnchor.constraint(equalTo: sheetView.topAnchor, constant: 8),
-            grabber.widthAnchor.constraint(equalToConstant: 36),
-            grabber.heightAnchor.constraint(equalToConstant: 5),
-            
-            titleLabel.topAnchor.constraint(equalTo: grabber.bottomAnchor, constant: 14),
-            titleLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
-            titleLabel.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
-            
-            subLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
-            subLabel.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
-            subLabel.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
-            
-            dial.topAnchor.constraint(equalTo: subLabel.bottomAnchor, constant: 16),
-            dial.centerXAnchor.constraint(equalTo: sheetView.centerXAnchor),
-            dial.widthAnchor.constraint(equalToConstant: 220),
-            dial.heightAnchor.constraint(equalToConstant: 220),
-            
-            buttonStack.topAnchor.constraint(equalTo: dial.bottomAnchor, constant: 20),
-            buttonStack.leadingAnchor.constraint(equalTo: sheetView.leadingAnchor, constant: 20),
-            buttonStack.trailingAnchor.constraint(equalTo: sheetView.trailingAnchor, constant: -20),
-            buttonStack.bottomAnchor.constraint(equalTo: sheetView.bottomAnchor, constant: -20)
-        ])
-        
-        view.layoutIfNeeded()
-        
-        self.activeSheetBottomConstraint?.constant = -16
-        UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.82, initialSpringVelocity: 0.5, options: [], animations: {
-            dimmedBg.alpha = 1.0
-            self.view.layoutIfNeeded()
-        }, completion: nil)
     }
-    
+
     func startSleepTimer(minutes: Double) {
+        guard minutes.isFinite, minutes > 0 else { return }
+        cancelSleepFade()
         sleepTimer?.invalidate()
         sleepTimerEndDate = Date().addingTimeInterval(minutes * 60)
         let seconds = minutes * 60
@@ -895,52 +768,62 @@ extension ViewController {
             let remainderMins = Int(minutes) % 60
             message = "Sleep timer set for \(hours)h \(remainderMins)m"
         }
+        updatePlayerOptionsMenu()
         showToast(message: message, success: true)
     }
     
     func cancelSleepTimer() {
+        cancelSleepFade()
         sleepTimer?.invalidate()
         sleepTimer = nil
         sleepTimerEndDate = nil
+        updatePlayerOptionsMenu()
         showToast(message: "Sleep timer cancelled", success: true)
     }
     
+    func cancelSleepFade() {
+        sleepFadeTimer?.invalidate()
+        sleepFadeTimer = nil
+        sleepFadePlayer?.volume = sleepFadeVolume
+        sleepFadePlayer = nil
+    }
+
     func stopPlaybackDueToSleepTimer() {
-        guard let player = audioPlayer, player.isPlaying else {
-            sleepTimer = nil
-            sleepTimerEndDate = nil
-            return
-        }
-        
+        guard sleepFadeTimer == nil else { return }
+        sleepTimer?.invalidate()
+        sleepTimer = nil
+        sleepTimerEndDate = nil
+        updatePlayerOptionsMenu()
+        guard let player = audioPlayer, player.isPlaying else { return }
+        if aidj.isTransitioning { aidj.cancel(keeping: player) }
+        sleepFadePlayer = player
+        sleepFadeVolume = player.volume
         let initialVolume = player.volume
-        var currentFadeStep = 0
-        let totalSteps = 20
-        let interval = 0.25 // 5 seconds total fade out
-        
-        Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] timer in
-            guard let self = self else {
+        let started = ProcessInfo.processInfo.systemUptime
+        sleepFadeTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self, weak player] timer in
+            guard let self, let player, self.audioPlayer === player else {
                 timer.invalidate()
                 return
             }
-            
-            currentFadeStep += 1
-            let progress = Float(totalSteps - currentFadeStep) / Float(totalSteps)
-            player.volume = initialVolume * progress
-            
-            if currentFadeStep >= totalSteps {
-                timer.invalidate()
+            let progress = min(1, (ProcessInfo.processInfo.systemUptime - started) / 5)
+            player.volume = initialVolume * Float(1 - progress)
+            if progress >= 1 {
+                self.updateListeningTelemetry(with: player)
+                self.finishListeningTelemetry(completed: false, skipped: false,
+                    progress: player.duration > 0 ? player.currentTime / player.duration : 0,
+                    reason: .sleepTimer)
                 player.pause()
-                player.volume = initialVolume // Restore volume
-                
-                self.playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 52, weight: .bold)), for: .normal)
+                self.cancelSleepFade()
+                self.updateTimer?.invalidate()
+                self.savePlaybackState()
+                self.playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
                 self.stopArtworkAnimation()
                 self.updateNowPlayingInfo()
                 self.updateMiniPlayerUI()
-                self.sleepTimer = nil
-                self.sleepTimerEndDate = nil
             }
         }
     }
+
 }
 
 // MARK: - Queue Sheet Data Source Helper
@@ -981,201 +864,313 @@ private class QueueSheetDataSource: NSObject, UITableViewDataSource, UITableView
     }
 }
 
-// MARK: - Circular Sleep Timer Dial View
+// MARK: - Sleep timer
 
-class CircularTimerDialView: UIControl {
-    private(set) var durationMinutes: Double = 30.0
+private final class SleepTimerViewController: UIViewController {
+    var endDate: Date?
+    var onStart: ((Double) -> Void)?
+    var onCancel: (() -> Void)?
+    private let dial = CircularTimerDialView()
+    private let finishLabel = UILabel()
+    private let statusLabel = UILabel()
+    private let startButton = UIButton(type: .system)
+    private var statusTimer: Timer?
+
+    deinit { statusTimer?.invalidate() }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        let scroll = UIScrollView()
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scroll)
+        let stack = UIStackView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.alignment = .fill
+        stack.spacing = 16
+        scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 24),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -24),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
+            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -48)
+        ])
+        let header = UIStackView()
+        header.alignment = .center
+        let title = UILabel()
+        title.text = "Sleep timer"
+        title.font = .systemFont(ofSize: 28, weight: .semibold)
+        title.adjustsFontForContentSizeCategory = true
+        title.accessibilityTraits = .header
+        header.addArrangedSubview(title)
+        let close = UIButton(type: .system)
+        close.setImage(UIImage(systemName: "xmark.circle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 27)), for: .normal)
+        close.tintColor = .tertiaryLabel
+        close.accessibilityLabel = "Close sleep timer"
+        close.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        close.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        close.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) }, for: .touchUpInside)
+        header.addArrangedSubview(close)
+        stack.addArrangedSubview(header)
+        statusLabel.font = .preferredFont(forTextStyle: .subheadline)
+        statusLabel.textColor = .secondaryLabel
+        statusLabel.numberOfLines = 0
+        statusLabel.adjustsFontForContentSizeCategory = true
+        stack.addArrangedSubview(statusLabel)
+
+        let dialContainer = UIView()
+        dial.translatesAutoresizingMaskIntoConstraints = false
+        dialContainer.addSubview(dial)
+        NSLayoutConstraint.activate([
+            dial.centerXAnchor.constraint(equalTo: dialContainer.centerXAnchor),
+            dial.topAnchor.constraint(equalTo: dialContainer.topAnchor),
+            dial.bottomAnchor.constraint(equalTo: dialContainer.bottomAnchor),
+            dial.widthAnchor.constraint(equalTo: dial.heightAnchor),
+            dial.widthAnchor.constraint(lessThanOrEqualTo: dialContainer.widthAnchor),
+            dial.heightAnchor.constraint(equalToConstant: 252)
+        ])
+        stack.addArrangedSubview(dialContainer)
+        if let endDate, endDate > Date() {
+            dial.setDuration(minutes: ceil(endDate.timeIntervalSinceNow / 60))
+        }
+        dial.onDurationChanged = { [weak self] _ in self?.updateFinishTime() }
+        finishLabel.textAlignment = .center
+        finishLabel.font = .preferredFont(forTextStyle: .subheadline)
+        finishLabel.textColor = .secondaryLabel
+        finishLabel.numberOfLines = 0
+        finishLabel.adjustsFontForContentSizeCategory = true
+        stack.addArrangedSubview(finishLabel)
+
+        let presets = UIStackView()
+        presets.spacing = 8
+        presets.distribution = .fillEqually
+        for minutes in [15, 30, 45, 60] {
+            let button = UIButton(type: .system)
+            var config = UIButton.Configuration.tinted()
+            config.title = "\(minutes)m"
+            config.baseForegroundColor = .label
+            config.baseBackgroundColor = .secondarySystemFill
+            config.cornerStyle = .capsule
+            button.configuration = config
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            button.accessibilityLabel = "\(minutes) minutes"
+            button.addAction(UIAction { [weak self] _ in
+                self?.dial.setDuration(minutes: Double(minutes))
+                self?.updateFinishTime()
+                UISelectionFeedbackGenerator().selectionChanged()
+            }, for: .touchUpInside)
+            presets.addArrangedSubview(button)
+        }
+        stack.addArrangedSubview(presets)
+        var config = UIButton.Configuration.filled()
+        config.title = endDate.map { $0 > Date() } == true ? "Update timer" : "Start timer"
+        config.image = UIImage(systemName: "moon.zzz.fill")
+        config.imagePadding = 10
+        config.baseBackgroundColor = .label
+        config.baseForegroundColor = .systemBackground
+        config.cornerStyle = .capsule
+        startButton.configuration = config
+        startButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 54).isActive = true
+        startButton.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            let minutes = self.dial.durationMinutes
+            self.dismiss(animated: true) { self.onStart?(minutes) }
+        }, for: .touchUpInside)
+        stack.addArrangedSubview(startButton)
+        if endDate.map({ $0 > Date() }) == true {
+            let cancel = UIButton(type: .system)
+            cancel.setTitle("Cancel timer", for: .normal)
+            cancel.tintColor = .systemRed
+            cancel.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            cancel.addAction(UIAction { [weak self] _ in
+                guard let self else { return }
+                self.dismiss(animated: true) { self.onCancel?() }
+            }, for: .touchUpInside)
+            stack.addArrangedSubview(cancel)
+        }
+        updateStatus()
+        updateFinishTime()
+        statusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.updateStatus()
+            self?.updateFinishTime()
+        }
+    }
+
+    private func updateStatus() {
+        if let endDate, endDate > Date() {
+            let seconds = Int(ceil(endDate.timeIntervalSinceNow))
+            statusLabel.text = String(format: "Timer active · %d:%02d remaining", seconds / 60, seconds % 60)
+        } else {
+            statusLabel.text = "Turn the dial. Let the music fade into sleep."
+        }
+    }
+
+    private func updateFinishTime() {
+        let finish = Date().addingTimeInterval(dial.durationMinutes * 60)
+        let time = DateFormatter.localizedString(from: finish, dateStyle: .none, timeStyle: .short)
+        finishLabel.text = "Playback fades out at \(time)"
+    }
+}
+
+final class CircularTimerDialView: UIControl {
+    private(set) var durationMinutes: Double = 30
     var onDurationChanged: ((Double) -> Void)?
-    
-    private var angle: CGFloat = (.pi * 0.5) // ~30 minutes
     private let feedback = UISelectionFeedbackGenerator()
-    
-    var trackColor: UIColor = UIColor.white.withAlphaComponent(0.12)
-    var progressColor: UIColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-    var textColor: UIColor = .white
-    var subtitleColor: UIColor = UIColor.white.withAlphaComponent(0.6)
-    
     private let valueLabel = UILabel()
     private let unitLabel = UILabel()
-    
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        setup()
-    }
-    
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setup()
-    }
-    
+    private let startAngle: CGFloat = .pi * 0.75
+    private let sweep: CGFloat = .pi * 1.5
+    private var previousTouchAngle: CGFloat?
+    private var fraction: CGFloat { CGFloat((durationMinutes - 5) / 115) }
+
+    override init(frame: CGRect) { super.init(frame: frame); setup() }
+    required init?(coder: NSCoder) { super.init(coder: coder); setup() }
+
     private func setup() {
         backgroundColor = .clear
         isOpaque = false
         contentMode = .redraw
-        
-        valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.font = UIFont(name: "Georgia-Bold", size: 36) ?? UIFont.systemFont(ofSize: 36, weight: .bold)
+        isAccessibilityElement = true
+        accessibilityLabel = "Sleep duration"
+        accessibilityTraits = .adjustable
+        valueLabel.font = .monospacedDigitSystemFont(ofSize: 54, weight: .light)
         valueLabel.textAlignment = .center
-        addSubview(valueLabel)
-        
-        unitLabel.translatesAutoresizingMaskIntoConstraints = false
-        unitLabel.font = UIFont(name: "Georgia-Italic", size: 12) ?? UIFont.systemFont(ofSize: 12, weight: .medium)
+        unitLabel.font = .systemFont(ofSize: 11, weight: .semibold)
         unitLabel.textAlignment = .center
-        addSubview(unitLabel)
-        
+        unitLabel.textColor = .secondaryLabel
+        unitLabel.text = "MINUTES"
+        for label in [valueLabel, unitLabel] {
+            label.translatesAutoresizingMaskIntoConstraints = false
+            label.isAccessibilityElement = false
+            addSubview(label)
+        }
         NSLayoutConstraint.activate([
             valueLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
             valueLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -8),
-            
             unitLabel.topAnchor.constraint(equalTo: valueLabel.bottomAnchor, constant: 2),
             unitLabel.centerXAnchor.constraint(equalTo: centerXAnchor)
         ])
-        
-        syncAngleFromDuration()
-        updateDisplay()
+        setDuration(minutes: 30)
     }
-    
+
     func setDuration(minutes: Double) {
-        durationMinutes = min(120.0, max(5.0, minutes))
-        syncAngleFromDuration()
-        updateDisplay()
+        durationMinutes = min(120, max(5, minutes))
+        valueLabel.text = "\(Int(durationMinutes))"
+        accessibilityValue = "\(Int(durationMinutes)) minutes"
         setNeedsDisplay()
     }
-    
-    private func syncAngleFromDuration() {
-        let fraction = (durationMinutes - 5.0) / 115.0
-        angle = CGFloat(fraction) * 2 * .pi
-    }
-    
-    private func updateDisplay() {
-        valueLabel.textColor = textColor
-        unitLabel.textColor = subtitleColor
-        
-        let mins = Int(durationMinutes)
-        if mins < 60 {
-            valueLabel.text = "\(mins)"
-            unitLabel.text = "MINUTES"
-        } else if mins == 60 {
-            valueLabel.text = "1"
-            unitLabel.text = "HOUR"
-        } else if mins == 120 {
-            valueLabel.text = "2"
-            unitLabel.text = "HOURS"
-        } else {
-            let h = mins / 60
-            let m = mins % 60
-            valueLabel.text = "\(h)h \(m)m"
-            unitLabel.text = "SLEEP TIMER"
+
+    override func accessibilityIncrement() { adjust(to: durationMinutes + 5) }
+    override func accessibilityDecrement() { adjust(to: durationMinutes - 5) }
+
+    private func adjust(to minutes: Double) {
+        let old = durationMinutes
+        setDuration(minutes: minutes)
+        if old != durationMinutes {
+            feedback.selectionChanged()
+            onDurationChanged?(durationMinutes)
+            sendActions(for: .valueChanged)
         }
     }
-    
-    // MARK: - Touch Tracking
-    
+
     override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+        let p = touch.location(in: self)
+        let radius = min(bounds.width, bounds.height) * 0.5 - 24
+        let distance = hypot(p.x - bounds.midX, p.y - bounds.midY)
+        guard abs(distance - radius) < 38 else { return false }
         feedback.prepare()
+        previousTouchAngle = nil
         handleTouch(touch)
         return true
     }
-    
     override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
         handleTouch(touch)
         return true
     }
-    
-    override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
-        if let touch = touch {
-            handleTouch(touch)
-        }
-        sendActions(for: .valueChanged)
-    }
-    
+    override func endTracking(_ touch: UITouch?, with event: UIEvent?) { previousTouchAngle = nil }
+    override func cancelTracking(with event: UIEvent?) { previousTouchAngle = nil }
+
     private func handleTouch(_ touch: UITouch) {
-        let loc = touch.location(in: self)
-        let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let dx = loc.x - center.x
-        let dy = loc.y - center.y
-        let distance = sqrt(dx * dx + dy * dy)
-        guard distance > 24 else { return }
-        
-        var rad = atan2(dy, dx) + .pi / 2
-        if rad < 0 { rad += 2 * .pi }
-        
-        let fraction = min(max(rad / (2 * .pi), 0.0), 1.0)
-        let oldDuration = durationMinutes
-        
-        let rawMins = 5.0 + fraction * 115.0
-        var snapped = round(rawMins / 5.0) * 5.0
-        if snapped < 5.0 { snapped = 5.0 }
-        if snapped > 120.0 { snapped = 120.0 }
-        durationMinutes = snapped
-        angle = CGFloat((snapped - 5.0) / 115.0) * 2 * .pi
-        
-        if abs(durationMinutes - oldDuration) > 0.001 {
-            feedback.selectionChanged()
-            onDurationChanged?(durationMinutes)
+        let p = touch.location(in: self)
+        let dx = p.x - bounds.midX, dy = p.y - bounds.midY
+        guard hypot(dx, dy) > 35 else { return }
+        let angle = atan2(dy, dx)
+        if let previous = previousTouchAngle {
+            var delta = angle - previous
+            if delta > .pi { delta -= 2 * .pi }
+            if delta < -.pi { delta += 2 * .pi }
+            // Maintain a continuous angle, including between snapped increments.
+            trackingFraction = min(1, max(0, trackingFraction + delta / sweep))
+        } else {
+            var relative = angle - startAngle
+            if relative < 0 { relative += 2 * .pi }
+            if relative <= sweep { trackingFraction = relative / sweep }
+            else { trackingFraction = relative - sweep < (2 * .pi - sweep) / 2 ? 1 : 0 }
         }
-        
-        updateDisplay()
+        previousTouchAngle = angle
+        adjust(to: (Double(trackingFraction) * 115 / 5).rounded() * 5 + 5)
+    }
+    private var trackingFraction: CGFloat = 0
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
         setNeedsDisplay()
     }
-    
+
     override func draw(_ rect: CGRect) {
-        guard let ctx = UIGraphicsGetCurrentContext() else { return }
-        
+        guard let context = UIGraphicsGetCurrentContext() else { return }
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let radius = min(bounds.width, bounds.height) / 2.0 - 22.0
+        let radius = min(bounds.width, bounds.height) / 2 - 24
         guard radius > 0 else { return }
-        
-        let trackPath = UIBezierPath(arcCenter: center, radius: radius, startAngle: 0, endAngle: 2 * .pi, clockwise: true)
-        trackColor.setStroke()
-        trackPath.lineWidth = 7.0
-        trackPath.stroke()
-        
-        let tickCount = 12
-        for i in 0..<tickCount {
-            let tickAngle = (CGFloat(i) / CGFloat(tickCount)) * 2 * .pi - .pi / 2
-            let isQuarter = (i % 3 == 0)
-            let tickLen: CGFloat = isQuarter ? 8.0 : 4.5
-            let startR = radius - 14.0
-            let endR = startR + tickLen
-            
-            let p1 = CGPoint(x: center.x + startR * cos(tickAngle), y: center.y + startR * sin(tickAngle))
-            let p2 = CGPoint(x: center.x + endR * cos(tickAngle), y: center.y + endR * sin(tickAngle))
-            
-            let tickPath = UIBezierPath()
-            tickPath.move(to: p1)
-            tickPath.addLine(to: p2)
-            tickPath.lineWidth = isQuarter ? 1.5 : 1.0
-            textColor.withAlphaComponent(isQuarter ? 0.35 : 0.16).setStroke()
-            tickPath.stroke()
+        let track = UIBezierPath(arcCenter: center, radius: radius,
+            startAngle: startAngle, endAngle: startAngle + sweep, clockwise: true)
+        UIColor.tertiarySystemFill.setStroke()
+        track.lineWidth = 3
+        track.lineCapStyle = .round
+        track.stroke()
+        for index in 0...46 {
+            let progress = CGFloat(index) / 46
+            let angle = startAngle + progress * sweep
+            let major = index % 2 == 0
+            let outer = radius - 12
+            let inner = outer - (major ? 9.0 : 4.0)
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: center.x + cos(angle) * inner, y: center.y + sin(angle) * inner))
+            path.addLine(to: CGPoint(x: center.x + cos(angle) * outer, y: center.y + sin(angle) * outer))
+            (progress <= fraction ? UIColor.systemOrange.withAlphaComponent(0.85) : UIColor.quaternaryLabel).setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
         }
-        
-        let startAngle: CGFloat = -.pi / 2
-        let currentAngle = startAngle + angle
-        if angle > 0.01 {
-            let arcPath = UIBezierPath(arcCenter: center, radius: radius, startAngle: startAngle, endAngle: currentAngle, clockwise: true)
-            progressColor.setStroke()
-            arcPath.lineWidth = 7.0
-            arcPath.lineCapStyle = .round
-            arcPath.stroke()
+        if fraction > 0 {
+            for index in 0..<100 {
+                let a = CGFloat(index) / 100 * fraction
+                let b = CGFloat(index + 1) / 100 * fraction
+                let color = UIColor(hue: 0.075 - 0.045 * a, saturation: 0.82, brightness: 1, alpha: 1)
+                let arc = UIBezierPath(arcCenter: center, radius: radius,
+                    startAngle: startAngle + a * sweep, endAngle: startAngle + b * sweep, clockwise: true)
+                color.setStroke()
+                arc.lineWidth = 4
+                arc.lineCapStyle = .round
+                arc.stroke()
+            }
         }
-        
-        let knobCenter = CGPoint(x: center.x + radius * cos(currentAngle), y: center.y + radius * sin(currentAngle))
-        let knobRadius: CGFloat = 13.0
-        
-        ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: 0, height: 2), blur: 5, color: UIColor.black.withAlphaComponent(0.35).cgColor)
-        let knobPath = UIBezierPath(arcCenter: knobCenter, radius: knobRadius, startAngle: 0, endAngle: 2 * .pi, clockwise: true)
-        UIColor.white.setFill()
-        knobPath.fill()
-        ctx.restoreGState()
-        
-        progressColor.withAlphaComponent(0.25).setStroke()
-        knobPath.lineWidth = 1.0
-        knobPath.stroke()
-        
-        let dotPath = UIBezierPath(arcCenter: knobCenter, radius: 4.5, startAngle: 0, endAngle: 2 * .pi, clockwise: true)
-        progressColor.setFill()
-        dotPath.fill()
+        let angle = startAngle + fraction * sweep
+        let knob = CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
+        context.saveGState()
+        context.setShadow(offset: .zero, blur: 12, color: UIColor.systemOrange.withAlphaComponent(0.5).cgColor)
+        UIColor.systemOrange.setFill()
+        UIBezierPath(ovalIn: CGRect(x: knob.x - 7, y: knob.y - 7, width: 14, height: 14)).fill()
+        context.restoreGState()
+        UIColor.systemBackground.setFill()
+        UIBezierPath(ovalIn: CGRect(x: knob.x - 2, y: knob.y - 2, width: 4, height: 4)).fill()
+        let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium), .foregroundColor: UIColor.tertiaryLabel]
+        ("5m" as NSString).draw(at: CGPoint(x: center.x - radius * 0.72 - 8, y: center.y + radius * 0.72 + 15), withAttributes: attrs)
+        ("2h" as NSString).draw(at: CGPoint(x: center.x + radius * 0.72 - 7, y: center.y + radius * 0.72 + 15), withAttributes: attrs)
     }
 }

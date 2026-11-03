@@ -287,6 +287,7 @@ extension ViewController {
             self.filterTracks()
             self.rebuildFiltersRow()
             if !self.filteredTracks.isEmpty {
+                self.playbackSource = .playlist
                 self.playbackQueue = self.filteredTracks
                 self.currentPlaybackContext = name.uppercased()
                 self.currentTrackIndex = 0
@@ -398,8 +399,7 @@ extension ViewController {
     }
 
     @objc func playerFavoriteTapped() {
-        guard let index = currentTrackIndex, index < filteredTracks.count else { return }
-        let track = filteredTracks[index]
+        guard let track = currentPlaybackTrack() else { return }
         toggleFavorite(track: track)
 
         let impact = UIImpactFeedbackGenerator(style: .medium)
@@ -413,12 +413,11 @@ extension ViewController {
     }
 
     func updatePlayerFavoriteButton() {
-        guard let index = currentTrackIndex, index < filteredTracks.count else {
+        guard let track = currentPlaybackTrack() else {
             playerFavoriteButton?.setImage(UIImage(systemName: "heart", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)), for: .normal)
             playerFavoriteButton?.tintColor = UIColor.white.withAlphaComponent(0.8)
             return
         }
-        let track = filteredTracks[index]
         let isFav = favoriteTracks.contains(track.url.lastPathComponent)
         let icon = isFav ? "heart.fill" : "heart"
         playerFavoriteButton?.setImage(UIImage(systemName: icon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)), for: .normal)
@@ -539,6 +538,7 @@ extension ViewController {
             refreshDailyMixIfNeeded(force: true)
             filterTracks()
             if playbackQueue.isEmpty {
+                playbackSource = .library
                 playbackQueue = tracks
             }
             prepareDailyMixVibes()
@@ -740,16 +740,32 @@ extension ViewController {
     }
 
     func deleteTrack(at index: Int) {
-        let track = filteredTracks[index]
+        guard filteredTracks.indices.contains(index) else { return }
+        deleteTrack(track: filteredTracks[index])
+    }
 
-        // Stop active playing if deleted
-        if currentTrackIndex == index {
+    func deleteTrack(track: Track) {
+        let playingURL = audioPlayer?.url
+        // Queue indices can differ from library indices after a remix.
+        if playingURL == track.url {
+            if let player = audioPlayer {
+                updateListeningTelemetry(with: player)
+                finishListeningTelemetry(completed: false, skipped: false,
+                    progress: player.duration > 0 ? player.currentTime / player.duration : 0, reason: .selection)
+            }
+            cancelSleepFade()
             audioPlayer?.stop()
             audioPlayer = nil
             updateTimer?.invalidate()
             currentTrackIndex = nil
         }
 
+        playbackQueue.removeAll { $0.url == track.url }
+        dailyMixTracks.removeAll { $0.url == track.url }
+        if let playingURL, playingURL != track.url {
+            currentTrackIndex = playbackQueue.firstIndex { $0.url == playingURL }
+        }
+        if isShuffleEnabled { rebuildShuffleQueue() }
         try? FileManager.default.removeItem(at: track.url)
         loadLocalTracks()
         showToast(message: "Removed song from shelf", success: true)

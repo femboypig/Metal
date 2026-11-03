@@ -143,6 +143,7 @@ extension ViewController {
             return
         }
 
+        playbackSource = .widget
         playbackQueue = filteredTracks
         currentPlaybackContext = "ALL SONGS"
         recordManualSelection(for: filteredTracks[index])
@@ -164,6 +165,7 @@ extension ViewController {
     }
 
     func playCurrentTrack() {
+        cancelSleepFade()
         let queue = currentQueue
         guard !queue.isEmpty, let index = currentTrackIndex, index < queue.count else { return }
 
@@ -180,9 +182,10 @@ extension ViewController {
                 ? previousPlayer.currentTime / previousPlayer.duration
                 : 0
             finishListeningTelemetry(
-                completed: progress >= 0.85,
-                skipped: progress < 0.85 && previousPlayer.currentTime > 1,
-                progress: progress
+                completed: false,
+                skipped: false,
+                progress: progress,
+                reason: pendingListeningEndReason
             )
         }
         audioPlayer?.stop()
@@ -293,6 +296,12 @@ extension ViewController {
             deactivateAudioSessionIfIdle()
         } else {
             guard activateAudioSessionIfNeeded() else { return }
+            cancelSleepFade()
+            if telemetrySessionFilename == nil, let track = currentPlaybackTrack() {
+                startListeningTelemetry(for: track, resumed: true)
+            }
+            telemetryLastPlaybackTime = player.currentTime
+            telemetryLastUptime = ProcessInfo.processInfo.systemUptime
             player.play()
             startTimer()
             startArtworkAnimation()
@@ -337,6 +346,13 @@ extension ViewController {
             }
         }
 
+        if let player = audioPlayer, telemetrySessionFilename != nil {
+            updateListeningTelemetry(with: player)
+            let reason: ListeningEndReason = pendingListeningEndReason == .dislike ? .dislike : (currentQueue.count > 1 ? .next : .selection)
+            finishListeningTelemetry(completed: false, skipped: true,
+                progress: player.duration > 0 ? player.currentTime / player.duration : 0, reason: reason)
+            adaptDailyMixQueueIfNeeded()
+        }
         forcePlayNextTrack()
     }
 
@@ -468,6 +484,7 @@ extension ViewController {
     }
 
     @objc func playPreviousTrack() {
+        pendingListeningEndReason = .previous
         let queue = currentQueue
         guard !queue.isEmpty else { return }
         guard !isCarouselAnimating else { return }
@@ -520,6 +537,9 @@ extension ViewController {
     }
 
     func updatePlaybackProgress() {
+        if let deadline = sleepTimerEndDate, deadline <= Date() {
+            stopPlaybackDueToSleepTimer()
+        }
         guard let player = audioPlayer, player.duration > 0 else { return }
 
         updateListeningTelemetry(with: player)
@@ -564,6 +584,8 @@ extension ViewController {
 
         let position = min(max(0, requestedTime), player.duration)
         player.currentTime = position
+        telemetryLastPlaybackTime = position
+        telemetryLastUptime = ProcessInfo.processInfo.systemUptime
         progressSlider.value = Float(position)
         elapsedLabel.text = formatTime(position)
         remainingLabel.text = "-" + formatTime(max(0, player.duration - position))
@@ -595,8 +617,9 @@ extension ViewController {
     @objc func dislikeTapped() {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
+        pendingListeningEndReason = .dislike
         playNextTrack()
-        showToast(message: "Skipped song", success: true)
+        showToast(message: "We’ll play less like this", success: true)
     }
 
     @objc func deviceButtonTapped() {
@@ -724,7 +747,7 @@ extension ViewController {
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         updateListeningTelemetry(with: player)
-        finishListeningTelemetry(completed: true, skipped: false, progress: 1)
+        finishListeningTelemetry(completed: flag, skipped: false, progress: 1, reason: flag ? .completed : .failure)
         if isRepeatEnabled {
             player.currentTime = 0
             savePlaybackState()

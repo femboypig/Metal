@@ -6,111 +6,6 @@
 import Foundation
 import AVFoundation
 
-struct TrackListeningTelemetry: Codable {
-    var playStarts = 0
-    var manualSelections = 0
-    var completedPlays = 0
-    var skips = 0
-    var earlySkips = 0
-    var resumeCount = 0
-    var totalListeningSeconds: TimeInterval = 0
-    var totalDurationAtStarts: TimeInterval = 0
-    var longestListeningSession: TimeInterval = 0
-    var firstPlayedAt: TimeInterval?
-    var lastPlayedAt: TimeInterval?
-    var lastCompletedAt: TimeInterval?
-    var recentPlayTimestamps: [TimeInterval] = []
-    var consecutiveEarlySkips: Int = 0
-    var lastEarlySkipAt: TimeInterval?
-
-    enum CodingKeys: String, CodingKey {
-        case playStarts
-        case manualSelections
-        case completedPlays
-        case skips
-        case earlySkips
-        case resumeCount
-        case totalListeningSeconds
-        case totalDurationAtStarts
-        case longestListeningSession
-        case firstPlayedAt
-        case lastPlayedAt
-        case lastCompletedAt
-        case recentPlayTimestamps
-        case consecutiveEarlySkips
-        case lastEarlySkipAt
-    }
-
-    init(
-        playStarts: Int = 0,
-        manualSelections: Int = 0,
-        completedPlays: Int = 0,
-        skips: Int = 0,
-        earlySkips: Int = 0,
-        resumeCount: Int = 0,
-        totalListeningSeconds: TimeInterval = 0,
-        totalDurationAtStarts: TimeInterval = 0,
-        longestListeningSession: TimeInterval = 0,
-        firstPlayedAt: TimeInterval? = nil,
-        lastPlayedAt: TimeInterval? = nil,
-        lastCompletedAt: TimeInterval? = nil,
-        recentPlayTimestamps: [TimeInterval] = [],
-        consecutiveEarlySkips: Int = 0,
-        lastEarlySkipAt: TimeInterval? = nil
-    ) {
-        self.playStarts = playStarts
-        self.manualSelections = manualSelections
-        self.completedPlays = completedPlays
-        self.skips = skips
-        self.earlySkips = earlySkips
-        self.resumeCount = resumeCount
-        self.totalListeningSeconds = totalListeningSeconds
-        self.totalDurationAtStarts = totalDurationAtStarts
-        self.longestListeningSession = longestListeningSession
-        self.firstPlayedAt = firstPlayedAt
-        self.lastPlayedAt = lastPlayedAt
-        self.lastCompletedAt = lastCompletedAt
-        self.recentPlayTimestamps = recentPlayTimestamps
-        self.consecutiveEarlySkips = consecutiveEarlySkips
-        self.lastEarlySkipAt = lastEarlySkipAt
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        playStarts = try container.decodeIfPresent(Int.self, forKey: .playStarts) ?? 0
-        manualSelections = try container.decodeIfPresent(Int.self, forKey: .manualSelections) ?? 0
-        completedPlays = try container.decodeIfPresent(Int.self, forKey: .completedPlays) ?? 0
-        skips = try container.decodeIfPresent(Int.self, forKey: .skips) ?? 0
-        earlySkips = try container.decodeIfPresent(Int.self, forKey: .earlySkips) ?? 0
-        resumeCount = try container.decodeIfPresent(Int.self, forKey: .resumeCount) ?? 0
-        totalListeningSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .totalListeningSeconds) ?? 0
-        totalDurationAtStarts = try container.decodeIfPresent(TimeInterval.self, forKey: .totalDurationAtStarts) ?? 0
-        longestListeningSession = try container.decodeIfPresent(TimeInterval.self, forKey: .longestListeningSession) ?? 0
-        firstPlayedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .firstPlayedAt)
-        lastPlayedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .lastPlayedAt)
-        lastCompletedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .lastCompletedAt)
-        recentPlayTimestamps = try container.decodeIfPresent([TimeInterval].self, forKey: .recentPlayTimestamps) ?? []
-        consecutiveEarlySkips = try container.decodeIfPresent(Int.self, forKey: .consecutiveEarlySkips) ?? 0
-        lastEarlySkipAt = try container.decodeIfPresent(TimeInterval.self, forKey: .lastEarlySkipAt)
-    }
-}
-
-struct ListeningTelemetryDocument: Codable {
-    var version = 1
-    var tracks: [String: TrackListeningTelemetry] = [:]
-    var sessions: [ListeningSessionEvent]?
-}
-
-struct ListeningSessionEvent: Codable {
-    let filename: String
-    let timestamp: TimeInterval
-    let hour: Int
-    let weekday: Int
-    let listenedSeconds: TimeInterval
-    let progress: Double
-    let skipped: Bool
-}
-
 extension ViewController {
     var telemetryFileURL: URL {
         metalRootDirectoryURL.appendingPathComponent("telemetry.json")
@@ -124,6 +19,7 @@ extension ViewController {
             return
         }
         listeningTelemetry = document
+        listeningTelemetry.version = 2
     }
 
     func saveListeningTelemetry() {
@@ -135,6 +31,8 @@ extension ViewController {
 
     func recordManualSelection(for track: Track) {
         let filename = track.url.lastPathComponent
+        pendingManualSelection = filename
+        pendingListeningEndReason = .selection
         var stats = listeningTelemetry.tracks[filename] ?? TrackListeningTelemetry()
         stats.manualSelections += 1
         listeningTelemetry.tracks[filename] = stats
@@ -159,6 +57,15 @@ extension ViewController {
         }
 
         listeningTelemetry.tracks[filename] = stats
+        telemetrySessionSource = playbackSource
+        telemetrySessionStartedAt = Date()
+        telemetrySessionDuration = track.duration
+        telemetrySessionWasManual = pendingManualSelection == filename
+        telemetrySessionFavoriteAtStart = favoriteTracks.contains(filename)
+        pendingManualSelection = nil
+        telemetrySessionMixID = playbackSource == .dailyMix ? dailyMixID : nil
+        pendingListeningEndReason = .selection
+        telemetryLastUptime = ProcessInfo.processInfo.systemUptime
         telemetrySessionFilename = filename
         telemetryLastPlaybackTime = audioPlayer?.currentTime ?? 0
         telemetrySessionListeningSeconds = 0
@@ -173,27 +80,35 @@ extension ViewController {
         let delta = currentTime - telemetryLastPlaybackTime
         telemetryLastPlaybackTime = currentTime
 
-        // Ignore seeks and discontinuities; only real playback time should count.
-        guard player.isPlaying, delta > 0, delta < 1.5 else { return }
-
-        telemetrySessionListeningSeconds += delta
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let elapsed = max(0, uptime - telemetryLastUptime)
+        telemetryLastUptime = uptime
+        // Accept background timer intervals, reject seeks and suspension gaps.
+        guard player.isPlaying, delta > 0, elapsed < 120,
+              abs(delta - elapsed) < max(0.75, elapsed * 0.15) else { return }
+        let listened = min(delta, elapsed)
+        telemetrySessionListeningSeconds += listened
         var stats = listeningTelemetry.tracks[filename] ?? TrackListeningTelemetry()
-        stats.totalListeningSeconds += delta
+        stats.totalListeningSeconds += listened
         stats.longestListeningSession = max(stats.longestListeningSession, telemetrySessionListeningSeconds)
         listeningTelemetry.tracks[filename] = stats
     }
 
-    func finishListeningTelemetry(completed: Bool, skipped: Bool, progress: Double) {
+    func finishListeningTelemetry(completed: Bool, skipped: Bool, progress: Double, reason: ListeningEndReason? = nil) {
         guard let filename = telemetrySessionFilename else { return }
         var stats = listeningTelemetry.tracks[filename] ?? TrackListeningTelemetry()
 
-        if completed {
+        let endReason = reason ?? (completed ? .completed : pendingListeningEndReason)
+        let engagement = telemetrySessionDuration > 0
+            ? min(1, telemetrySessionListeningSeconds / telemetrySessionDuration) : 0
+        let rejected = endReason == .dislike || (endReason == .next && engagement < 0.35)
+        if completed && engagement >= 0.85 {
             stats.completedPlays += 1
             stats.lastCompletedAt = Date().timeIntervalSince1970
             stats.consecutiveEarlySkips = 0
-        } else if skipped {
+        } else if endReason == .next || endReason == .dislike {
             stats.skips += 1
-            if progress < 0.35 {
+            if rejected {
                 stats.earlySkips += 1
                 stats.consecutiveEarlySkips += 1
                 stats.lastEarlySkipAt = Date().timeIntervalSince1970
@@ -203,19 +118,24 @@ extension ViewController {
         stats.longestListeningSession = max(stats.longestListeningSession, telemetrySessionListeningSeconds)
         listeningTelemetry.tracks[filename] = stats
         let date = Date()
-        let started = date.addingTimeInterval(-telemetrySessionListeningSeconds)
+        let started = telemetrySessionStartedAt
         let event = ListeningSessionEvent(
             filename: filename, timestamp: date.timeIntervalSince1970,
             hour: Calendar.current.component(.hour, from: started),
             weekday: Calendar.current.component(.weekday, from: started),
             listenedSeconds: telemetrySessionListeningSeconds,
-            progress: min(1, max(0, progress)), skipped: skipped
+            progress: min(1, max(0, progress)), skipped: endReason == .next || endReason == .dislike,
+            source: telemetrySessionSource, reason: endReason, duration: telemetrySessionDuration,
+            startedAt: started.timeIntervalSince1970, mixID: telemetrySessionMixID,
+            manuallySelected: telemetrySessionWasManual,
+            favorited: favoriteTracks.contains(filename) && !telemetrySessionFavoriteAtStart
         )
         var sessions = listeningTelemetry.sessions ?? []
-        if telemetrySessionListeningSeconds >= 5 { sessions.append(event) }
+        sessions.append(event)
         listeningTelemetry.sessions = Array(sessions.filter {
             date.timeIntervalSince1970 - $0.timestamp < 90 * 86_400
         }.suffix(1000))
+        listeningTelemetry.dailyMixQuality = ListeningQuality.dailyMix(in: listeningTelemetry.sessions ?? [])
         telemetrySessionFilename = nil
         telemetryLastPlaybackTime = 0
         telemetrySessionListeningSeconds = 0

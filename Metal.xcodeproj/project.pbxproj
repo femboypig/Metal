@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E20000000000000000000001 /* ListeningHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000002 /* ListeningHistory.swift */; };
 		B10000000000000000000001 /* MetalWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MetalWidgets.swift */; };
 		B10000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* Assets.xcassets */; };
 		B10000000000000000000003 /* MetalWidgetsExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* MetalWidgetsExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -62,6 +63,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E20000000000000000000002 /* ListeningHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningHistory.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* MetalWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalWidgets.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 				04157E5330246C69006395B8 /* Metal.entitlements */,
 				04C766D736C95B5AB14A99E4 /* AIDJEngine.swift */,
 				A1B2C3D4E5F6000000000002 /* ListeningTelemetry.swift */,
+				E20000000000000000000002 /* ListeningHistory.swift */,
 				D10000000000000000000011 /* DailyMixEngine.swift */,
 				D10000000000000000000012 /* DailyMixNotifications.swift */,
 				D10000000000000000000013 /* ViewController+DailyMix.swift */,
@@ -292,6 +295,7 @@
 			files = (
 				04C7504596FA5DF98520F8F2 /* AIDJEngine.swift in Sources */,
 				A1B2C3D4E5F6000000000001 /* ListeningTelemetry.swift in Sources */,
+				E20000000000000000000001 /* ListeningHistory.swift in Sources */,
 				D10000000000000000000001 /* DailyMixEngine.swift in Sources */,
 				D10000000000000000000002 /* DailyMixNotifications.swift in Sources */,
 				D10000000000000000000003 /* ViewController+DailyMix.swift in Sources */,

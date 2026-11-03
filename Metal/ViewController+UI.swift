@@ -1352,7 +1352,7 @@ struct WaveUniforms {
     float isPlaying;
     float isDark;
     float hasThemeColor;
-    float padding1;
+    float mixShake;
     float3 themeColor;
 };
 
@@ -1415,9 +1415,13 @@ fragment float4 waveFragmentShader(
 
     // Slight vertical center offset for balanced visual mass extending to screen top
     p.y += 0.07;
+    // A decaying liquid ripple reshapes the existing wave after a remix.
+    float shake = uniforms.mixShake;
+    p += float2(sin(uniforms.time * 24.0 + p.y * 10.0),
+                cos(uniforms.time * 19.0 + p.x * 9.0)) * shake * 0.055;
 
     float t = uniforms.time * 0.28;
-    float amp = uniforms.amplitude;
+    float amp = uniforms.amplitude + uniforms.mixShake * 0.65;
 
     // Polar coordinates from center
     float angle = atan2(p.y, p.x);
@@ -1550,7 +1554,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
         var isPlaying: Float = 0.0
         var isDark: Float = 1.0
         var hasThemeColor: Float = 0.0
-        var padding1: Float = 0.0
+        var mixShake: Float = 0.0
         var themeColor: SIMD3<Float> = .zero
     }
 
@@ -1559,6 +1563,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
     private var commandQueue: MTLCommandQueue?
     private var pipelineState: MTLRenderPipelineState?
 
+    private var shakeStartedAt: CFTimeInterval = -100
     private var elapsedTime: Float = 0.0
     private var lastFrameTime: CFTimeInterval = 0.0
     private var isPlayingState: Bool = false
@@ -1628,6 +1633,11 @@ class YandexWaveView: UIView, MTKViewDelegate {
         }
     }
 
+    func shakeMix() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        shakeStartedAt = CACurrentMediaTime()
+    }
+
     func setPlaying(_ playing: Bool) {
         isPlayingState = playing
         targetAmplitude = playing ? 1.25 : 0.70
@@ -1668,7 +1678,9 @@ class YandexWaveView: UIView, MTKViewDelegate {
         let dt = lastFrameTime > 0 ? Float(min(now - lastFrameTime, 0.1)) : 0.016
         lastFrameTime = now
 
-        let speedMultiplier: Float = isPlayingState ? 1.40 : 0.85
+        let shakeAge = Float(now - shakeStartedAt)
+        let shakeIntensity = max(0, 1 - shakeAge / 1.8)
+        let speedMultiplier: Float = (isPlayingState ? 1.40 : 0.85) + shakeIntensity * 3
         elapsedTime += dt * speedMultiplier
         if elapsedTime > 10000.0 { elapsedTime = 0 }
 
@@ -1688,7 +1700,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
             isPlaying: isPlayingState ? 1.0 : 0.0,
             isDark: traitCollection.userInterfaceStyle == .dark ? 1.0 : 0.0,
             hasThemeColor: hasThemeColor ? 1.0 : 0.0,
-            padding1: 0.0,
+            mixShake: shakeIntensity,
             themeColor: currentThemeColor
         )
 
