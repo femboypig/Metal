@@ -739,7 +739,7 @@ extension ViewController {
                         min(height, context.maximumDetentValue)
                     }]
                 } else {
-                    sheet.detents = [.large()]
+                    sheet.detents = [.medium(), .large()]
                 }
                 sheet.prefersScrollingExpandsWhenScrolledToEdge = false
                 sheet.prefersGrabberVisible = true
