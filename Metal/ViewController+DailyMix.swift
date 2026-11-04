@@ -62,7 +62,8 @@ extension ViewController {
             dayKey: dayKey &+ dailyMixRevision,
             now: now.timeIntervalSince1970,
             limit: DailyMixEngine.maximumTrackCount - (pinnedTrack == nil ? 0 : 1),
-            remix: remixContext
+            remix: remixContext,
+            mode: dailyMixMode
         )
         if let pinnedTrack { selectedIDs.insert(pinnedTrack.url.lastPathComponent, at: 0) }
         let tracksByFilename = Dictionary(
@@ -155,14 +156,18 @@ extension ViewController {
                 artist: track.artist,
                 duration: track.duration,
                 taste: min(1, max(0, dailyMixTaste(for: track, telemetry: telemetry) + learned * 0.4)),
-                isUnheard: telemetry.playStarts == 0,
+                isUnheard: !LibraryCollectionEngine.hasMeaningfulListen(telemetry, duration: track.duration),
                 lastPlayedAt: telemetry.lastPlayedAt,
                 vibe: vibe,
                 contextAffinity: 1 - exp(-affinity / 2),
                 hasAnalyzedVibe: dailyMixVibeCache[filename] != nil,
                 recentRejection: min(1, rejection),
                 fatiguePenalty: fatigue,
-                sessionAffinity: sessionEvidence / sessionWeight
+                sessionAffinity: sessionEvidence / sessionWeight,
+                isFavorite: favoriteTracks.contains(filename),
+                equivalentPlays: telemetry.totalListeningSeconds / max(30, track.duration),
+                isRediscovery: LibraryCollectionEngine.isRediscovery(telemetry, duration: track.duration,
+                    isFavorite: favoriteTracks.contains(filename), now: timestamp)
             )
         }
 
@@ -238,7 +243,7 @@ extension ViewController {
         pendingListeningEndReason = .selection
         playbackSource = .dailyMix
         playbackQueue = filteredTracks
-        currentPlaybackContext = "DAILY MIX"
+        currentPlaybackContext = dailyMixContextTitle
         currentTrackIndex = 0
         persistedSettings.playbackPosition = 0
         if isShuffleEnabled {

@@ -34,6 +34,9 @@ struct MetalSettingsDocument: Codable {
     var playbackPosition: TimeInterval = 0
     var playerFontStyle: String = "serif"
     var queue: PlaybackQueueSnapshot?
+    var libraryCollection: String?
+    var dailyMixMode: String?
+    var importedTrackDates: [String: TimeInterval]?
 }
 
 extension ViewController {
@@ -68,6 +71,9 @@ extension ViewController {
         }
 
         favoriteTracks = Set(persistedSettings.favoriteTracks)
+        libraryCollection = persistedSettings.libraryCollection.flatMap(LibraryCollection.init(rawValue:)) ?? .all
+        dailyMixMode = persistedSettings.dailyMixMode.flatMap(DailyMixMode.init(rawValue:)) ?? .forYou
+        trackImportedAt = persistedSettings.importedTrackDates ?? [:]
         UserDefaults.standard.set(persistedSettings.aidjEnabled, forKey: "Metal_AIDJEnabled")
 
         if let data = try? Data(contentsOf: playlistsFileURL),
@@ -93,6 +99,9 @@ extension ViewController {
         persistedSettings.shuffleEnabled = isShuffleEnabled
         persistedSettings.repeatEnabled = isRepeatEnabled
         persistedSettings.playerFontStyle = playerFontStyle.rawValue
+        persistedSettings.libraryCollection = libraryCollection.rawValue
+        persistedSettings.dailyMixMode = dailyMixMode.rawValue
+        persistedSettings.importedTrackDates = trackImportedAt
         UserDefaults.standard.set(playerFontStyle.rawValue, forKey: "Metal_PlayerFontStyle")
 
         let queue = currentQueue
@@ -127,22 +136,14 @@ extension ViewController {
     func rebuildFiltersRow() {
         filtersStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
-        // 1. "All" Pill
-        let allPill = createPillButton(title: "All", category: .all)
+        let allPill = createPillButton(title: libraryCollectionPillTitle, category: .all)
+        configureCollectionPill(allPill, menu: makeLibraryCollectionMenu(),
+            accessibilityLabel: "Library: \(libraryCollection.title)")
         filtersStackView.addArrangedSubview(allPill)
 
-        // 2. Personalized, vibe-matched mix rebuilt once per local calendar day
-        let dailyMixPill = createPillButton(title: "Daily Mix", category: .dailyMix)
-        dailyMixPill.accessibilityHint = "Shake your phone to reshape the next songs, or use the remix menu."
-        dailyMixPill.showsMenuAsPrimaryAction = false
-        dailyMixPill.menu = UIMenu(title: "Shake your mix", children: [
-            UIAction(title: "Reshape next songs", image: UIImage(systemName: "waveform.path")) { [weak self] _ in
-                self?.activeFilter = .dailyMix
-                self?.filterTracks()
-                self?.rebuildFiltersRow()
-                self?.shakeDailyMix()
-            }
-        ])
+        let dailyMixPill = createPillButton(title: dailyMixPillTitle, category: .dailyMix)
+        configureCollectionPill(dailyMixPill, menu: makeDailyMixModeMenu(),
+            accessibilityLabel: "Daily Mix: \(dailyMixMode.title)")
         filtersStackView.addArrangedSubview(dailyMixPill)
 
         // 3. "Favorites" Pill
@@ -234,6 +235,7 @@ extension ViewController {
             button.configuration = config
         } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
+            config.title = title
             config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
             config.baseForegroundColor = isActive ? activeFg : inactiveFg
             config.background.backgroundColor = isActive ? activeBg : .clear
@@ -334,9 +336,9 @@ extension ViewController {
     func activeFilterHeaderTitle() -> String {
         switch activeFilter {
         case .all:
-            return "ALL SONGS"
+            return libraryCollection.title.uppercased()
         case .dailyMix:
-            return "DAILY MIX"
+            return dailyMixContextTitle
         case .favorites:
             return "FAVORITES"
         case .playlist(let name):
@@ -351,7 +353,7 @@ extension ViewController {
         let categoryTracks: [Track]
         switch activeFilter {
         case .all:
-            categoryTracks = tracks
+            categoryTracks = tracksForLibraryCollection()
         case .dailyMix:
             refreshDailyMixIfNeeded()
             categoryTracks = dailyMixTracks
@@ -387,6 +389,7 @@ extension ViewController {
             currentTrackIndex = nil
         }
 
+        updateCollectionEmptyState()
         tableView.reloadData()
         updateMiniPlayerUI()
 
@@ -413,6 +416,8 @@ extension ViewController {
         }
         updatePlayerFavoriteButton()
         updateRemoteFavoriteCommand()
+        if activeFilter == .all, libraryCollection == .rediscover { filterTracks() }
+        refreshCollectionMenus()
     }
 
     @objc func playerFavoriteTapped() {
@@ -537,6 +542,14 @@ extension ViewController {
         do {
             let files = try fileManager.contentsOfDirectory(at: songsDir, includingPropertiesForKeys: nil)
             let audioFiles = files.filter { audioExtensions.contains($0.pathExtension.lowercased()) }
+            let liveIDs = Set(audioFiles.map(\.lastPathComponent))
+            trackImportedAt = trackImportedAt.filter { liveIDs.contains($0.key) }
+            for url in audioFiles where trackImportedAt[url.lastPathComponent] == nil {
+                // Legacy Files imports predate the explicit import journal.
+                let created = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate
+                trackImportedAt[url.lastPathComponent] = min(Date().timeIntervalSince1970,
+                    created?.timeIntervalSince1970 ?? Date().timeIntervalSince1970)
+            }
 
             libraryLoadGeneration += 1
             let generation = libraryLoadGeneration
@@ -560,6 +573,8 @@ extension ViewController {
             }
             prepareDailyMixVibes()
             Track.preheatArtwork(for: tracks.map(\.url))
+            rebuildFiltersRow()
+            saveSettings()
 
             if !uncachedURLs.isEmpty {
                 Task.detached(priority: .utility) { [weak self] in
@@ -612,6 +627,7 @@ extension ViewController {
         }
         tableView.reloadData()
         scheduleWidgetRecommendationsPublish()
+        refreshCollectionMenus()
     }
 
     func scheduleWidgetRecommendationsPublish(delay: TimeInterval = 1.0) {
@@ -728,11 +744,13 @@ extension ViewController {
                 let data = try Data(contentsOf: url)
                 try data.write(to: destinationURL, options: .atomic)
                 importCount += 1
+                trackImportedAt[url.lastPathComponent] = Date().timeIntervalSince1970
             } catch {
                 print("Failed to write data directly: \(error). Using copy fallback...")
                 do {
                     try fileManager.copyItem(at: url, to: destinationURL)
                     importCount += 1
+                    trackImportedAt[url.lastPathComponent] = Date().timeIntervalSince1970
                 } catch {
                     print("Failed copyItem fallback: \(error)")
                 }

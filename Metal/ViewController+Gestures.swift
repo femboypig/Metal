@@ -390,6 +390,7 @@ extension ViewController {
             shuffledIndices = Array(playbackQueue.indices)
             shuffledPosition = currentTrackIndex ?? 0
         }
+        if playbackSource == .dailyMix { currentPlaybackContext = dailyMixContextTitle }
         playerHeaderLabel?.text = currentPlaybackContext
 
         if let lastFile = persistedSettings.lastTrackFile {

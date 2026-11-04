@@ -193,6 +193,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         case playlist(String)
     }
     var activeFilter: FilterCategory = .all
+    var libraryCollection: LibraryCollection = .all
+    var dailyMixMode: DailyMixMode = .forYou
+    var trackImportedAt: [String: TimeInterval] = [:]
     
     var isShuffleEnabled = false {
         didSet {

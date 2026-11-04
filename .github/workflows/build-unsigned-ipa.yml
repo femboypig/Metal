@@ -35,6 +35,8 @@ jobs:
           "$RUNNER_TEMP/daily-mix-checks"
           xcrun swiftc Metal/DailyMixEngine.swift Metal/MixSessionEngine.swift Tests/MixSessionChecks.swift -o "$RUNNER_TEMP/mix-session-checks"
           "$RUNNER_TEMP/mix-session-checks"
+          xcrun swiftc Metal/ListeningHistory.swift Metal/LibraryCollectionEngine.swift Metal/DailyMixEngine.swift Metal/MixSessionEngine.swift Tests/LibraryCollectionChecks.swift -o "$RUNNER_TEMP/library-collection-checks"
+          "$RUNNER_TEMP/library-collection-checks"
           xcrun swiftc Metal/ListeningHistory.swift Tests/ListeningHistoryChecks.swift -o "$RUNNER_TEMP/listening-history-checks"
           "$RUNNER_TEMP/listening-history-checks"
 

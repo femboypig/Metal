@@ -60,7 +60,8 @@ extension ViewController {
         let seedID = playbackSource == .trackVibe ? vibeSeedFilename : previousID
         let ids = MixSessionEngine.nextTracks(from: candidates, seedTrackID: seedID,
             previousTrackID: previousID, recentTrackIDs: mixSessionRecentIDs,
-            reservedTrackIDs: reserved, randomSeed: UInt64.random(in: .min ... .max))
+            reservedTrackIDs: reserved, randomSeed: UInt64.random(in: .min ... .max),
+            mode: playbackSource == .dailyMix ? dailyMixMode : .forYou)
         let byID = Dictionary(tracks.map { ($0.url.lastPathComponent, $0) }, uniquingKeysWith: { first, _ in first })
         return ids.compactMap { byID[$0] }
     }
@@ -76,7 +77,7 @@ extension ViewController {
         guard remaining.count <= minimumUpcoming else { return }
         let reserved = Set(remaining.map { playbackQueue[$0].url.lastPathComponent } + [current.url.lastPathComponent])
         let lastEvent = listeningTelemetry.sessions?.last?.timestamp ?? 0
-        let attempt = "\(current.url.lastPathComponent)|\(reserved.sorted())|\(tracks.count)|\(dailyMixVibeCache.count)|\(lastEvent)"
+        let attempt = "\(current.url.lastPathComponent)|\(reserved.sorted())|\(tracks.count)|\(dailyMixVibeCache.count)|\(lastEvent)|\(dailyMixMode.rawValue)"
         guard lastMixExtensionAttempt != attempt else { return }
         lastMixExtensionAttempt = attempt
         isUpdatingMixQueue = true

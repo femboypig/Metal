@@ -145,6 +145,8 @@ extension ViewController {
         telemetrySessionListeningSeconds = 0
         saveListeningTelemetry()
         publishWidgetRecommendations()
+        if activeFilter == .all, libraryCollection != .all { filterTracks() }
+        refreshCollectionMenus()
     }
 
     func trackFatiguePenalty(for filename: String, now: TimeInterval = Date().timeIntervalSince1970) -> Double {

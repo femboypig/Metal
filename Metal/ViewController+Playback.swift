@@ -134,6 +134,7 @@ extension ViewController {
     // MARK: - Playback Core Engine
 
     func playTrackFromWidget(filename: String) {
+        libraryCollection = .all
         activeFilter = .all
         searchBar.text = ""
         filterTracks()

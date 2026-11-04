@@ -53,6 +53,9 @@ struct DailyMixCandidate: Equatable {
     var fatiguePenalty: Double = 0
     var sessionAffinity: Double = 0
     var remixPenalty: Double = 0
+    var isFavorite: Bool = false
+    var equivalentPlays: Double = 0
+    var isRediscovery: Bool = false
 }
 
 enum DayPart: Int, CaseIterable {
@@ -67,6 +70,28 @@ enum DayPart: Int, CaseIterable {
         case 12..<18: return .day
         case 18..<23: return .evening
         default: return .night
+        }
+    }
+}
+
+enum DailyMixMode: String, CaseIterable {
+    case forYou, favorites, discovery, rediscover
+
+    var title: String {
+        switch self {
+        case .forYou: return "For You"
+        case .favorites: return "Favorites"
+        case .discovery: return "Discover"
+        case .rediscover: return "Rediscover"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .forYou: return "waveform.path"
+        case .favorites: return "heart.fill"
+        case .discovery: return "sparkles"
+        case .rediscover: return "arrow.counterclockwise"
         }
     }
 }
@@ -104,10 +129,12 @@ enum DailyMixEngine {
         dayKey: Int64,
         now: TimeInterval,
         limit: Int = maximumTrackCount,
-        remix: DailyMixRemixContext? = nil
+        remix: DailyMixRemixContext? = nil,
+        mode: DailyMixMode = .forYou
     ) -> [String] {
+        let scoped = Self.candidates(for: mode, from: candidates)
         guard let remix else {
-            return buildSelection(from: candidates, dayKey: dayKey, now: now, limit: limit, remix: nil)
+            return buildSelection(from: scoped, dayKey: dayKey, now: now, limit: limit, remix: nil)
         }
         let history = remix.recentMixes.map { mix in mix.filter { $0 != remix.excludedTrackID } }
         var fallback: [String]?
@@ -117,11 +144,31 @@ enum DailyMixEngine {
             let context = DailyMixRemixContext(
                 seed: remix.seed &+ UInt64(attempt) &* 0x9e3779b97f4a7c15,
                 recentMixes: remix.recentMixes, excludedTrackID: remix.excludedTrackID)
-            let result = buildSelection(from: candidates, dayKey: dayKey, now: now, limit: limit, remix: context)
+            let result = buildSelection(from: scoped, dayKey: dayKey, now: now, limit: limit, remix: context)
             if !history.contains(result) { return result }
             if fallback == nil || (fallback == history.last && result != history.last) { fallback = result }
         }
         return fallback ?? []
+    }
+
+    static func candidates(for mode: DailyMixMode, from candidates: [DailyMixCandidate]) -> [DailyMixCandidate] {
+        guard mode != .forYou else { return candidates }
+        let safe = candidates.filter { $0.recentRejection < 0.7 && $0.fatiguePenalty < 0.6 }
+        switch mode {
+        case .forYou:
+            return candidates
+        case .favorites:
+            return safe.filter { $0.isFavorite || (!$0.isUnheard && $0.taste >= 0.58) }
+        case .discovery:
+            let lessFamiliar = safe.filter { !$0.isFavorite }
+            let pool = lessFamiliar.isEmpty ? safe : lessFamiliar
+            guard !pool.isEmpty else { return [] }
+            let exposure = pool.map(\.equivalentPlays).sorted()
+            let cutoff = max(1.5, exposure[min(exposure.count - 1, exposure.count / 3)])
+            return pool.filter { $0.equivalentPlays <= cutoff }
+        case .rediscover:
+            return safe.filter(\.isRediscovery)
+        }
     }
 
     private static func buildSelection(

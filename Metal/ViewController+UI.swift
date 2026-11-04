@@ -702,6 +702,10 @@ extension ViewController {
         playerHeaderLabel.font = UIFont(name: "Georgia-Bold", size: 13)
         playerHeaderLabel.textColor = UIColor.white.withAlphaComponent(0.85)
         playerHeaderLabel.textAlignment = .center
+        playerHeaderLabel.numberOfLines = 1
+        playerHeaderLabel.lineBreakMode = .byTruncatingTail
+        playerHeaderLabel.clipsToBounds = true
+        playerHeaderLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         playerHeaderLabel.text = "ALL SONGS"
         topBar.addSubview(playerHeaderLabel)
 
@@ -1016,10 +1020,11 @@ extension ViewController {
 
             dismissButton.leadingAnchor.constraint(equalTo: topBar.leadingAnchor),
             dismissButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
-            dismissButton.widthAnchor.constraint(equalToConstant: 32),
-            dismissButton.heightAnchor.constraint(equalToConstant: 32),
+            dismissButton.widthAnchor.constraint(equalToConstant: 44),
+            dismissButton.heightAnchor.constraint(equalToConstant: 44),
 
-            playerHeaderLabel.centerXAnchor.constraint(equalTo: topBar.centerXAnchor),
+            playerHeaderLabel.leadingAnchor.constraint(equalTo: dismissButton.trailingAnchor, constant: 12),
+            playerHeaderLabel.trailingAnchor.constraint(equalTo: topOptionsButton.leadingAnchor, constant: -12),
             playerHeaderLabel.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
 
             topOptionsButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor),

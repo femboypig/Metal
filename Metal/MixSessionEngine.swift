@@ -12,11 +12,12 @@ enum MixSessionEngine {
         recentTrackIDs: [String],
         reservedTrackIDs: Set<String>,
         randomSeed: UInt64,
-        limit: Int = batchSize
+        limit: Int = batchSize,
+        mode: DailyMixMode = .forYou
     ) -> [String] {
         guard limit > 0 else { return [] }
         let byID = Dictionary(candidates.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        var pool = candidates.filter {
+        var pool = DailyMixEngine.candidates(for: mode, from: candidates).filter {
             !reservedTrackIDs.contains($0.id) && $0.recentRejection < 0.7 && $0.fatiguePenalty < 0.6
         }
         guard !pool.isEmpty else { return [] }
