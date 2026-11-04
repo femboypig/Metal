@@ -57,13 +57,17 @@ extension ViewController {
         }
 
         listeningTelemetry.tracks[filename] = stats
+        if isContinuousMix {
+            mixSessionRecentIDs.append(filename)
+            mixSessionRecentIDs = Array(mixSessionRecentIDs.suffix(MixSessionEngine.retainedHistoryCount))
+        }
         telemetrySessionSource = playbackSource
         telemetrySessionStartedAt = Date()
         telemetrySessionDuration = track.duration
         telemetrySessionWasManual = pendingManualSelection == filename
         telemetrySessionFavoriteAtStart = favoriteTracks.contains(filename)
         pendingManualSelection = nil
-        telemetrySessionMixID = playbackSource == .dailyMix ? dailyMixID : nil
+        telemetrySessionMixID = isContinuousMix ? dailyMixID : nil
         pendingListeningEndReason = .selection
         telemetryLastUptime = ProcessInfo.processInfo.systemUptime
         telemetrySessionFilename = filename

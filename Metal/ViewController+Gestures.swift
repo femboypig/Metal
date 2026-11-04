@@ -329,8 +329,8 @@ extension ViewController {
     // MARK: - Lockscreen Sync
     
     func updateNowPlayingInfo() {
-        guard let index = currentTrackIndex, index < filteredTracks.count else { return }
-        let track = filteredTracks[index]
+        let queue = currentQueue
+        guard let track = currentPlaybackTrack() ?? currentTrackIndex.flatMap({ queue.indices.contains($0) ? queue[$0] : nil }) else { return }
         let duration = audioPlayer?.duration ?? track.duration
         let isPlaying = audioPlayer?.isPlaying == true
         
@@ -361,21 +361,42 @@ extension ViewController {
     // MARK: - Persistence state
     
     func savePlaybackState() {
-        if let index = currentTrackIndex, index < filteredTracks.count {
-            UserDefaults.standard.set(filteredTracks[index].url.lastPathComponent, forKey: "Metal_LastTrackFile")
+        guard !isRestoringPersistentState else { return }
+        let queue = currentQueue
+        if let track = currentPlaybackTrack() ?? currentTrackIndex.flatMap({ queue.indices.contains($0) ? queue[$0] : nil }) {
+            UserDefaults.standard.set(track.url.lastPathComponent, forKey: "Metal_LastTrackFile")
         }
         saveSettings()
     }
     
     func loadPlaybackState() {
         isRestoringPersistentState = true
+        if let savedQueue = persistedSettings.queue {
+            let byID = Dictionary(tracks.map { ($0.url.lastPathComponent, $0) }, uniquingKeysWith: { first, _ in first })
+            let restored = savedQueue.restored(availableIDs: Set(byID.keys), currentTrackID: persistedSettings.lastTrackFile)
+            playbackQueue = restored.ids.compactMap { byID[$0] }
+            if playbackQueue.isEmpty { playbackQueue = tracks }
+            playbackSource = ListeningSource(rawValue: savedQueue.source) ?? .library
+            vibeSeedFilename = savedQueue.seedTrackID.flatMap { byID[$0] == nil ? nil : $0 }
+            if playbackSource == .trackVibe && vibeSeedFilename == nil { playbackSource = .library }
+            currentPlaybackContext = playbackSource == .library ? "ALL SONGS" : savedQueue.context
+            currentTrackIndex = restored.index
+            mixSessionRecentIDs = Array((listeningTelemetry.sessions ?? [])
+                .filter { $0.source == playbackSource }.suffix(MixSessionEngine.retainedHistoryCount).map(\.filename))
+        }
         isShuffleEnabled = persistedSettings.shuffleEnabled
         isRepeatEnabled = persistedSettings.repeatEnabled
-        
+        if isShuffleEnabled, persistedSettings.queue != nil {
+            shuffledIndices = Array(playbackQueue.indices)
+            shuffledPosition = currentTrackIndex ?? 0
+        }
+        playerHeaderLabel?.text = currentPlaybackContext
+
         if let lastFile = persistedSettings.lastTrackFile {
-            if let index = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == lastFile }) {
+            if let index = currentTrackIndex.flatMap({ currentQueue.indices.contains($0) && currentQueue[$0].url.lastPathComponent == lastFile ? $0 : nil })
+                ?? currentQueue.lastIndex(where: { $0.url.lastPathComponent == lastFile }) {
                 currentTrackIndex = index
-                let track = filteredTracks[index]
+                let track = currentQueue[index]
                 
                 trackTitleLabel.text = track.title
                 

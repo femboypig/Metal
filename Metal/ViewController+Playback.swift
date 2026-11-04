@@ -252,6 +252,7 @@ extension ViewController {
             updateRemoteFavoriteCommand()
             updatePlayerTheme(with: track.artwork)
             updatePlayerOptionsMenu()
+            savePlaybackState()
 
             // Scroll to full player page ONLY if we are not already on the player page
             let width = scrollView.bounds.width
@@ -317,6 +318,11 @@ extension ViewController {
     func rebuildShuffleQueue() {
         let count = currentQueue.count
         guard count > 0 else { return }
+        if isContinuousMix, let index = currentTrackIndex, index >= 0, index < count {
+            shuffledIndices = Array(0...index) + Array((index + 1)..<count).shuffled()
+            shuffledPosition = index
+            return
+        }
 
         var indices = Array(0..<count)
         if let currentIdx = currentTrackIndex, currentIdx < count {
@@ -357,6 +363,14 @@ extension ViewController {
     }
 
     func forcePlayNextTrack() {
+        ensureMixContinuation(minimumUpcoming: 0)
+        if isContinuousMix {
+            guard let next = continuousNextIndex() else { stopAtMixEnd(); return }
+            if isShuffleEnabled { shuffledPosition += 1 }
+            currentTrackIndex = next
+            playCurrentTrack()
+            return
+        }
         let queue = currentQueue
         guard !queue.isEmpty else { return }
         if isShuffleEnabled {
@@ -389,17 +403,19 @@ extension ViewController {
     }
 
     func transitionToNextTrack() {
+        ensureMixContinuation(minimumUpcoming: 0)
         let queue = currentQueue
         guard !queue.isEmpty, let currentPlayer = audioPlayer else {
             forcePlayNextTrack()
             return
         }
 
-        currentPlayer.delegate = nil // Stop delegating so old player stops quietly
-
         // Find next track index
         let nextIndex: Int
-        if isShuffleEnabled {
+        if isContinuousMix {
+            guard let next = continuousNextIndex() else { return }
+            nextIndex = next
+        } else if isShuffleEnabled {
             if shuffledIndices.isEmpty {
                 rebuildShuffleQueue()
             }
@@ -424,6 +440,7 @@ extension ViewController {
         }
 
         let nextTrack = queue[nextIndex]
+        currentPlayer.delegate = nil
 
         let didStart = aidj.startTransition(from: currentPlayer, toTrack: nextTrack.url, onPlayStarted: { [weak self] playerB in
             guard let self else { return }
@@ -479,6 +496,7 @@ extension ViewController {
         })
 
         if !didStart {
+            currentPlayer.delegate = self
             forcePlayNextTrack()
         }
     }
@@ -746,6 +764,7 @@ extension ViewController {
     // MARK: - AVAudioPlayerDelegate
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        guard audioPlayer === player else { return }
         if sleepFadeTimer != nil {
             finishSleepTimerStop(for: player)
             return
@@ -762,12 +781,21 @@ extension ViewController {
     }
 
     func prepareUpcomingTrack() {
+        ensureMixContinuation()
         let queue = currentQueue
         guard let index = currentTrackIndex,
               !queue.isEmpty else { return }
 
         let nextIndex: Int
-        if isShuffleEnabled, !shuffledIndices.isEmpty, shuffledPosition + 1 < shuffledIndices.count {
+        if isContinuousMix {
+            guard let next = continuousNextIndex() else {
+                playbackPreparationGeneration += 1
+                preparedPlayer = nil
+                preparedPlayerURL = nil
+                return
+            }
+            nextIndex = next
+        } else if isShuffleEnabled, !shuffledIndices.isEmpty, shuffledPosition + 1 < shuffledIndices.count {
             nextIndex = shuffledIndices[shuffledPosition + 1]
         } else {
             nextIndex = (index + 1) % queue.count
@@ -835,6 +863,7 @@ extension ViewController {
     func getNextTrack() -> Track? {
         let queue = currentQueue
         guard !queue.isEmpty else { return nil }
+        if isContinuousMix { return continuousNextIndex().map { queue[$0] } }
         if isShuffleEnabled {
             guard !shuffledIndices.isEmpty else { return nil }
             if shuffledPosition < shuffledIndices.count - 1 {
@@ -861,6 +890,7 @@ extension ViewController {
     func getTrackAfterNext() -> Track? {
         let queue = currentQueue
         guard !queue.isEmpty else { return nil }
+        if isContinuousMix { return continuousNextIndex(offset: 2).map { queue[$0] } }
         if isShuffleEnabled {
             guard !shuffledIndices.isEmpty else { return nil }
             if shuffledPosition < shuffledIndices.count - 2 {

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F30000000000000000000002 /* ViewController+MixSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000012 /* ViewController+MixSession.swift */; };
+		F30000000000000000000001 /* MixSessionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000011 /* MixSessionEngine.swift */; };
 		E20000000000000000000001 /* ListeningHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000002 /* ListeningHistory.swift */; };
 		B10000000000000000000001 /* MetalWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MetalWidgets.swift */; };
 		B10000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* Assets.xcassets */; };
@@ -63,6 +65,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F30000000000000000000012 /* ViewController+MixSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+MixSession.swift"; sourceTree = "<group>"; };
+		F30000000000000000000011 /* MixSessionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MixSessionEngine.swift"; sourceTree = "<group>"; };
 		E20000000000000000000002 /* ListeningHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningHistory.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* MetalWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalWidgets.swift; sourceTree = "<group>"; };
 		B10000000000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -143,6 +147,8 @@
 				04C766D736C95B5AB14A99E4 /* AIDJEngine.swift */,
 				A1B2C3D4E5F6000000000002 /* ListeningTelemetry.swift */,
 				E20000000000000000000002 /* ListeningHistory.swift */,
+				F30000000000000000000012 /* ViewController+MixSession.swift */,
+				F30000000000000000000011 /* MixSessionEngine.swift */,
 				D10000000000000000000011 /* DailyMixEngine.swift */,
 				D10000000000000000000012 /* DailyMixNotifications.swift */,
 				D10000000000000000000013 /* ViewController+DailyMix.swift */,
@@ -296,6 +302,8 @@
 				04C7504596FA5DF98520F8F2 /* AIDJEngine.swift in Sources */,
 				A1B2C3D4E5F6000000000001 /* ListeningTelemetry.swift in Sources */,
 				E20000000000000000000001 /* ListeningHistory.swift in Sources */,
+				F30000000000000000000002 /* ViewController+MixSession.swift in Sources */,
+				F30000000000000000000001 /* MixSessionEngine.swift in Sources */,
 				D10000000000000000000001 /* DailyMixEngine.swift in Sources */,
 				D10000000000000000000002 /* DailyMixNotifications.swift in Sources */,
 				D10000000000000000000003 /* ViewController+DailyMix.swift in Sources */,

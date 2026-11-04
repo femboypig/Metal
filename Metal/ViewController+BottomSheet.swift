@@ -256,6 +256,13 @@ extension ViewController {
     func makeTrackContextMenu(for track: Track, at index: Int, isPlayer: Bool = false) -> UIMenu {
         var actions: [UIMenuElement] = []
         
+        if isPlayer {
+            let vibe = UIAction(title: "Continue this vibe", image: UIImage(systemName: "dot.radiowaves.left.and.right")) { [weak self] _ in
+                self?.continueTrackVibe(from: track)
+            }
+            actions.append(UIMenu(options: .displayInline, children: [vibe]))
+        }
+
         // 1. Play / Pause Action
         if !isPlayer {
             let isCurrent = (audioPlayer != nil && audioPlayer?.url == track.url && audioPlayer?.isPlaying == true)
@@ -419,6 +426,7 @@ extension ViewController {
         subLabel.font = UIFont(name: "Georgia-Italic", size: 12) ?? .italicSystemFont(ofSize: 12)
         subLabel.textColor = secondaryTextColor()
         subLabel.text = "\(queue.count) songs in queue"
+        queueSheetCountLabel = subLabel
         sheetView.addSubview(subLabel)
         
         let closeBtn = UIButton(type: .system)
@@ -442,10 +450,12 @@ extension ViewController {
         queueTable.register(TrackCell.self, forCellReuseIdentifier: TrackCell.identifier)
         sheetView.addSubview(queueTable)
         
-        let dataSource = QueueSheetDataSource(parent: self, queue: queue) { [weak self] track, index in
-            guard let self = self else { return }
+        queueSheetTable = queueTable
+        let dataSource = QueueSheetDataSource(parent: self) { [weak self] track, index in
+            guard let self, self.currentQueue.indices.contains(index), self.currentQueue[index].url == track.url else { return }
             self.recordManualSelection(for: track)
             self.currentTrackIndex = index
+            if self.isShuffleEnabled { self.rebuildShuffleQueue() }
             self.playCurrentTrack()
             self.dismissActiveSheet()
         }
@@ -836,12 +846,11 @@ extension ViewController {
 
 private class QueueSheetDataSource: NSObject, UITableViewDataSource, UITableViewDelegate {
     weak var parent: ViewController?
-    let queue: [Track]
+    var queue: [Track] { parent?.currentQueue ?? [] }
     let onSelect: (Track, Int) -> Void
     
-    init(parent: ViewController, queue: [Track], onSelect: @escaping (Track, Int) -> Void) {
+    init(parent: ViewController, onSelect: @escaping (Track, Int) -> Void) {
         self.parent = parent
-        self.queue = queue
         self.onSelect = onSelect
     }
     
@@ -858,6 +867,7 @@ private class QueueSheetDataSource: NSObject, UITableViewDataSource, UITableView
               let parent = parent else {
             return UITableViewCell()
         }
+        guard queue.indices.contains(indexPath.row) else { return cell }
         let track = queue[indexPath.row]
         let isPlaying = (parent.audioPlayer != nil && parent.audioPlayer?.url == track.url)
         cell.configure(with: track, index: indexPath.row, isPlaying: isPlaying, colors: parent)
@@ -865,6 +875,7 @@ private class QueueSheetDataSource: NSObject, UITableViewDataSource, UITableView
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard queue.indices.contains(indexPath.row) else { return }
         let track = queue[indexPath.row]
         onSelect(track, indexPath.row)
     }

@@ -33,6 +33,7 @@ struct MetalSettingsDocument: Codable {
     var lastTrackFile: String?
     var playbackPosition: TimeInterval = 0
     var playerFontStyle: String = "serif"
+    var queue: PlaybackQueueSnapshot?
 }
 
 extension ViewController {
@@ -94,17 +95,18 @@ extension ViewController {
         persistedSettings.playerFontStyle = playerFontStyle.rawValue
         UserDefaults.standard.set(playerFontStyle.rawValue, forKey: "Metal_PlayerFontStyle")
 
-        if let index = currentTrackIndex, index < filteredTracks.count {
-            let filename = filteredTracks[index].url.lastPathComponent
-            let isCurrentPlayer = audioPlayer?.url?.lastPathComponent == filename
-
-            if persistedSettings.lastTrackFile != filename {
-                persistedSettings.playbackPosition = 0
-            } else if isCurrentPlayer, let player = audioPlayer {
+        let queue = currentQueue
+        let selected = currentPlaybackTrack() ?? currentTrackIndex.flatMap { queue.indices.contains($0) ? queue[$0] : nil }
+        if let selected {
+            let filename = selected.url.lastPathComponent
+            if audioPlayer?.url == selected.url, let player = audioPlayer {
                 persistedSettings.playbackPosition = player.currentTime
+            } else if persistedSettings.lastTrackFile != filename {
+                persistedSettings.playbackPosition = 0
             }
             persistedSettings.lastTrackFile = filename
         }
+        persistedSettings.queue = playbackQueueSnapshot()
 
         writeSettingsDocument()
     }
@@ -362,7 +364,7 @@ extension ViewController {
 
         // Only update player header if nothing is playing; when playing, playerHeaderLabel displays currentPlaybackContext
         if audioPlayer == nil {
-            playerHeaderLabel?.text = activeFilterHeaderTitle()
+            playerHeaderLabel?.text = playbackQueue.isEmpty ? activeFilterHeaderTitle() : currentPlaybackContext
         }
 
         // 2. Filter by search text
@@ -374,21 +376,22 @@ extension ViewController {
             }
         }
 
-        // Synchronize currentTrackIndex with the actual playing track (if present in this filtered view)
-        if let playingURL = audioPlayer?.url {
-            currentTrackIndex = filteredTracks.firstIndex(where: { $0.url == playingURL })
-        } else if let savedTrackFile = persistedSettings.lastTrackFile {
-            currentTrackIndex = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == savedTrackFile })
-        } else {
+        // Playback indices belong to the queue, independently of this filtered view.
+        let queue = currentQueue
+        let selectedFile = audioPlayer?.url?.lastPathComponent ?? persistedSettings.lastTrackFile
+        if let selectedFile {
+            let existing = currentTrackIndex.flatMap { queue.indices.contains($0) && queue[$0].url.lastPathComponent == selectedFile ? $0 : nil }
+            let index = existing ?? queue.lastIndex(where: { $0.url.lastPathComponent == selectedFile })
+            if currentTrackIndex != index { currentTrackIndex = index }
+        } else if currentTrackIndex != nil {
             currentTrackIndex = nil
         }
 
         tableView.reloadData()
         updateMiniPlayerUI()
 
-        if isShuffleEnabled {
-            rebuildShuffleQueue()
-        }
+        // Browsing and searching must not reshuffle the active playback queue.
+        if isShuffleEnabled, playbackQueue.isEmpty { rebuildShuffleQueue() }
     }
 
     // MARK: - Favorites Toggling Action
@@ -581,7 +584,7 @@ extension ViewController {
         guard !loaded.isEmpty else { return }
         let playingFilename = audioPlayer?.url?.lastPathComponent
         let selectedFilename = currentTrackIndex.flatMap { index in
-            filteredTracks.indices.contains(index) ? filteredTracks[index].url.lastPathComponent : nil
+            currentQueue.indices.contains(index) ? currentQueue[index].url.lastPathComponent : nil
         }
 
         trackMetadataCache.merge(loaded) { _, new in new }
@@ -593,11 +596,14 @@ extension ViewController {
             Track(url: track.url, metadata: trackMetadataCache[track.url.lastPathComponent])
         }
         tracks.sort { $0.title.localizedCompare($1.title) == .orderedAscending }
+        let byID = Dictionary(tracks.map { ($0.url.lastPathComponent, $0) }, uniquingKeysWith: { first, _ in first })
+        playbackQueue = playbackQueue.compactMap { byID[$0.url.lastPathComponent] }
         refreshDailyMixIfNeeded(force: true)
         filterTracks()
 
         if let currentFilename = playingFilename ?? selectedFilename,
-           let newIndex = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == currentFilename }) {
+           let newIndex = currentTrackIndex.flatMap({ currentQueue.indices.contains($0) && currentQueue[$0].url.lastPathComponent == currentFilename ? $0 : nil })
+                ?? currentQueue.lastIndex(where: { $0.url.lastPathComponent == currentFilename }) {
             currentTrackIndex = newIndex
         }
         if playingFilename != nil {

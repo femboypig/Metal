@@ -127,7 +127,21 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var isRestoringPersistentState = false
     var lastSavedPlaybackBucket = -1
     var listeningTelemetry = ListeningTelemetryDocument()
-    var playbackSource: ListeningSource = .library
+    var playbackSource: ListeningSource = .library {
+        didSet {
+            if oldValue != playbackSource {
+                mixSessionRecentIDs = []
+                lastMixExtensionAttempt = nil
+            }
+            if playbackSource != .trackVibe { vibeSeedFilename = nil }
+        }
+    }
+    var isUpdatingMixQueue = false
+    var lastMixExtensionAttempt: String?
+    weak var queueSheetTable: UITableView?
+    weak var queueSheetCountLabel: UILabel?
+    var vibeSeedFilename: String?
+    var mixSessionRecentIDs: [String] = []
     var pendingListeningEndReason: ListeningEndReason = .selection
     var pendingManualSelection: String?
     var telemetrySessionSource: ListeningSource = .library
@@ -226,6 +240,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         setupUI()
         configureAudioSession()
         setupRemoteCommands()
+        isRestoringPersistentState = true
         loadLocalTracks()
         loadPlaybackState()
         startDailyMixRefreshTimer()
