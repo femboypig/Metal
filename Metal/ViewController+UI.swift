@@ -1417,11 +1417,11 @@ fragment float4 waveFragmentShader(
     p.y += 0.07;
     // A decaying liquid ripple reshapes the existing wave after a remix.
     float shake = uniforms.mixShake;
-    p += float2(sin(uniforms.time * 24.0 + p.y * 10.0),
-                cos(uniforms.time * 19.0 + p.x * 9.0)) * shake * 0.055;
+    p += float2(sin(uniforms.time * 12.0 + p.y * 8.0),
+                cos(uniforms.time * 10.0 + p.x * 7.0)) * shake * 0.012;
 
     float t = uniforms.time * 0.28;
-    float amp = uniforms.amplitude + uniforms.mixShake * 0.65;
+    float amp = uniforms.amplitude + uniforms.mixShake * 0.20;
 
     // Polar coordinates from center
     float angle = atan2(p.y, p.x);
@@ -1564,16 +1564,16 @@ fragment float4 mixBurstFragmentShader(
     float distance = length(offset);
     float angle = atan2(offset.y, offset.x);
     float t = u.time;
-    float progress = clamp((t - 0.06) / 0.92, 0.0, 1.0);
+    float progress = clamp((t - 0.04) / 0.55, 0.0, 1.0);
     float farthest = length(max(u.origin, res - u.origin));
     float radius = farthest * (1.0 - pow(1.0 - progress, 1.6));
-    float ripple = sin(angle * 5.0 - t * 18.0) * 6.0 * scale * (1.0 - progress);
+    float ripple = sin(angle * 5.0 - t * 12.0) * 2.0 * scale * (1.0 - progress);
     float front = (distance - radius - ripple) / scale;
-    float launch = smoothstep(0.02, 0.10, t) * (1.0 - smoothstep(0.70, 1.02, t));
-    float shock = (exp(-front * front / 80.0) * 0.28
-                 + exp(-front * front / 1400.0) * 0.16) * launch;
+    float launch = smoothstep(0.01, 0.07, t) * (1.0 - smoothstep(0.40, 0.65, t));
+    float shock = (exp(-front * front / 55.0) * 0.14
+                 + exp(-front * front / 650.0) * 0.06) * launch;
     float core = exp(-distance * distance / (2500.0 * scale * scale))
-                 * exp(-pow((t - 0.12) / 0.10, 2.0)) * 0.26;
+                 * exp(-pow((t - 0.08) / 0.07, 2.0)) * 0.08;
 
     // Signed distance to the screen contour. Multiple continuous falloffs create
     // a luminous inner bloom rather than a hard stroked rectangle.
@@ -1581,20 +1581,20 @@ fragment float4 mixBurstFragmentShader(
     float2 q = abs(pixel - res * 0.5) - (res * 0.5 - corner - 1.5 * scale);
     float sdf = length(max(q, float2(0.0))) + min(max(q.x, q.y), 0.0) - corner;
     float edge = abs(sdf) / scale;
-    float localArrival = 0.06 + 0.92 * (1.0 - pow(max(0.0, 1.0 - distance / max(farthest, 1.0)), 0.625));
-    float arrival = exp(-pow((t - localArrival) / 0.16, 2.0));
-    float settle = smoothstep(0.3, 0.95, t) * (1.0 - smoothstep(1.35, 2.65, t));
+    float localArrival = 0.04 + 0.55 * (1.0 - pow(max(0.0, 1.0 - distance / max(farthest, 1.0)), 0.625));
+    float arrival = exp(-pow((t - localArrival) / 0.10, 2.0));
+    float settle = smoothstep(0.18, 0.55, t) * (1.0 - smoothstep(0.65, 1.30, t));
     float flow = 0.82 + 0.18 * sin(pixel.y / res.y * 9.0 - pixel.x / res.x * 5.0 - t * 3.5);
-    float rim = exp(-edge * edge / 12.0) * 0.65
-              + exp(-edge * edge / 220.0) * 0.33
-              + exp(-edge * edge / 1800.0) * 0.13;
-    float glow = rim * (settle * flow + arrival * 0.36);
+    float rim = exp(-edge * edge / 6.0) * 0.40
+              + exp(-edge * edge / 55.0) * 0.20
+              + exp(-edge * edge / 220.0) * 0.05;
+    float glow = rim * (settle * flow + arrival * 0.20);
     float phase = pixel.x / res.x * 0.65 + pixel.y / res.y * 0.45 - t * 0.18;
     float hueFlow = 0.5 + 0.5 * sin(6.2831853 * phase);
     float3 color = mix(float3(0.20, 0.48, 1.0), float3(0.94, 0.18, 0.65), hueFlow);
     float warmth = pow(0.5 + 0.5 * sin(6.2831853 * phase + 1.6), 5.0);
     color = mix(color, float3(1.0, 0.46, 0.22), warmth * 0.65);
-    float alpha = clamp(shock + core + glow, 0.0, 0.88);
+    float alpha = clamp(shock + core + glow, 0.0, 0.60);
     alpha *= 1.0 - smoothstep(0.0, 2.0 * scale, sdf);
     alpha *= u.isDark > 0.5 ? 1.0 : 0.82;
     return float4(color * alpha, alpha);
@@ -1735,8 +1735,8 @@ class YandexWaveView: UIView, MTKViewDelegate {
         lastFrameTime = now
 
         let shakeAge = Float(now - shakeStartedAt)
-        let shakeIntensity = max(0, 1 - shakeAge / 1.8)
-        let speedMultiplier: Float = (isPlayingState ? 1.40 : 0.85) + shakeIntensity * 3
+        let shakeIntensity = max(0, 1 - shakeAge / 0.85)
+        let speedMultiplier: Float = (isPlayingState ? 1.40 : 0.85) + shakeIntensity * 0.5
         elapsedTime += dt * speedMultiplier
         if elapsedTime > 10000.0 { elapsedTime = 0 }
 
@@ -1842,7 +1842,7 @@ final class MixBurstView: MTKView, MTKViewDelegate {
     func draw(in view: MTKView) {
         guard startTime > 0 else { return }
         let elapsed = Float(CACurrentMediaTime() - startTime)
-        if elapsed > 2.7 || UIAccessibility.isReduceMotionEnabled {
+        if elapsed > 1.35 || UIAccessibility.isReduceMotionEnabled {
             isPaused = true
             delegate = nil
             removeFromSuperview()

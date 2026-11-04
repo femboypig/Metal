@@ -138,6 +138,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var telemetrySessionMixID: String?
     var telemetryLastUptime: TimeInterval = 0
     var dailyMixRevision: Int64 = 0
+    var dailyMixRemixHistory: [[String]] = []
     var dailyMixID = UUID().uuidString
     var lastMixShakeTime: TimeInterval = 0
     var telemetrySessionFilename: String?

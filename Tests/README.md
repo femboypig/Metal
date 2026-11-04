@@ -28,10 +28,16 @@ Device checks for the interaction changes:
 - Manually switch songs, go back, seek to the end, and pause/resume. These actions
   should not create early rejection events. A seek should not inflate listening.
 - Shake on the Daily Mix library page or while its player is visible. The current
-  song and its position should continue. The wave ripples and a colored perimeter
+  song and its position should continue. On the library page, song names and
+  artwork should crossfade together over 0.3 seconds. The wave ripples and a colored perimeter
   appears after a soft pulse travels from the wave to the screen edges. There is
-  no text banner. Repeat
-  shakes within three seconds, other library filters, and open sheets are ignored.
+  no text banner. The narrower edge glow fades in about 1.3 seconds and the wave
+  settles in under a second. Repeat shakes within 1.6 seconds, other library
+  filters, and open sheets are ignored.
+- Shake repeatedly with a library of at least 20 tracks. Check several consecutive
+  mixes for distinct openings and orders, without a two-mix loop. The last eight
+  mixes inform novelty; shuffle choices remain constrained by taste and audio
+  compatibility. With tiny libraries, some repetitions are unavoidable.
 - Long-press the Daily Mix filter to remix without moving the device. With Reduce
   Motion enabled, remix still works without the added motion effects.
 - Open Sleep Timer from the player menu. Drag the dial across both ends, select

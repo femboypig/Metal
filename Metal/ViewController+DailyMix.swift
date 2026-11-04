@@ -55,7 +55,14 @@ extension ViewController {
         let recentSession = (listeningTelemetry.sessions ?? []).suffix(24).filter {
             timestamp - $0.timestamp < 30 * 60 && $0.reward != 0
         }
-        let previousIDs = Set(dailyMixTracks.map { $0.url.lastPathComponent })
+        let previousIDs = dailyMixTracks.map { $0.url.lastPathComponent }
+        if remix, !previousIDs.isEmpty, dailyMixRemixHistory.last != previousIDs {
+            dailyMixRemixHistory.append(previousIDs)
+            dailyMixRemixHistory = Array(dailyMixRemixHistory.suffix(8))
+        }
+        let pinnedTrack = remix && playbackSource == .dailyMix ? currentPlaybackTrack() : nil
+        let remixContext = remix ? DailyMixRemixContext(seed: UInt64.random(in: .min ... .max),
+            recentMixes: dailyMixRemixHistory, excludedTrackID: pinnedTrack?.url.lastPathComponent) : nil
         let candidates = tracks.map { track -> DailyMixCandidate in
             let filename = track.url.lastPathComponent
             let telemetry = listeningTelemetry.tracks[filename] ?? TrackListeningTelemetry()
@@ -120,19 +127,18 @@ extension ViewController {
                 hasAnalyzedVibe: dailyMixVibeCache[filename] != nil,
                 recentRejection: min(1, rejection),
                 fatiguePenalty: fatigue,
-                sessionAffinity: sessionEvidence / sessionWeight,
-                remixPenalty: remix && previousIDs.contains(filename) ? 1 : 0
+                sessionAffinity: sessionEvidence / sessionWeight
             )
         }
 
         var selectedIDs = DailyMixEngine.select(
             from: candidates,
             dayKey: dayKey &+ dailyMixRevision,
-            now: timestamp
+            now: timestamp,
+            limit: DailyMixEngine.maximumTrackCount - (pinnedTrack == nil ? 0 : 1),
+            remix: remixContext
         )
-        if remix, selectedIDs.count > 1, selectedIDs == dailyMixTracks.map({ $0.url.lastPathComponent }) {
-            selectedIDs = Array(selectedIDs.dropFirst()) + [selectedIDs[0]]
-        }
+        if let pinnedTrack { selectedIDs.insert(pinnedTrack.url.lastPathComponent, at: 0) }
         let tracksByFilename = Dictionary(
             uniqueKeysWithValues: tracks.map { ($0.url.lastPathComponent, $0) }
         )
@@ -309,12 +315,22 @@ extension ViewController {
               presentedViewController == nil, activeSheetView == nil,
               !searchBar.searchTextField.isFirstResponder, !isCarouselAnimating,
               (libraryVisible && activeFilter == .dailyMix) || playerVisible,
-              dailyMixTracks.count > 1, now - lastMixShakeTime > 3 else { return }
+              dailyMixTracks.count > 1, now - lastMixShakeTime > 1.6 else { return }
         lastMixShakeTime = now
         dailyMixRevision &+= 1
         dailyMixID = UUID().uuidString
-        rebuildDailyMixQueue(remix: true)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if activeFilter == .dailyMix, libraryVisible, !UIAccessibility.isReduceMotionEnabled {
+            // Capture before reloading: names, artwork and positions dissolve
+            // together instead of snapping through multiple synchronous reloads.
+            UIView.transition(with: tableView, duration: 0.30,
+                options: [.transitionCrossDissolve, .allowUserInteraction, .beginFromCurrentState]) {
+                self.rebuildDailyMixQueue(remix: true)
+                self.tableView.layoutIfNeeded()
+            }
+        } else {
+            rebuildDailyMixQueue(remix: true)
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         myWaveView?.shakeMix()
         showMixShakeAnimation()
     }

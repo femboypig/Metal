@@ -71,6 +71,12 @@ enum DayPart: Int, CaseIterable {
     }
 }
 
+struct DailyMixRemixContext {
+    let seed: UInt64
+    let recentMixes: [[String]]
+    var excludedTrackID: String? = nil
+}
+
 enum DailyMixEngine {
     static let maximumTrackCount = 30
 
@@ -97,16 +103,63 @@ enum DailyMixEngine {
         from candidates: [DailyMixCandidate],
         dayKey: Int64,
         now: TimeInterval,
-        limit: Int = maximumTrackCount
+        limit: Int = maximumTrackCount,
+        remix: DailyMixRemixContext? = nil
+    ) -> [String] {
+        guard let remix else {
+            return buildSelection(from: candidates, dayKey: dayKey, now: now, limit: limit, remix: nil)
+        }
+        let history = remix.recentMixes.map { mix in mix.filter { $0 != remix.excludedTrackID } }
+        var fallback: [String]?
+        // Retry only exact recent repetitions. Tiny libraries may exhaust their
+        // possible orders, so retain a bounded fallback rather than looping.
+        for attempt in 0..<12 {
+            let context = DailyMixRemixContext(
+                seed: remix.seed &+ UInt64(attempt) &* 0x9e3779b97f4a7c15,
+                recentMixes: remix.recentMixes, excludedTrackID: remix.excludedTrackID)
+            let result = buildSelection(from: candidates, dayKey: dayKey, now: now, limit: limit, remix: context)
+            if !history.contains(result) { return result }
+            if fallback == nil || (fallback == history.last && result != history.last) { fallback = result }
+        }
+        return fallback ?? []
+    }
+
+    private static func buildSelection(
+        from candidates: [DailyMixCandidate],
+        dayKey: Int64,
+        now: TimeInterval,
+        limit: Int,
+        remix: DailyMixRemixContext?
     ) -> [String] {
         guard limit > 0, !candidates.isEmpty else { return [] }
 
-        let eligible = candidates.filter { $0.recentRejection < 0.7 && $0.fatiguePenalty < 0.6 }
-        let pool = eligible.isEmpty ? candidates : eligible
-        let anchor = pool.max { lhs, rhs in
-            anchorScore(lhs, dayKey: dayKey, now: now)
-                < anchorScore(rhs, dayKey: dayKey, now: now)
-        } ?? candidates[0]
+        let available = candidates.filter { $0.id != remix?.excludedTrackID }
+        guard !available.isEmpty else { return [] }
+        let eligible = available.filter { $0.recentRejection < 0.7 && $0.fatiguePenalty < 0.6 }
+        let pool = eligible.isEmpty ? available : eligible
+        let exposure = exposureWeights(in: remix?.recentMixes ?? [], excluding: remix?.excludedTrackID)
+        let anchors = pool.map { candidate in
+            RankedCandidate(candidate: candidate, score: anchorScore(candidate, dayKey: dayKey, now: now)
+                - exposure[candidate.id, default: 0] * 0.22)
+        }.sorted {
+            if abs($0.score - $1.score) > 0.000_001 { return $0.score > $1.score }
+            return $0.candidate.id < $1.candidate.id
+        }
+        let anchor: DailyMixCandidate
+        if let remix, let best = anchors.first {
+            var shortlist = Array(anchors.filter { $0.score >= best.score - 0.30 }.prefix(8))
+            let recentAnchors = Set(remix.recentMixes.suffix(3).compactMap { mix in
+                mix.first { $0 != remix.excludedTrackID }
+            })
+            let fresh = shortlist.filter { !recentAnchors.contains($0.candidate.id) }
+            if !fresh.isEmpty { shortlist = fresh }
+            anchor = shortlist.max {
+                $0.score + remixNoise(seed: remix.seed, key: "anchor|\($0.candidate.id)") * 0.10
+                    < $1.score + remixNoise(seed: remix.seed, key: "anchor|\($1.candidate.id)") * 0.10
+            }!.candidate
+        } else {
+            anchor = anchors[0].candidate
+        }
 
         let neighbors = pool.filter {
             $0.hasAnalyzedVibe && vibeDistance($0.vibe, anchor.vibe, duration: $0.duration) < 0.22
@@ -119,7 +172,8 @@ enum DailyMixEngine {
             let similarity = candidate.hasAnalyzedVibe
                 ? 1 - vibeDistance(candidate.vibe, theme, duration: candidate.duration) : 0.45
             let discovery = candidate.isUnheard ? 0.06 : 0
-            let jitter = stableUnitValue(for: "pick|\(dayKey)|\(candidate.id)") * 0.035
+            let jitter = remix.map { stableUnitValue(for: "pick|\($0.seed)|\(candidate.id)") * 0.20 }
+                ?? (stableUnitValue(for: "pick|\(dayKey)|\(candidate.id)") * 0.035)
             let recentPenalty = recencyPenalty(candidate.lastPlayedAt, now: now)
             return RankedCandidate(
                 candidate: candidate,
@@ -128,6 +182,7 @@ enum DailyMixEngine {
                     + candidate.contextAffinity * 0.28
                     + candidate.sessionAffinity * 0.45
                     - candidate.remixPenalty * 0.35
+                    - exposure[candidate.id, default: 0] * 0.18
                     + discovery
                     + jitter
                     - recentPenalty
@@ -165,7 +220,7 @@ enum DailyMixEngine {
             }
         }
 
-        return orderAsEnergyArc(selected, anchor: anchor, theme: theme, dayKey: dayKey, dayPart: currentDayPart)
+        return orderAsEnergyArc(selected, anchor: anchor, theme: theme, dayKey: dayKey, dayPart: currentDayPart, remix: remix)
             .map(\.id)
     }
 
@@ -233,7 +288,8 @@ enum DailyMixEngine {
         anchor: DailyMixCandidate,
         theme: AudioVibeProfile,
         dayKey: Int64,
-        dayPart: DayPart
+        dayPart: DayPart,
+        remix: DailyMixRemixContext?
     ) -> [DailyMixCandidate] {
         guard candidates.count > 1 else { return candidates }
         var ordered = [anchor]
@@ -248,23 +304,26 @@ enum DailyMixEngine {
             let targetTempo = clamp(theme.bpm - 5 + arc * 12, 70, 180)
             let previous = ordered[ordered.count - 1]
 
-            let nextIndex = remaining.indices.max { lhs, rhs in
-                flowScore(
-                    remaining[lhs],
-                    previous: previous,
-                    targetEnergy: targetEnergy,
-                    targetTempo: targetTempo,
-                    dayKey: dayKey,
-                    position: ordered.count
-                ) < flowScore(
-                    remaining[rhs],
-                    previous: previous,
-                    targetEnergy: targetEnergy,
-                    targetTempo: targetTempo,
-                    dayKey: dayKey,
-                    position: ordered.count
-                )
-            } ?? remaining.startIndex
+            let scores = remaining.indices.map { index in
+                (index: index, score: flowScore(remaining[index], previous: previous,
+                    targetEnergy: targetEnergy, targetTempo: targetTempo,
+                    dayKey: dayKey, position: ordered.count))
+            }.sorted {
+                if abs($0.score - $1.score) > 0.000_001 { return $0.score > $1.score }
+                return remaining[$0.index].id < remaining[$1.index].id
+            }
+            let nextIndex: Int
+            if let remix, let best = scores.first {
+                // Choose among musically compatible neighbors, rather than
+                // rebuilding the same greedy path on every shake.
+                let shortlist = scores.filter { $0.score >= best.score - 0.18 }.prefix(5)
+                nextIndex = shortlist.max {
+                    $0.score + remixNoise(seed: remix.seed, key: "flow|\(ordered.count)|\(remaining[$0.index].id)") * 0.09
+                        < $1.score + remixNoise(seed: remix.seed, key: "flow|\(ordered.count)|\(remaining[$1.index].id)") * 0.09
+                }!.index
+            } else {
+                nextIndex = scores[0].index
+            }
             ordered.append(remaining.remove(at: nextIndex))
         }
         return ordered
@@ -326,12 +385,36 @@ enum DailyMixEngine {
         min(upper, max(lower, value))
     }
 
+    private static func exposureWeights(in history: [[String]], excluding excludedID: String?) -> [String: Double] {
+        var weights = [String: Double]()
+        var total = 0.0
+        for (age, mix) in history.reversed().enumerated() {
+            let weight = pow(0.72, Double(age))
+            total += weight
+            for (position, id) in mix.filter({ $0 != excludedID }).enumerated() {
+                weights[id, default: 0] += weight * (position < 5 ? 1 : 0.55)
+            }
+        }
+        guard total > 0 else { return weights }
+        return weights.mapValues { $0 / total }
+    }
+
+    private static func remixNoise(seed: UInt64, key: String) -> Double {
+        let unit = clamp(stableUnitValue(for: "\(seed)|\(key)"), 0.000_001, 0.999_999)
+        return -log(-log(unit))
+    }
+
     private static func stableUnitValue(for value: String) -> Double {
         var hash: UInt64 = 14_695_981_039_346_656_037
         for byte in value.utf8 {
             hash ^= UInt64(byte)
             hash &*= 1_099_511_628_211
         }
+        // Avalanche the hash so adjacent revision/seed values do not produce
+        // correlated rankings for similarly named tracks.
+        hash = (hash ^ (hash >> 30)) &* 0xbf58476d1ce4e5b9
+        hash = (hash ^ (hash >> 27)) &* 0x94d049bb133111eb
+        hash ^= hash >> 31
         let mantissa = hash & 0x001f_ffff_ffff_ffff
         return Double(mantissa) / Double(0x001f_ffff_ffff_ffff as UInt64)
     }
