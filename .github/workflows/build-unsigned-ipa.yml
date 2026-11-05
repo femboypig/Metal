@@ -46,6 +46,16 @@ jobs:
           xcrun swiftc -parse-as-library -framework Metal Tests/MetalShaderChecks.swift -o "$RUNNER_TEMP/metal-shader-checks"
           "$RUNNER_TEMP/metal-shader-checks"
 
+      - name: Render app icon appearances
+        run: bash Tests/ExportIconPreviews.sh Metal/AppIcon.icon "$RUNNER_TEMP/MetalIconPreviews"
+
+      - name: Upload app icon previews
+        uses: actions/upload-artifact@v6
+        with:
+          name: Metal-icon-previews-${{ github.sha }}
+          path: ${{ runner.temp }}/MetalIconPreviews/*.png
+          if-no-files-found: error
+
       - name: Build unsigned app
         run: |
           set -euo pipefail
