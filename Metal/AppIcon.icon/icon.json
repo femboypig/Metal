@@ -1,5 +1,5 @@
 {
-  "color-space-for-untagged-svg-colors": "srgb",
+  "color-space-for-untagged-svg-colors": "display-p3",
   "fill-specializations": [
     {
       "value": {
@@ -22,10 +22,6 @@
     {
       "appearance": "dark",
       "value": "system-dark"
-    },
-    {
-      "appearance": "tinted",
-      "value": "automatic"
     }
   ],
   "groups": [
