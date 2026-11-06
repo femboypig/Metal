@@ -541,7 +541,7 @@ extension ViewController {
         miniPreviousButton = UIButton(type: .system)
         miniPreviousButton.translatesAutoresizingMaskIntoConstraints = false
         miniPreviousButton.tintColor = UIColor.white.withAlphaComponent(0.82)
-        miniPreviousButton.setImage(UIImage(systemName: "backward.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)), for: .normal)
+        miniPreviousButton.setImage(PlaybackIcon.previous.image(size: 14), for: .normal)
         miniPreviousButton.addTarget(self, action: #selector(playPreviousTrack), for: .touchUpInside)
         miniControls.addArrangedSubview(miniPreviousButton)
 
@@ -551,14 +551,14 @@ extension ViewController {
         miniPlayPauseButton.layer.cornerRadius = 0
         miniPlayPauseButton.layer.borderWidth = 0
         miniPlayPauseButton.backgroundColor = .clear
-        miniPlayPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
+        miniPlayPauseButton.setImage(PlaybackIcon.play.image(size: 18), for: .normal)
         miniPlayPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
         miniControls.addArrangedSubview(miniPlayPauseButton)
 
         miniNextButton = UIButton(type: .system)
         miniNextButton.translatesAutoresizingMaskIntoConstraints = false
         miniNextButton.tintColor = UIColor.white.withAlphaComponent(0.82)
-        miniNextButton.setImage(UIImage(systemName: "forward.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)), for: .normal)
+        miniNextButton.setImage(PlaybackIcon.next.image(size: 14), for: .normal)
         miniNextButton.addTarget(self, action: #selector(playNextTrack), for: .touchUpInside)
         miniControls.addArrangedSubview(miniNextButton)
 
@@ -982,7 +982,7 @@ extension ViewController {
         controlsStack.addArrangedSubview(shuffleButton)
 
         let prevButton = UIButton(type: .system)
-        prevButton.setImage(UIImage(systemName: "backward.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 26, weight: .semibold)), for: .normal)
+        prevButton.setImage(PlaybackIcon.previous.image(size: 26), for: .normal)
         prevButton.tintColor = .white
         prevButton.addTarget(self, action: #selector(playPreviousTrack), for: .touchUpInside)
         controlsStack.addArrangedSubview(prevButton)
@@ -993,12 +993,12 @@ extension ViewController {
         playPauseButton.backgroundColor = .white
         playPauseButton.layer.cornerRadius = 32
         playPauseButton.tintColor = .black
-        playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+        playPauseButton.setImage(PlaybackIcon.play.image(size: 24), for: .normal)
         playPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
         controlsStack.addArrangedSubview(playPauseButton)
 
         let nextButton = UIButton(type: .system)
-        nextButton.setImage(UIImage(systemName: "forward.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 26, weight: .semibold)), for: .normal)
+        nextButton.setImage(PlaybackIcon.next.image(size: 26), for: .normal)
         nextButton.tintColor = .white
         nextButton.addTarget(self, action: #selector(playNextTrack), for: .touchUpInside)
         controlsStack.addArrangedSubview(nextButton)
@@ -1944,3 +1944,26 @@ extension ViewController: UIContextMenuInteractionDelegate {
 
 
 
+
+/// One source for transport icons in the player, mini-player and track menus.
+/// The asset vectors retain their original canvas and render at the button size.
+enum PlaybackIcon: String {
+    case previous = "PlaybackPrevious"
+    case next = "PlaybackNext"
+    case play = "PlaybackPlay"
+    case pause = "PlaybackPause"
+
+    private static let cache = NSCache<NSString, UIImage>()
+
+    func image(size: CGFloat) -> UIImage? {
+        let key = "\(rawValue)-\(size)" as NSString
+        if let image = Self.cache.object(forKey: key) { return image }
+        guard let source = UIImage(named: rawValue) else { return nil }
+        let canvas = CGSize(width: size, height: size)
+        let image = UIGraphicsImageRenderer(size: canvas).image { _ in
+            source.draw(in: CGRect(origin: .zero, size: canvas))
+        }.withRenderingMode(.alwaysTemplate)
+        Self.cache.setObject(image, forKey: key)
+        return image
+    }
+}

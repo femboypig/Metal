@@ -299,7 +299,7 @@ extension ViewController {
     }
 
     func makePlaylistContextMenu(name: String) -> UIMenu {
-        let playAction = UIAction(title: "Play Playlist", image: UIImage(systemName: "play.fill")) { [weak self] _ in
+        let playAction = UIAction(title: "Play Playlist", image: PlaybackIcon.play.image(size: 20)) { [weak self] _ in
             guard let self = self else { return }
             self.activeFilter = .playlist(name)
             self.filterTracks()
@@ -856,7 +856,7 @@ extension ViewController {
         guard let track = activeTrack else {
             miniTitleLabel?.text = "No Track Selected"
             miniArtistLabel?.text = "Select a song below"
-            miniPlayPauseButton?.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
+            miniPlayPauseButton?.setImage(PlaybackIcon.play.image(size: 18), for: .normal)
             applyMiniPlayerColors(useArtworkBackground: false)
             miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
             miniCoverView?.setArtwork(nil, seed: nil)
@@ -873,8 +873,8 @@ extension ViewController {
         }
 
         let isPlaying = audioPlayer?.isPlaying == true
-        let playIcon = isPlaying ? "pause.fill" : "play.fill"
-        miniPlayPauseButton?.setImage(UIImage(systemName: playIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
+        let playIcon: PlaybackIcon = isPlaying ? .pause : .play
+        miniPlayPauseButton?.setImage(playIcon.image(size: 18), for: .normal)
 
         if let artwork = track.artwork {
             miniCoverView?.image = artwork

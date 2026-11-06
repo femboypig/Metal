@@ -225,7 +225,7 @@ extension ViewController {
             startTimer()
 
             // Full UI updating
-            playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+            playPauseButton.setImage(PlaybackIcon.pause.image(size: 24), for: .normal)
             trackTitleLabel.text = track.title
 
             // Artist label handling (hiding if empty or unknown)
@@ -294,7 +294,7 @@ extension ViewController {
             updateTimer?.invalidate()
             savePlaybackState()
             stopArtworkAnimation()
-            playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+            playPauseButton.setImage(PlaybackIcon.play.image(size: 24), for: .normal)
             deactivateAudioSessionIfIdle()
         } else {
             guard activateAudioSessionIfNeeded() else { return }
@@ -307,7 +307,7 @@ extension ViewController {
             player.play()
             startTimer()
             startArtworkAnimation()
-            playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+            playPauseButton.setImage(PlaybackIcon.pause.image(size: 24), for: .normal)
         }
 
         updateNowPlayingInfo()
@@ -465,7 +465,7 @@ extension ViewController {
             }
 
             // Full UI updating
-            self.playPauseButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+            self.playPauseButton.setImage(PlaybackIcon.pause.image(size: 24), for: .normal)
             self.trackTitleLabel.text = nextTrack.title
 
             if nextTrack.artist != "Unknown Artist" && !nextTrack.artist.isEmpty {

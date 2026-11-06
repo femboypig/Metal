@@ -268,8 +268,8 @@ extension ViewController {
         if !isPlayer {
             let isCurrent = (audioPlayer != nil && audioPlayer?.url == track.url && audioPlayer?.isPlaying == true)
             let playTitle = isCurrent ? "Pause" : "Play"
-            let playIcon = isCurrent ? "pause.fill" : "play.fill"
-            let playAction = UIAction(title: playTitle, image: UIImage(systemName: playIcon)) { [weak self] _ in
+            let playIcon: PlaybackIcon = isCurrent ? .pause : .play
+            let playAction = UIAction(title: playTitle, image: playIcon.image(size: 20)) { [weak self] _ in
                 guard let self = self else { return }
                 if isCurrent {
                     self.playPauseTapped()
@@ -810,7 +810,7 @@ extension ViewController {
         cancelSleepFade()
         updateTimer?.invalidate()
         savePlaybackState()
-        playPauseButton.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+        playPauseButton.setImage(PlaybackIcon.play.image(size: 24), for: .normal)
         stopArtworkAnimation()
         updateNowPlayingInfo()
         updateMiniPlayerUI()

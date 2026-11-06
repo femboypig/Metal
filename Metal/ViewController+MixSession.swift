@@ -135,7 +135,7 @@ extension ViewController {
     func stopAtMixEnd() {
         audioPlayer?.pause()
         updateTimer?.invalidate()
-        playPauseButton?.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 24, weight: .bold)), for: .normal)
+        playPauseButton?.setImage(PlaybackIcon.play.image(size: 24), for: .normal)
         stopArtworkAnimation()
         updateNowPlayingInfo()
         updateMiniPlayerUI()
