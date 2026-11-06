@@ -35,7 +35,7 @@ final class GlassArtworkImageView: UIImageView {
         didSet { if ready { updateMaterial() } }
     }
 
-    override init(frame: CGRect) {
+    override init(frame: CGRect = .zero) {
         super.init(frame: frame)
         setup()
     }
