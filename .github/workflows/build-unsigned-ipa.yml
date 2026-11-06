@@ -47,7 +47,7 @@ jobs:
           "$RUNNER_TEMP/metal-shader-checks"
 
       - name: Render app icon appearances
-        run: bash Tests/ExportIconPreviews.sh Metal/AppIcon.icon "$RUNNER_TEMP/MetalIconPreviews"
+        run: bash Tests/ExportIconPreviews.sh Metal/MetalStarAppIcon.icon "$RUNNER_TEMP/MetalIconPreviews"
 
       - name: Upload app icon previews
         uses: actions/upload-artifact@v6
@@ -66,10 +66,34 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}.${{ github.run_attempt }}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
             clean build
+
+      - name: Verify packaged icon identity and build version
+        env:
+          EXPECTED_BUILD_VERSION: ${{ github.run_number }}.${{ github.run_attempt }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, plistlib
+          app = pathlib.Path(os.environ["RUNNER_TEMP"]) / "DerivedData/Build/Products/Release-iphoneos/Metal.app"
+          with (app / "Info.plist").open("rb") as stream:
+              info = plistlib.load(stream)
+          assert info["CFBundleVersion"] == os.environ["EXPECTED_BUILD_VERSION"], info["CFBundleVersion"]
+          for key in ("CFBundleIcons", "CFBundleIcons~ipad"):
+              primary = info[key]["CFBundlePrimaryIcon"]
+              assert primary["CFBundleIconName"] == "MetalStarAppIcon", primary
+              assert all(name.startswith("MetalStarAppIcon") for name in primary["CFBundleIconFiles"]), primary
+          icons = list(app.glob("MetalStarAppIcon*.png"))
+          assert icons, "missing compatibility icons for system surfaces"
+          assert not list(app.glob("AppIcon*.png")), "stale icon family in app bundle"
+          with (app / "PlugIns/MetalWidgetsExtension.appex/Info.plist").open("rb") as stream:
+              assert plistlib.load(stream)["CFBundleVersion"] == info["CFBundleVersion"]
+          print("Verified icon family: MetalStarAppIcon; build:", info["CFBundleVersion"])
+          print("Compatibility icons:", ", ".join(icon.name for icon in icons))
+          PY
 
       - name: Embed entitlements for sideload resigners
         run: |

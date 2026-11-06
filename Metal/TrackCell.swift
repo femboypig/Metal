@@ -11,7 +11,7 @@ class TrackCell: UITableViewCell {
     let mainHorizontalStack = UIStackView()
     let leftStack = UIStackView()
     let indexLabel = UILabel()
-    let playingThumbnail = UIImageView()
+    let playingThumbnail = GlassArtworkImageView()
     
     let textStack = UIStackView()
     let titleLabel = UILabel()
@@ -125,16 +125,8 @@ class TrackCell: UITableViewCell {
         
         durationLabel.text = colors.formatTime(track.duration)
         
-        if let artwork = track.artwork {
-            playingThumbnail.image = artwork
-            playingThumbnail.tintColor = nil
-            playingThumbnail.backgroundColor = .clear
-        } else {
-            playingThumbnail.image = UIImage(named: "PlaceholderArtwork")
-            playingThumbnail.tintColor = nil
-            playingThumbnail.backgroundColor = .clear
-        }
-        
+        playingThumbnail.setArtwork(track.artwork, seed: track.title)
+
         if isPlaying {
             titleLabel.textColor = UIColor(red: 0.93, green: 0.47, blue: 0.31, alpha: 1.0)
             playingThumbnail.layer.borderWidth = 0.5

@@ -834,7 +834,7 @@ extension ViewController {
             miniNextButton?.isEnabled = false
             applyMiniPlayerColors(useArtworkBackground: false)
             miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
-            miniCoverView?.image = UIImage(named: "PlaceholderArtwork")
+            miniCoverView?.setArtwork(nil, seed: nil)
             return
         }
 
@@ -859,7 +859,7 @@ extension ViewController {
             miniPlayPauseButton?.setImage(UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)), for: .normal)
             applyMiniPlayerColors(useArtworkBackground: false)
             miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
-            miniCoverView?.image = UIImage(named: "PlaceholderArtwork")
+            miniCoverView?.setArtwork(nil, seed: nil)
             return
         }
 
@@ -887,7 +887,7 @@ extension ViewController {
             }
         } else {
             applyMiniPlayerColors(useArtworkBackground: false)
-            miniCoverView?.image = UIImage(named: "PlaceholderArtwork")
+            miniCoverView?.setArtwork(nil, seed: track.title)
             if #available(iOS 26.0, *) {
                 miniPlayerView?.backgroundColor = .clear
             } else {

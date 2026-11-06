@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-icon_path="${1:-Metal/AppIcon.icon}"
+icon_path="${1:-Metal/MetalStarAppIcon.icon}"
 preview_dir="${2:?provide an output directory}"
 xcode_developer="$(xcode-select -p)"
 icon_tool="${xcode_developer%/Developer}/Applications/Icon Composer.app/Contents/Executables/ictool"

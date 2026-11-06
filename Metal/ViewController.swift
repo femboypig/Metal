@@ -59,7 +59,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     // Miniplayer (Page 1 Interface - Floating Pill Card)
     var miniPlayerView: UIView!
     var miniCoverCard: UIView!
-    var miniCoverView: UIImageView!
+    var miniCoverView: GlassArtworkImageView!
     var miniTitleLabel: UILabel!
     var miniArtistLabel: UILabel!
     var miniPreviousButton: UIButton!
@@ -72,13 +72,13 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var playerHeaderLabel: UILabel!
     var coverCarouselContainer: UIView!
     var leftCoverCard: UIView!
-    var leftCoverImageView: UIImageView!
+    var leftCoverImageView: GlassArtworkImageView!
     var leftCoverDimOverlay: UIView!
     var coverArtCard: UIView!
-    var coverImageView: UIImageView!
+    var coverImageView: GlassArtworkImageView!
     var coverDimOverlay: UIView!
     var rightCoverCard: UIView!
-    var rightCoverImageView: UIImageView!
+    var rightCoverImageView: GlassArtworkImageView!
     var rightCoverDimOverlay: UIView!
     var isCarouselAnimating: Bool = false
 

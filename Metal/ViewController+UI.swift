@@ -507,7 +507,7 @@ extension ViewController {
         miniCoverCard.layer.borderWidth = 0
         miniPlayerView.addSubview(miniCoverCard)
 
-        miniCoverView = UIImageView()
+        miniCoverView = GlassArtworkImageView()
         miniCoverView.translatesAutoresizingMaskIntoConstraints = false
         miniCoverView.contentMode = .scaleAspectFill
         miniCoverView.clipsToBounds = true
@@ -795,7 +795,7 @@ extension ViewController {
         // Previous Cover (Left) - Dimmed
         leftCoverCard = UIView()
         leftCoverCard.translatesAutoresizingMaskIntoConstraints = false
-        leftCoverCard.backgroundColor = .black
+        leftCoverCard.backgroundColor = .clear
         leftCoverCard.layer.cornerRadius = 18
         leftCoverCard.layer.cornerCurve = .continuous
         leftCoverCard.layer.borderWidth = 0.5
@@ -807,10 +807,10 @@ extension ViewController {
         leftCoverCard.clipsToBounds = false
         leftCoverCard.layer.zPosition = 1
         leftCoverCard.isUserInteractionEnabled = true
-        leftCoverCard.alpha = 0.55
+        leftCoverCard.alpha = 1
         coverCarouselContainer.addSubview(leftCoverCard)
 
-        leftCoverImageView = UIImageView()
+        leftCoverImageView = GlassArtworkImageView()
         leftCoverImageView.translatesAutoresizingMaskIntoConstraints = false
         leftCoverImageView.contentMode = .scaleAspectFill
         leftCoverImageView.layer.cornerRadius = 18
@@ -833,7 +833,7 @@ extension ViewController {
         // Next Cover (Right) - Dimmed
         rightCoverCard = UIView()
         rightCoverCard.translatesAutoresizingMaskIntoConstraints = false
-        rightCoverCard.backgroundColor = .black
+        rightCoverCard.backgroundColor = .clear
         rightCoverCard.layer.cornerRadius = 18
         rightCoverCard.layer.cornerCurve = .continuous
         rightCoverCard.layer.borderWidth = 0.5
@@ -845,10 +845,10 @@ extension ViewController {
         rightCoverCard.clipsToBounds = false
         rightCoverCard.layer.zPosition = 1
         rightCoverCard.isUserInteractionEnabled = true
-        rightCoverCard.alpha = 0.55
+        rightCoverCard.alpha = 1
         coverCarouselContainer.addSubview(rightCoverCard)
 
-        rightCoverImageView = UIImageView()
+        rightCoverImageView = GlassArtworkImageView()
         rightCoverImageView.translatesAutoresizingMaskIntoConstraints = false
         rightCoverImageView.contentMode = .scaleAspectFill
         rightCoverImageView.layer.cornerRadius = 18
@@ -871,7 +871,7 @@ extension ViewController {
         // Center Cover (Current Track)
         coverArtCard = UIView()
         coverArtCard.translatesAutoresizingMaskIntoConstraints = false
-        coverArtCard.backgroundColor = UIColor.white.withAlphaComponent(0.08)
+        coverArtCard.backgroundColor = .clear
         coverArtCard.layer.cornerRadius = 18
         coverArtCard.layer.cornerCurve = .continuous
         coverArtCard.layer.borderWidth = 0.5
@@ -885,7 +885,7 @@ extension ViewController {
         coverArtCard.isUserInteractionEnabled = true
         coverCarouselContainer.addSubview(coverArtCard)
 
-        coverImageView = UIImageView()
+        coverImageView = GlassArtworkImageView()
         coverImageView.translatesAutoresizingMaskIntoConstraints = false
         coverImageView.contentMode = .scaleAspectFill
         coverImageView.layer.cornerRadius = 18

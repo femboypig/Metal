@@ -77,8 +77,9 @@ extension ViewController {
         headerContentStack.alignment = .center
         titleHeader.addSubview(headerContentStack)
         
-        if let art = artwork ?? UIImage(named: "PlaceholderArtwork") {
-            let artView = UIImageView(image: art)
+        do {
+            let artView = GlassArtworkImageView()
+            artView.setArtwork(artwork, seed: title)
             artView.translatesAutoresizingMaskIntoConstraints = false
             artView.contentMode = .scaleAspectFill
             artView.layer.cornerRadius = 10

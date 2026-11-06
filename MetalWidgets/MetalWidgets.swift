@@ -109,54 +109,67 @@ struct MetalTimelineProvider: TimelineProvider {
 private struct MetalArtwork: View {
     let data: Data?
     var cornerRadius: CGFloat = 16
-
-    private var image: Image {
-        if let data, let image = UIImage(data: data) {
-            return Image(uiImage: image)
-        }
-        return Image("PlaceholderArtwork")
-    }
+    var seed: String = "Metal"
 
     @ViewBuilder
     var body: some View {
-        if #available(iOS 18.0, *) {
-            styled(image.resizable().widgetAccentedRenderingMode(.fullColor))
+        if let data, let uiImage = UIImage(data: data) {
+            if #available(iOS 18.0, *) {
+                styled(Image(uiImage: uiImage).resizable().widgetAccentedRenderingMode(.fullColor))
+            } else {
+                styled(Image(uiImage: uiImage).resizable())
+            }
         } else {
-            styled(image.resizable())
+            let palette = ArtworkPlaceholderPalette(seed: seed, isDark: true)
+            GeometryReader { geometry in
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                        .environment(\.colorScheme, .dark)
+                    LinearGradient(colors: [Color(palette.top).opacity(0.26), Color(palette.bottom).opacity(0.12)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing)
+                    Image("MetalStar")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(.white.opacity(0.64))
+                        .padding(min(geometry.size.width, geometry.size.height) * 0.17)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
 
     private func styled<Content: View>(_ content: Content) -> some View {
-        content
-            .scaledToFill()
+        content.scaledToFill()
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
 private struct MetalWidgetBackdrop: View {
     let artworkData: Data?
+    let seed: String
 
     var body: some View {
+        let palette = ArtworkPlaceholderPalette(seed: seed, isDark: true)
         ZStack {
-            Color.black
-            MetalArtwork(data: artworkData, cornerRadius: 0)
-                .scaleEffect(1.2)
-                .blur(radius: 32)
-                .opacity(0.34)
-            Color.black.opacity(0.48)
+            LinearGradient(colors: [Color(palette.top), Color(palette.bottom)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            if let artworkData {
+                MetalArtwork(data: artworkData, cornerRadius: 0, seed: seed)
+                    .scaleEffect(1.2)
+                    .blur(radius: 32)
+                    .opacity(0.34)
+                Color.black.opacity(0.30)
+            }
         }
     }
 }
 
 private extension View {
     @ViewBuilder
-    func metalWidgetBackground(artworkData: Data?) -> some View {
+    func metalWidgetBackground(artworkData: Data?, seed: String) -> some View {
         if #available(iOS 17.0, *) {
-            containerBackground(for: .widget) {
-                MetalWidgetBackdrop(artworkData: artworkData)
-            }
+            containerBackground(for: .widget) { MetalWidgetBackdrop(artworkData: artworkData, seed: seed) }
         } else {
-            background(MetalWidgetBackdrop(artworkData: artworkData))
+            background(MetalWidgetBackdrop(artworkData: artworkData, seed: seed))
         }
     }
 }
@@ -174,7 +187,7 @@ private struct MetalRecommendationHero: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            MetalArtwork(data: recommendation.artworkData, cornerRadius: cornerRadius)
+            MetalArtwork(data: recommendation.artworkData, cornerRadius: cornerRadius, seed: recommendation.title)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             LinearGradient(
@@ -207,7 +220,7 @@ private struct MetalRecommendationRow: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            MetalArtwork(data: recommendation.artworkData, cornerRadius: 9)
+            MetalArtwork(data: recommendation.artworkData, cornerRadius: 9, seed: recommendation.title)
                 .frame(width: 52, height: 52)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -235,7 +248,7 @@ struct MetalSquareWidgetView: View {
     var body: some View {
         MetalRecommendationHero(recommendation: entry.primary)
             .widgetURL(entry.primary.deepLinkURL)
-            .metalWidgetBackground(artworkData: entry.primary.artworkData)
+            .metalWidgetBackground(artworkData: entry.primary.artworkData, seed: entry.primary.title)
     }
 }
 
@@ -266,7 +279,7 @@ struct MetalWideWidgetView: View {
         }
         .padding(12)
         .foregroundStyle(.white)
-        .metalWidgetBackground(artworkData: entry.primary.artworkData)
+        .metalWidgetBackground(artworkData: entry.primary.artworkData, seed: entry.primary.title)
     }
 }
 

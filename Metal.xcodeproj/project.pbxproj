@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F50000000000000000000002 /* ArtworkPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000011 /* ArtworkPlaceholder.swift */; };
+		F50000000000000000000001 /* ArtworkPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000011 /* ArtworkPlaceholder.swift */; };
 		F40000000000000000000002 /* ViewController+Collections.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000012 /* ViewController+Collections.swift */; };
 		F40000000000000000000001 /* LibraryCollectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000011 /* LibraryCollectionEngine.swift */; };
 		F30000000000000000000002 /* ViewController+MixSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000012 /* ViewController+MixSession.swift */; };
@@ -15,7 +17,7 @@
 		B10000000000000000000001 /* MetalWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* MetalWidgets.swift */; };
 		B10000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* Assets.xcassets */; };
 		B10000000000000000000003 /* MetalWidgetsExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* MetalWidgetsExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		A1B2C3D4E5F6000000000003 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000004 /* AppIcon.icon */; };
+		A1B2C3D4E5F6000000000003 /* MetalStarAppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000004 /* MetalStarAppIcon.icon */; };
 		04C70D28EB9353CEAF94EB5A /* ViewController+BottomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C794D74A945BAFB94C81CB /* ViewController+BottomSheet.swift */; };
 		04C70E9B52FD56029627DD4A /* ViewController+TableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C7248444DF5125817B6D4B /* ViewController+TableView.swift */; };
 		04C72DF3F9A85B2BB4D4A129 /* InputSubmitWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C791FFC8FB56E8AEAB06A7 /* InputSubmitWrapper.swift */; };
@@ -67,6 +69,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F50000000000000000000011 /* ArtworkPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkPlaceholder.swift; sourceTree = "<group>"; };
 		F40000000000000000000012 /* ViewController+Collections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Collections.swift"; sourceTree = "<group>"; };
 		F40000000000000000000011 /* LibraryCollectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryCollectionEngine.swift"; sourceTree = "<group>"; };
 		F30000000000000000000012 /* ViewController+MixSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+MixSession.swift"; sourceTree = "<group>"; };
@@ -77,7 +80,7 @@
 		B10000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000014 /* MetalWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MetalWidgets.entitlements; sourceTree = "<group>"; };
 		B10000000000000000000015 /* MetalWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MetalWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1B2C3D4E5F6000000000004 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000004 /* MetalStarAppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = MetalStarAppIcon.icon; sourceTree = "<group>"; };
 		04157E5330246C69006395B8 /* Metal.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Metal.entitlements; sourceTree = "<group>"; };
 		04C7198F9E735671A38FC88E /* ViewController+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+UI.swift"; sourceTree = "<group>"; };
 		04C7248444DF5125817B6D4B /* ViewController+TableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+TableView.swift"; sourceTree = "<group>"; };
@@ -146,11 +149,12 @@
 		04C7491E2FEFF60C00B62262 /* Metal */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F6000000000004 /* AppIcon.icon */,
+				A1B2C3D4E5F6000000000004 /* MetalStarAppIcon.icon */,
 				04157E5330246C69006395B8 /* Metal.entitlements */,
 				04C766D736C95B5AB14A99E4 /* AIDJEngine.swift */,
 				A1B2C3D4E5F6000000000002 /* ListeningTelemetry.swift */,
 				E20000000000000000000002 /* ListeningHistory.swift */,
+				F50000000000000000000011 /* ArtworkPlaceholder.swift */,
 				F40000000000000000000012 /* ViewController+Collections.swift */,
 				F40000000000000000000011 /* LibraryCollectionEngine.swift */,
 				F30000000000000000000012 /* ViewController+MixSession.swift */,
@@ -282,7 +286,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D4E5F6000000000003 /* AppIcon.icon in Resources */,
+				A1B2C3D4E5F6000000000003 /* MetalStarAppIcon.icon in Resources */,
 				04C7492F2FEFF60E00B62262 /* LaunchScreen.storyboard in Resources */,
 				04C7492C2FEFF60E00B62262 /* Assets.xcassets in Resources */,
 				04C749272FEFF60C00B62262 /* Main.storyboard in Resources */,
@@ -298,6 +302,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B10000000000000000000001 /* MetalWidgets.swift in Sources */,
+				F50000000000000000000002 /* ArtworkPlaceholder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,6 +313,7 @@
 				04C7504596FA5DF98520F8F2 /* AIDJEngine.swift in Sources */,
 				A1B2C3D4E5F6000000000001 /* ListeningTelemetry.swift in Sources */,
 				E20000000000000000000001 /* ListeningHistory.swift in Sources */,
+				F50000000000000000000001 /* ArtworkPlaceholder.swift in Sources */,
 				F40000000000000000000002 /* ViewController+Collections.swift in Sources */,
 				F40000000000000000000001 /* LibraryCollectionEngine.swift in Sources */,
 				F30000000000000000000002 /* ViewController+MixSession.swift in Sources */,
@@ -370,7 +376,7 @@
 				CODE_SIGN_ENTITLEMENTS = MetalWidgets/MetalWidgets.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = V24Z4G9S3A;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MetalWidgets/Info.plist;
@@ -393,7 +399,7 @@
 				CODE_SIGN_ENTITLEMENTS = MetalWidgets/MetalWidgets.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = V24Z4G9S3A;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MetalWidgets/Info.plist;
@@ -526,12 +532,12 @@
 		04C749342FEFF60E00B62262 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = MetalStarAppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Metal/Metal.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = V24Z4G9S3A;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Metal/Info.plist;
@@ -558,12 +564,12 @@
 		04C749352FEFF60E00B62262 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = MetalStarAppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Metal/Metal.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = V24Z4G9S3A;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Metal/Info.plist;

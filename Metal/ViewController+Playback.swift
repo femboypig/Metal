@@ -687,37 +687,8 @@ extension ViewController {
     }
 
     func fallbackPalette(for trackTitle: String?, isDark: Bool) -> PlayerArtworkPalette {
-        guard let title = trackTitle, !title.isEmpty else {
-            let base = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-            if isDark {
-                return PlayerArtworkPalette(
-                    topColor: UIColor(hue: 0.04, saturation: 0.75, brightness: 0.42, alpha: 1.0),
-                    bottomColor: UIColor(hue: 0.04, saturation: 0.35, brightness: 0.08, alpha: 1.0),
-                    waveColor: base
-                )
-            } else {
-                return PlayerArtworkPalette(
-                    topColor: UIColor(hue: 0.04, saturation: 0.52, brightness: 0.93, alpha: 1.0),
-                    bottomColor: UIColor(hue: 0.04, saturation: 0.25, brightness: 0.97, alpha: 1.0),
-                    waveColor: base
-                )
-            }
-        }
-        let hash = abs(title.hashValue)
-        let hue = CGFloat(hash % 360) / 360.0
-        if isDark {
-            return PlayerArtworkPalette(
-                topColor: UIColor(hue: hue, saturation: 0.75, brightness: 0.42, alpha: 1.0),
-                bottomColor: UIColor(hue: hue, saturation: 0.35, brightness: 0.08, alpha: 1.0),
-                waveColor: UIColor(hue: hue, saturation: 0.88, brightness: 0.82, alpha: 1.0)
-            )
-        } else {
-            return PlayerArtworkPalette(
-                topColor: UIColor(hue: hue, saturation: 0.50, brightness: 0.93, alpha: 1.0),
-                bottomColor: UIColor(hue: hue, saturation: 0.22, brightness: 0.97, alpha: 1.0),
-                waveColor: UIColor(hue: hue, saturation: 0.80, brightness: 0.72, alpha: 1.0)
-            )
-        }
+        let colors = ArtworkPlaceholderPalette(seed: trackTitle, isDark: isDark)
+        return PlayerArtworkPalette(topColor: colors.top, bottomColor: colors.bottom, waveColor: colors.accent)
     }
 
     func fallbackTrackColor(for trackTitle: String?) -> UIColor {
@@ -957,20 +928,18 @@ extension ViewController {
         let prevTrack = getPreviousTrack()
         let nextTrack = getNextTrack()
 
-        let defaultPlaceholder = UIImage(named: "PlaceholderArtwork")
-
         let applyImages = {
-            self.coverImageView?.image = currentTrack?.artwork ?? defaultPlaceholder
+            self.coverImageView?.setArtwork(currentTrack?.artwork, seed: currentTrack?.title)
             if let prev = prevTrack {
                 self.leftCoverCard?.isHidden = false
-                self.leftCoverImageView?.image = prev.artwork ?? defaultPlaceholder
+                self.leftCoverImageView?.setArtwork(prev.artwork, seed: prev.title)
             } else {
                 self.leftCoverCard?.isHidden = true
             }
 
             if let next = nextTrack {
                 self.rightCoverCard?.isHidden = false
-                self.rightCoverImageView?.image = next.artwork ?? defaultPlaceholder
+                self.rightCoverImageView?.setArtwork(next.artwork, seed: next.title)
             } else {
                 self.rightCoverCard?.isHidden = true
             }
@@ -1026,9 +995,9 @@ extension ViewController {
             coverArtCard.layer.shadowOpacity = centerShadowOpacity
             coverArtCard.alpha = 1.0
             self.coverDimOverlay?.alpha = 0.0
-            leftCoverCard.alpha = 0.55
+            leftCoverCard.alpha = self.leftCoverImageView?.image == nil ? 1 : 0.55
             self.leftCoverDimOverlay?.alpha = 1.0
-            rightCoverCard.alpha = 0.55
+            rightCoverCard.alpha = self.rightCoverImageView?.image == nil ? 1 : 0.55
             self.rightCoverDimOverlay?.alpha = 1.0
         }
 
@@ -1075,7 +1044,7 @@ extension ViewController {
         let centerScale: CGFloat = isPlaying ? playingScale : 1.0
 
         let incomingCard = UIView()
-        incomingCard.backgroundColor = .black
+        incomingCard.backgroundColor = .clear
         incomingCard.layer.cornerRadius = 18
         incomingCard.layer.cornerCurve = .continuous
         incomingCard.layer.borderWidth = 0.5
@@ -1096,12 +1065,12 @@ extension ViewController {
             height: baseCardSize
         )
 
-        let incomingImageView = UIImageView(frame: CGRect(x: 0, y: 0, width: baseCardSize, height: baseCardSize))
+        let incomingImageView = GlassArtworkImageView(frame: CGRect(x: 0, y: 0, width: baseCardSize, height: baseCardSize))
         incomingImageView.contentMode = .scaleAspectFill
         incomingImageView.layer.cornerRadius = 18
         incomingImageView.layer.cornerCurve = .continuous
         incomingImageView.clipsToBounds = true
-        incomingImageView.image = incomingTrack?.artwork ?? UIImage(named: "PlaceholderArtwork")
+        incomingImageView.setArtwork(incomingTrack?.artwork, seed: incomingTrack?.title)
         incomingCard.addSubview(incomingImageView)
 
         let incomingDim = UIView(frame: CGRect(x: 0, y: 0, width: baseCardSize, height: baseCardSize))
@@ -1133,7 +1102,7 @@ extension ViewController {
                     leftCoverCard.alpha = 0.0
 
                     coverArtCard.transform = CGAffineTransform(translationX: -sideOffset, y: 0)
-                    coverArtCard.alpha = 0.55
+                    coverArtCard.alpha = self.coverImageView?.image == nil ? 1 : 0.55
                     self.coverDimOverlay?.alpha = 1.0
                     coverArtCard.layer.shadowRadius = 12
                     coverArtCard.layer.shadowOpacity = 0.25
@@ -1145,7 +1114,7 @@ extension ViewController {
                     rightCoverCard.layer.shadowOpacity = isPlaying ? 0.40 : 0.28
 
                     incomingCard.transform = CGAffineTransform(translationX: sideOffset, y: 0)
-                    incomingCard.alpha = incomingTrack != nil ? 0.55 : 0.0
+                    incomingCard.alpha = incomingTrack == nil ? 0 : (incomingTrack?.artwork == nil ? 1 : 0.55)
                 },
                 completion: { [weak self] _ in
                     guard let self else { return }
@@ -1183,7 +1152,7 @@ extension ViewController {
                     rightCoverCard.alpha = 0.0
 
                     coverArtCard.transform = CGAffineTransform(translationX: sideOffset, y: 0)
-                    coverArtCard.alpha = 0.55
+                    coverArtCard.alpha = self.coverImageView?.image == nil ? 1 : 0.55
                     self.coverDimOverlay?.alpha = 1.0
                     coverArtCard.layer.shadowRadius = 12
                     coverArtCard.layer.shadowOpacity = 0.25
@@ -1195,7 +1164,7 @@ extension ViewController {
                     leftCoverCard.layer.shadowOpacity = isPlaying ? 0.40 : 0.28
 
                     incomingCard.transform = CGAffineTransform(translationX: -sideOffset, y: 0)
-                    incomingCard.alpha = incomingTrack != nil ? 0.55 : 0.0
+                    incomingCard.alpha = incomingTrack == nil ? 0 : (incomingTrack?.artwork == nil ? 1 : 0.55)
                 },
                 completion: { [weak self] _ in
                     guard let self else { return }

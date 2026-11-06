@@ -347,10 +347,10 @@ extension ViewController {
         info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
         info[MPNowPlayingInfoPropertyExternalContentIdentifier] = track.url.lastPathComponent
         
-        if let artwork = track.artwork ?? UIImage(named: "PlaceholderArtwork") {
-            let squaredArtwork = artwork.squared()
-            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: squaredArtwork.size, requestHandler: { _ in squaredArtwork })
-        }
+        let artwork = track.artwork ?? ArtworkPlaceholderRenderer.image(seed: track.title,
+            isDark: traitCollection.userInterfaceStyle == .dark)
+        let squaredArtwork = artwork.squared()
+        info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: squaredArtwork.size, requestHandler: { _ in squaredArtwork })
         
         let nowPlayingCenter = MPNowPlayingInfoCenter.default()
         nowPlayingCenter.nowPlayingInfo = info
@@ -409,12 +409,8 @@ extension ViewController {
                     artistLabel.isHidden = true
                 }
                 
-                if let artwork = track.artwork {
-                    coverImageView.image = artwork
-                } else {
-                    coverImageView.image = UIImage(named: "PlaceholderArtwork")
-                }
-                
+                coverImageView.setArtwork(track.artwork, seed: track.title)
+
                 let restoredPosition = min(max(0, persistedSettings.playbackPosition), track.duration)
                 progressSlider.maximumValue = Float(track.duration)
                 progressSlider.value = Float(restoredPosition)
