@@ -68,7 +68,7 @@ extension ViewController {
         let candidates = dailyMixCandidates()
         let modes = DailyMixMode.allCases.map { mode -> UIAction in
             let count = DailyMixEngine.candidates(for: mode, from: candidates).count
-            return UIAction(title: mode.title, image: UIImage(systemName: mode.symbol),
+            return UIAction(title: mode.title, image: mode.symbol == "heart.fill" ? PlaybackIcon.heartFilled.image(size: 20) : UIImage(systemName: mode.symbol),
                 attributes: mode != .forYou && count == 0 ? .disabled : [],
                 state: mode == dailyMixMode ? .on : .off) { [weak self] _ in
                 self?.selectDailyMixMode(mode)

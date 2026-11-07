@@ -676,6 +676,8 @@ extension ViewController {
         let activeColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
         let inactiveColor = isDark ? UIColor.white.withAlphaComponent(0.4) : UIColor(red: 0.55, green: 0.55, blue: 0.60, alpha: 0.6)
         shuffleButton?.tintColor = isShuffleEnabled ? activeColor : inactiveColor
+        repeatButton?.setImage((isRepeatEnabled ? PlaybackIcon.repeatOne : .repeatAll).image(size: 20), for: .normal)
+        repeatButton?.accessibilityLabel = isRepeatEnabled ? "Repeat song" : "Repeat off"
         repeatButton?.tintColor = isRepeatEnabled ? activeColor : inactiveColor
         updateWavePlayingState()
     }

@@ -161,7 +161,7 @@ extension ViewController {
             icon.translatesAutoresizingMaskIntoConstraints = false
             icon.contentMode = .scaleAspectFit
             icon.tintColor = item.isDestructive ? .systemRed : primaryTextColor()
-            icon.image = UIImage(systemName: item.iconName)
+            icon.image = item.iconName == "plus" ? PlaybackIcon.plus.image(size: 16) : UIImage(systemName: item.iconName)
             iconBox.addSubview(icon)
             
             NSLayoutConstraint.activate([
@@ -293,7 +293,7 @@ extension ViewController {
             playlistElements.append(item)
         }
         
-        let newPlaylistAction = UIAction(title: "New Playlist...", image: UIImage(systemName: "plus")) { [weak self] _ in
+        let newPlaylistAction = UIAction(title: "New Playlist...", image: PlaybackIcon.plus.image(size: 20)) { [weak self] _ in
             self?.presentCustomInputSheet(title: "New Playlist", placeholder: "Playlist Name", submitTitle: "Create") { [weak self] name in
                 self?.playlists[name] = [track.url.lastPathComponent]
                 self?.savePlaylists()

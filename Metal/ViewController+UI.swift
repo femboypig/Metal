@@ -445,7 +445,7 @@ extension ViewController {
 
         importButton = UIButton(type: .system)
         importButton.translatesAutoresizingMaskIntoConstraints = false
-        let importImage = UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 19, weight: .semibold))
+        let importImage = PlaybackIcon.plus.image(size: 19)
         if #available(iOS 26.0, *) {
             var configuration = UIButton.Configuration.glass()
             configuration.image = importImage
@@ -463,7 +463,8 @@ extension ViewController {
         // Miniplayer (Page 1 Interface - Floating Pill Card)
         miniPlayerView = UIView()
         miniPlayerView.translatesAutoresizingMaskIntoConstraints = false
-        miniPlayerView.layer.cornerRadius = 29
+        miniPlayerView.layer.cornerRadius = 20
+        miniPlayerView.layer.cornerCurve = .continuous
         miniPlayerView.isUserInteractionEnabled = true
 
         if #available(iOS 26.0, *) {
@@ -474,7 +475,8 @@ extension ViewController {
             glassView.translatesAutoresizingMaskIntoConstraints = false
             glassView.isUserInteractionEnabled = false
             glassView.clipsToBounds = true
-            glassView.layer.cornerRadius = 29
+            glassView.layer.cornerRadius = 20
+            glassView.layer.cornerCurve = .continuous
             miniPlayerView.addSubview(glassView)
 
             NSLayoutConstraint.activate([
@@ -495,6 +497,7 @@ extension ViewController {
         page1.addSubview(miniPlayerView)
 
         let miniTap = UITapGestureRecognizer(target: self, action: #selector(miniPlayerTapped(_:)))
+        miniTap.cancelsTouchesInView = false
         miniPlayerView.addGestureRecognizer(miniTap)
         
         let miniMenuInteraction = UIContextMenuInteraction(delegate: self)
@@ -502,7 +505,8 @@ extension ViewController {
 
         miniCoverCard = UIView()
         miniCoverCard.translatesAutoresizingMaskIntoConstraints = false
-        miniCoverCard.layer.cornerRadius = 12
+        miniCoverCard.layer.cornerRadius = 11
+        miniCoverCard.layer.cornerCurve = .continuous
         miniCoverCard.clipsToBounds = true
         miniCoverCard.layer.borderWidth = 0
         miniPlayerView.addSubview(miniCoverCard)
@@ -516,17 +520,28 @@ extension ViewController {
         let miniTextStack = UIStackView()
         miniTextStack.translatesAutoresizingMaskIntoConstraints = false
         miniTextStack.axis = .vertical
-        miniTextStack.spacing = 1
+        miniTextStack.spacing = 2
+        miniTextStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         miniPlayerView.addSubview(miniTextStack)
 
         miniTitleLabel = UILabel()
-        miniTitleLabel.font = UIFont(name: "Georgia-Bold", size: 14)
+        miniTitleLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
+            for: UIFont(name: "Georgia-Bold", size: 15) ?? .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 19)
+        miniTitleLabel.adjustsFontForContentSizeCategory = true
+        miniTitleLabel.numberOfLines = 1
+        miniTitleLabel.lineBreakMode = .byTruncatingTail
+        miniTitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         miniTitleLabel.textColor = primaryTextColor()
         miniTitleLabel.text = "No Track Selected"
         miniTextStack.addArrangedSubview(miniTitleLabel)
 
         miniArtistLabel = UILabel()
-        miniArtistLabel.font = UIFont(name: "Georgia-Italic", size: 11)
+        miniArtistLabel.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(
+            for: UIFont(name: "Georgia", size: 12) ?? .systemFont(ofSize: 12), maximumPointSize: 15)
+        miniArtistLabel.adjustsFontForContentSizeCategory = true
+        miniArtistLabel.numberOfLines = 1
+        miniArtistLabel.lineBreakMode = .byTruncatingTail
+        miniArtistLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         miniArtistLabel.textColor = secondaryTextColor()
         miniArtistLabel.text = "Select a song below"
         miniTextStack.addArrangedSubview(miniArtistLabel)
@@ -534,16 +549,18 @@ extension ViewController {
         let miniControls = UIStackView()
         miniControls.translatesAutoresizingMaskIntoConstraints = false
         miniControls.axis = .horizontal
-        miniControls.spacing = 14
+        miniControls.spacing = 0
+        miniControls.setContentCompressionResistancePriority(.required, for: .horizontal)
         miniControls.alignment = .center
         miniPlayerView.addSubview(miniControls)
 
-        miniPreviousButton = UIButton(type: .system)
-        miniPreviousButton.translatesAutoresizingMaskIntoConstraints = false
-        miniPreviousButton.tintColor = UIColor.white.withAlphaComponent(0.82)
-        miniPreviousButton.setImage(PlaybackIcon.previous.image(size: 14), for: .normal)
-        miniPreviousButton.addTarget(self, action: #selector(playPreviousTrack), for: .touchUpInside)
-        miniControls.addArrangedSubview(miniPreviousButton)
+        miniFavoriteButton = UIButton(type: .system)
+        miniFavoriteButton.translatesAutoresizingMaskIntoConstraints = false
+        miniFavoriteButton.tintColor = primaryTextColor()
+        miniFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 24), for: .normal)
+        miniFavoriteButton.accessibilityLabel = "Add to Favorites"
+        miniFavoriteButton.addTarget(self, action: #selector(miniFavoriteTapped), for: .touchUpInside)
+        miniControls.addArrangedSubview(miniFavoriteButton)
 
         miniPlayPauseButton = UIButton(type: .custom)
         miniPlayPauseButton.translatesAutoresizingMaskIntoConstraints = false
@@ -551,16 +568,10 @@ extension ViewController {
         miniPlayPauseButton.layer.cornerRadius = 0
         miniPlayPauseButton.layer.borderWidth = 0
         miniPlayPauseButton.backgroundColor = .clear
-        miniPlayPauseButton.setImage(PlaybackIcon.play.image(size: 18), for: .normal)
+        miniPlayPauseButton.accessibilityLabel = "Play"
+        miniPlayPauseButton.setImage(PlaybackIcon.play.image(size: 22), for: .normal)
         miniPlayPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
         miniControls.addArrangedSubview(miniPlayPauseButton)
-
-        miniNextButton = UIButton(type: .system)
-        miniNextButton.translatesAutoresizingMaskIntoConstraints = false
-        miniNextButton.tintColor = UIColor.white.withAlphaComponent(0.82)
-        miniNextButton.setImage(PlaybackIcon.next.image(size: 14), for: .normal)
-        miniNextButton.addTarget(self, action: #selector(playNextTrack), for: .touchUpInside)
-        miniControls.addArrangedSubview(miniNextButton)
 
         NSLayoutConstraint.activate([
             headerArea.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor),
@@ -628,33 +639,29 @@ extension ViewController {
             miniPlayerView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             miniPlayerView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
             miniPlayerView.bottomAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.bottomAnchor, constant: -8),
-            miniPlayerView.heightAnchor.constraint(equalToConstant: 58),
+            miniPlayerView.heightAnchor.constraint(equalToConstant: 60),
 
-            miniCoverCard.leadingAnchor.constraint(equalTo: miniPlayerView.leadingAnchor, constant: 12),
+            miniCoverCard.leadingAnchor.constraint(equalTo: miniPlayerView.leadingAnchor, constant: 10),
             miniCoverCard.centerYAnchor.constraint(equalTo: miniPlayerView.centerYAnchor),
-            miniCoverCard.widthAnchor.constraint(equalToConstant: 40),
-            miniCoverCard.heightAnchor.constraint(equalToConstant: 40),
+            miniCoverCard.widthAnchor.constraint(equalToConstant: 42),
+            miniCoverCard.heightAnchor.constraint(equalToConstant: 42),
 
             miniCoverView.topAnchor.constraint(equalTo: miniCoverCard.topAnchor),
             miniCoverView.leadingAnchor.constraint(equalTo: miniCoverCard.leadingAnchor),
             miniCoverView.trailingAnchor.constraint(equalTo: miniCoverCard.trailingAnchor),
             miniCoverView.bottomAnchor.constraint(equalTo: miniCoverCard.bottomAnchor),
 
-            miniTextStack.leadingAnchor.constraint(equalTo: miniCoverCard.trailingAnchor, constant: 12),
-            miniTextStack.trailingAnchor.constraint(equalTo: miniControls.leadingAnchor, constant: -10),
+            miniTextStack.leadingAnchor.constraint(equalTo: miniCoverCard.trailingAnchor, constant: 10),
+            miniTextStack.trailingAnchor.constraint(equalTo: miniControls.leadingAnchor, constant: -6),
             miniTextStack.centerYAnchor.constraint(equalTo: miniPlayerView.centerYAnchor),
 
-            miniControls.trailingAnchor.constraint(equalTo: miniPlayerView.trailingAnchor, constant: -14),
+            miniControls.trailingAnchor.constraint(equalTo: miniPlayerView.trailingAnchor, constant: -8),
             miniControls.centerYAnchor.constraint(equalTo: miniPlayerView.centerYAnchor),
 
-            miniPlayPauseButton.widthAnchor.constraint(equalToConstant: 32),
-            miniPlayPauseButton.heightAnchor.constraint(equalToConstant: 32),
-
-            miniPreviousButton.widthAnchor.constraint(equalToConstant: 24),
-            miniPreviousButton.heightAnchor.constraint(equalToConstant: 32),
-
-            miniNextButton.widthAnchor.constraint(equalToConstant: 24),
-            miniNextButton.heightAnchor.constraint(equalToConstant: 32)
+            miniFavoriteButton.widthAnchor.constraint(equalToConstant: 44),
+            miniFavoriteButton.heightAnchor.constraint(equalToConstant: 44),
+            miniPlayPauseButton.widthAnchor.constraint(equalToConstant: 44),
+            miniPlayPauseButton.heightAnchor.constraint(equalToConstant: 44)
         ])
 
         let pillWidthConstraint = floatingFiltersContainer.widthAnchor.constraint(equalTo: filtersStackView.widthAnchor, constant: 12)
@@ -936,7 +943,7 @@ extension ViewController {
 
         playerFavoriteButton = UIButton(type: .system)
         playerFavoriteButton.translatesAutoresizingMaskIntoConstraints = false
-        playerFavoriteButton.setImage(UIImage(systemName: "heart", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)), for: .normal)
+        playerFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 24), for: .normal)
         playerFavoriteButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         playerFavoriteButton.setContentHuggingPriority(.required, for: .horizontal)
         playerFavoriteButton.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -976,7 +983,7 @@ extension ViewController {
         centerContentView.addSubview(controlsStack)
 
         shuffleButton = UIButton(type: .system)
-        shuffleButton.setImage(UIImage(systemName: "shuffle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)), for: .normal)
+        shuffleButton.setImage(PlaybackIcon.shuffle.image(size: 20), for: .normal)
         shuffleButton.tintColor = UIColor.white.withAlphaComponent(0.4)
         shuffleButton.addTarget(self, action: #selector(shuffleTapped), for: .touchUpInside)
         controlsStack.addArrangedSubview(shuffleButton)
@@ -1005,7 +1012,7 @@ extension ViewController {
         playerNextButton = nextButton
 
         repeatButton = UIButton(type: .system)
-        repeatButton.setImage(UIImage(systemName: "repeat", withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)), for: .normal)
+        repeatButton.setImage(PlaybackIcon.repeatAll.image(size: 20), for: .normal)
         repeatButton.tintColor = UIColor.white.withAlphaComponent(0.4)
         repeatButton.addTarget(self, action: #selector(repeatTapped), for: .touchUpInside)
         controlsStack.addArrangedSubview(repeatButton)
@@ -1210,7 +1217,7 @@ extension ViewController {
         playerHeaderLabel?.textColor = headerText
         trackTitleLabel?.textColor = primaryText
         artistLabel?.textColor = secondaryText
-        playerFavoriteButton?.tintColor = iconTint
+        updatePlayerFavoriteButton()
 
         progressSlider?.minimumTrackTintColor = isDark ? .white : UIColor(red: 0.12, green: 0.12, blue: 0.15, alpha: 1.0)
         progressSlider?.maximumTrackTintColor = isDark ? UIColor.white.withAlphaComponent(0.25) : UIColor(red: 0.70, green: 0.70, blue: 0.75, alpha: 0.5)
@@ -1945,13 +1952,19 @@ extension ViewController: UIContextMenuInteractionDelegate {
 
 
 
-/// One source for transport icons in the player, mini-player and track menus.
+/// Shared custom icons for player controls and library actions.
 /// The asset vectors retain their original canvas and render at the button size.
 enum PlaybackIcon: String {
     case previous = "PlaybackPrevious"
     case next = "PlaybackNext"
     case play = "PlaybackPlay"
     case pause = "PlaybackPause"
+    case heartOutline = "ControlHeartOutline"
+    case heartFilled = "ControlHeartFilled"
+    case shuffle = "ControlShuffle"
+    case repeatAll = "ControlRepeat"
+    case repeatOne = "ControlRepeatOne"
+    case plus = "ControlPlus"
 
     private static let cache = NSCache<NSString, UIImage>()
 

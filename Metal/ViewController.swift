@@ -62,9 +62,8 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var miniCoverView: GlassArtworkImageView!
     var miniTitleLabel: UILabel!
     var miniArtistLabel: UILabel!
-    var miniPreviousButton: UIButton!
+    var miniFavoriteButton: UIButton!
     var miniPlayPauseButton: UIButton!
-    var miniNextButton: UIButton!
     
     // Page 2 (Now Playing) Subviews
     var page2: UIView!

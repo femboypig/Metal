@@ -170,8 +170,7 @@ extension ViewController {
 
         if #available(iOS 26.0, *) {
             var config = UIButton.Configuration.plain()
-            let plusConfiguration = UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
-            config.image = UIImage(systemName: "plus", withConfiguration: plusConfiguration)
+            config.image = PlaybackIcon.plus.image(size: 13)
             config.imagePadding = 4
             config.title = "Playlist"
             config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
@@ -184,7 +183,9 @@ extension ViewController {
             newPill.configuration = config
         } else if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.plain()
-            config.title = "＋ Playlist"
+            config.image = PlaybackIcon.plus.image(size: 13)
+            config.imagePadding = 4
+            config.title = "Playlist"
             config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14)
             config.baseForegroundColor = secondaryTextColor()
             config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
@@ -418,6 +419,7 @@ extension ViewController {
         updateRemoteFavoriteCommand()
         if activeFilter == .all, libraryCollection == .rediscover { filterTracks() }
         refreshCollectionMenus()
+        updateMiniPlayerUI()
     }
 
     @objc func playerFavoriteTapped() {
@@ -435,15 +437,14 @@ extension ViewController {
     }
 
     func updatePlayerFavoriteButton() {
-        guard let track = currentPlaybackTrack() else {
-            playerFavoriteButton?.setImage(UIImage(systemName: "heart", withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)), for: .normal)
-            playerFavoriteButton?.tintColor = UIColor.white.withAlphaComponent(0.8)
-            return
-        }
-        let isFav = favoriteTracks.contains(track.url.lastPathComponent)
-        let icon = isFav ? "heart.fill" : "heart"
-        playerFavoriteButton?.setImage(UIImage(systemName: icon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold)), for: .normal)
-        playerFavoriteButton?.tintColor = isFav ? UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0) : UIColor.white.withAlphaComponent(0.8)
+        let track = currentPlaybackTrack()
+        let isFavorite = track.map { favoriteTracks.contains($0.url.lastPathComponent) } ?? false
+        let icon: PlaybackIcon = isFavorite ? .heartFilled : .heartOutline
+        playerFavoriteButton?.setImage(icon.image(size: 24), for: .normal)
+        playerFavoriteButton?.isEnabled = track != nil
+        playerFavoriteButton?.isSelected = isFavorite
+        playerFavoriteButton?.accessibilityLabel = isFavorite ? "Remove from Favorites" : "Add to Favorites"
+        playerFavoriteButton?.tintColor = isFavorite ? primaryButtonColor() : primaryTextColor()
     }
 
     // MARK: - Library Logic & Secure Import
@@ -811,14 +812,44 @@ extension ViewController {
 
     // MARK: - Mini Player Interaction
 
+    func miniPlayerTrack() -> Track? {
+        if let playing = currentPlaybackTrack() {
+            return playing
+        } else if let index = currentTrackIndex, index < filteredTracks.count {
+            return filteredTracks[index]
+        } else if let lastFile = persistedSettings.lastTrackFile, let saved = tracks.first(where: { $0.url.lastPathComponent == lastFile }) {
+            return saved
+        } else {
+            return filteredTracks.first ?? tracks.first
+        }
+    }
+
+    @objc func miniFavoriteTapped() {
+        guard let track = miniPlayerTrack() else { return }
+        toggleFavorite(track: track)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        guard !UIAccessibility.isReduceMotionEnabled, let button = miniFavoriteButton else { return }
+        button.transform = CGAffineTransform(scaleX: 1.16, y: 1.16)
+        UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 0.72,
+            initialSpringVelocity: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+            button.transform = .identity
+        }
+    }
+
+    private func updateMiniFavoriteButton(for track: Track?) {
+        let isFavorite = track.map { favoriteTracks.contains($0.url.lastPathComponent) } ?? false
+        let icon: PlaybackIcon = isFavorite ? .heartFilled : .heartOutline
+        miniFavoriteButton?.setImage(icon.image(size: 24), for: .normal)
+        miniFavoriteButton?.isEnabled = track != nil
+        miniFavoriteButton?.isSelected = isFavorite
+        miniFavoriteButton?.accessibilityLabel = isFavorite ? "Remove from Favorites" : "Add to Favorites"
+    }
+
     @objc func miniPlayerTapped(_ sender: UITapGestureRecognizer) {
         let location = sender.location(in: miniPlayerView)
-        let previousFrame = miniPreviousButton.convert(miniPreviousButton.bounds, to: miniPlayerView)
+        let favoriteFrame = miniFavoriteButton.convert(miniFavoriteButton.bounds, to: miniPlayerView)
         let playFrame = miniPlayPauseButton.convert(miniPlayPauseButton.bounds, to: miniPlayerView)
-        let nextFrame = miniNextButton.convert(miniNextButton.bounds, to: miniPlayerView)
-        if previousFrame.contains(location) || playFrame.contains(location) || nextFrame.contains(location) {
-            return
-        }
+        if favoriteFrame.contains(location) || playFrame.contains(location) { return }
 
         // Scroll to Page 2
         let width = scrollView.frame.size.width
@@ -830,8 +861,10 @@ extension ViewController {
             miniTitleLabel?.text = "No Tracks Loaded"
             miniArtistLabel?.text = "Import music files to begin"
             miniPlayPauseButton?.isEnabled = false
-            miniPreviousButton?.isEnabled = false
-            miniNextButton?.isEnabled = false
+            updateMiniFavoriteButton(for: nil)
+            miniPlayPauseButton?.setImage(PlaybackIcon.play.image(size: 22), for: .normal)
+            miniPlayPauseButton?.accessibilityLabel = "Play"
+            miniArtistLabel?.isHidden = false
             applyMiniPlayerColors(useArtworkBackground: false)
             miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
             miniCoverView?.setArtwork(nil, seed: nil)
@@ -839,30 +872,22 @@ extension ViewController {
         }
 
         miniPlayPauseButton?.isEnabled = true
-        miniPreviousButton?.isEnabled = true
-        miniNextButton?.isEnabled = true
 
-        let activeTrack: Track?
-        if let playing = currentPlaybackTrack() {
-            activeTrack = playing
-        } else if let index = currentTrackIndex, index < filteredTracks.count {
-            activeTrack = filteredTracks[index]
-        } else if let lastFile = persistedSettings.lastTrackFile, let saved = tracks.first(where: { $0.url.lastPathComponent == lastFile }) {
-            activeTrack = saved
-        } else {
-            activeTrack = filteredTracks.first ?? tracks.first
-        }
-
-        guard let track = activeTrack else {
+        guard let track = miniPlayerTrack() else {
             miniTitleLabel?.text = "No Track Selected"
             miniArtistLabel?.text = "Select a song below"
-            miniPlayPauseButton?.setImage(PlaybackIcon.play.image(size: 18), for: .normal)
+            miniPlayPauseButton?.setImage(PlaybackIcon.play.image(size: 22), for: .normal)
+            miniPlayPauseButton?.accessibilityLabel = "Play"
+            miniPlayPauseButton?.isEnabled = false
+            miniArtistLabel?.isHidden = false
+            updateMiniFavoriteButton(for: nil)
             applyMiniPlayerColors(useArtworkBackground: false)
             miniPlayerView?.backgroundColor = miniPlayerBackgroundColor()
             miniCoverView?.setArtwork(nil, seed: nil)
             return
         }
 
+        updateMiniFavoriteButton(for: track)
         miniTitleLabel?.text = track.title
         if track.artist != "Unknown Artist" && !track.artist.isEmpty {
             miniArtistLabel?.text = track.artist
@@ -874,7 +899,8 @@ extension ViewController {
 
         let isPlaying = audioPlayer?.isPlaying == true
         let playIcon: PlaybackIcon = isPlaying ? .pause : .play
-        miniPlayPauseButton?.setImage(playIcon.image(size: 18), for: .normal)
+        miniPlayPauseButton?.setImage(playIcon.image(size: 22), for: .normal)
+        miniPlayPauseButton?.accessibilityLabel = isPlaying ? "Pause" : "Play"
 
         if let artwork = track.artwork {
             miniCoverView?.image = artwork
@@ -903,9 +929,8 @@ extension ViewController {
             ? UIColor.white.withAlphaComponent(0.68)
             : secondaryTextColor()
         let controlsColor = useArtworkBackground ? UIColor.white : primaryTextColor()
-        miniPreviousButton?.tintColor = controlsColor
         miniPlayPauseButton?.tintColor = controlsColor
-        miniNextButton?.tintColor = controlsColor
+        miniFavoriteButton?.tintColor = miniFavoriteButton?.isSelected == true ? primaryButtonColor() : controlsColor
     }
 
     @objc func updateFilterPillBorders() {
