@@ -554,7 +554,8 @@ extension ViewController {
         miniControls.alignment = .center
         miniPlayerView.addSubview(miniControls)
 
-        miniFavoriteButton = UIButton(type: .system)
+        miniFavoriteButton = UIButton(type: .custom)
+        miniFavoriteButton.backgroundColor = .clear
         miniFavoriteButton.translatesAutoresizingMaskIntoConstraints = false
         miniFavoriteButton.tintColor = primaryTextColor()
         miniFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 24), for: .normal)
@@ -941,7 +942,8 @@ extension ViewController {
         artistLabel.text = "Select a song"
         textStack.addArrangedSubview(artistLabel)
 
-        playerFavoriteButton = UIButton(type: .system)
+        playerFavoriteButton = UIButton(type: .custom)
+        playerFavoriteButton.backgroundColor = .clear
         playerFavoriteButton.translatesAutoresizingMaskIntoConstraints = false
         playerFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 24), for: .normal)
         playerFavoriteButton.tintColor = UIColor.white.withAlphaComponent(0.8)
@@ -1972,9 +1974,35 @@ enum PlaybackIcon: String {
         let key = "\(rawValue)-\(size)" as NSString
         if let image = Self.cache.object(forKey: key) { return image }
         guard let source = UIImage(named: rawValue) else { return nil }
-        let canvas = CGSize(width: size, height: size)
+        // SF Symbols point sizes are font metrics, not square image dimensions.
+        // Keep the previous transport control footprint and fit the SVG's ink,
+        // excluding its export padding, into that same space.
+        let canvas: CGSize
+        switch self {
+        case .shuffle, .repeatAll, .repeatOne:
+            let symbol = self == .shuffle ? "shuffle" : "repeat"
+            canvas = UIImage(systemName: symbol,
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: size, weight: .medium))?.size
+                ?? CGSize(width: size * 1.3, height: size)
+        default:
+            canvas = CGSize(width: size, height: size)
+        }
+        let ink: CGRect
+        switch self {
+        case .shuffle: ink = CGRect(x: 16, y: 35.97, width: 224, height: 184.06)
+        case .repeatAll: ink = CGRect(x: 16, y: 33.32, width: 224, height: 189.36)
+        case .repeatOne: ink = CGRect(x: 16, y: 34.33, width: 224, height: 187.34)
+        case .heartOutline: ink = CGRect(x: 16, y: 25, width: 224, height: 206)
+        case .heartFilled: ink = CGRect(x: 16, y: 24.60, width: 224, height: 206.80)
+        default: ink = CGRect(x: 0, y: 0, width: 256, height: 256)
+        }
+        let scale = min(canvas.width / ink.width, canvas.height / ink.height)
+        let drawing = CGRect(
+            x: (canvas.width - ink.width * scale) / 2 - ink.minX * scale,
+            y: (canvas.height - ink.height * scale) / 2 - ink.minY * scale,
+            width: 256 * scale, height: 256 * scale)
         let image = UIGraphicsImageRenderer(size: canvas).image { _ in
-            source.draw(in: CGRect(origin: .zero, size: canvas))
+            source.draw(in: drawing)
         }.withRenderingMode(.alwaysTemplate)
         Self.cache.setObject(image, forKey: key)
         return image

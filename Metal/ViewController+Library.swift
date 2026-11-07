@@ -442,7 +442,7 @@ extension ViewController {
         let icon: PlaybackIcon = isFavorite ? .heartFilled : .heartOutline
         playerFavoriteButton?.setImage(icon.image(size: 24), for: .normal)
         playerFavoriteButton?.isEnabled = track != nil
-        playerFavoriteButton?.isSelected = isFavorite
+        playerFavoriteButton?.accessibilityTraits = isFavorite ? [.button, .selected] : .button
         playerFavoriteButton?.accessibilityLabel = isFavorite ? "Remove from Favorites" : "Add to Favorites"
         playerFavoriteButton?.tintColor = isFavorite ? primaryButtonColor() : primaryTextColor()
     }
@@ -841,7 +841,7 @@ extension ViewController {
         let icon: PlaybackIcon = isFavorite ? .heartFilled : .heartOutline
         miniFavoriteButton?.setImage(icon.image(size: 24), for: .normal)
         miniFavoriteButton?.isEnabled = track != nil
-        miniFavoriteButton?.isSelected = isFavorite
+        miniFavoriteButton?.accessibilityTraits = isFavorite ? [.button, .selected] : .button
         miniFavoriteButton?.accessibilityLabel = isFavorite ? "Remove from Favorites" : "Add to Favorites"
     }
 
@@ -930,7 +930,8 @@ extension ViewController {
             : secondaryTextColor()
         let controlsColor = useArtworkBackground ? UIColor.white : primaryTextColor()
         miniPlayPauseButton?.tintColor = controlsColor
-        miniFavoriteButton?.tintColor = miniFavoriteButton?.isSelected == true ? primaryButtonColor() : controlsColor
+        let isFavorite = miniPlayerTrack().map { favoriteTracks.contains($0.url.lastPathComponent) } ?? false
+        miniFavoriteButton?.tintColor = isFavorite ? primaryButtonColor() : controlsColor
     }
 
     @objc func updateFilterPillBorders() {
