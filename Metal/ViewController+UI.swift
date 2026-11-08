@@ -558,7 +558,7 @@ extension ViewController {
         miniFavoriteButton.backgroundColor = .clear
         miniFavoriteButton.translatesAutoresizingMaskIntoConstraints = false
         miniFavoriteButton.tintColor = primaryTextColor()
-        miniFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 24), for: .normal)
+        miniFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 22), for: .normal)
         miniFavoriteButton.accessibilityLabel = "Add to Favorites"
         miniFavoriteButton.addTarget(self, action: #selector(miniFavoriteTapped), for: .touchUpInside)
         miniControls.addArrangedSubview(miniFavoriteButton)
@@ -737,13 +737,18 @@ extension ViewController {
 
         let deviceButton = UIButton(type: .custom)
         deviceButton.translatesAutoresizingMaskIntoConstraints = false
+        deviceButton.setImage(PlaybackIcon.broadcast.image(size: 22), for: .normal)
+        deviceButton.tintColor = UIColor.white.withAlphaComponent(0.85)
+        deviceButton.accessibilityLabel = "Audio Output"
         deviceButton.addTarget(self, action: #selector(deviceButtonTapped), for: .touchUpInside)
 
         let routePicker = AVRoutePickerView()
         routePicker.tag = 8801
         routePicker.translatesAutoresizingMaskIntoConstraints = false
         routePicker.prioritizesVideoDevices = false
-        routePicker.tintColor = UIColor.white.withAlphaComponent(0.85)
+        // Keep the native route picker interactive over the custom glyph.
+        routePicker.tintColor = .clear
+        routePicker.activeTintColor = .clear
         routePicker.backgroundColor = .clear
         deviceButton.addSubview(routePicker)
 
@@ -766,14 +771,14 @@ extension ViewController {
         bottomBar.addArrangedSubview(rightBottomStack)
 
         let shareButton = UIButton(type: .system)
-        shareButton.setImage(UIImage(systemName: "square.and.arrow.up", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)), for: .normal)
+        shareButton.setImage(PlaybackIcon.share.image(size: 18), for: .normal)
         shareButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         shareButton.addTarget(self, action: #selector(shareButtonTapped), for: .touchUpInside)
         rightBottomStack.addArrangedSubview(shareButton)
         playerShareButton = shareButton
 
         let queueButton = UIButton(type: .system)
-        queueButton.setImage(UIImage(systemName: "list.bullet", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)), for: .normal)
+        queueButton.setImage(PlaybackIcon.queue.image(size: 18), for: .normal)
         queueButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         queueButton.addTarget(self, action: #selector(queueButtonTapped), for: .touchUpInside)
         rightBottomStack.addArrangedSubview(queueButton)
@@ -945,7 +950,7 @@ extension ViewController {
         playerFavoriteButton = UIButton(type: .custom)
         playerFavoriteButton.backgroundColor = .clear
         playerFavoriteButton.translatesAutoresizingMaskIntoConstraints = false
-        playerFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 24), for: .normal)
+        playerFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 22), for: .normal)
         playerFavoriteButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         playerFavoriteButton.setContentHuggingPriority(.required, for: .horizontal)
         playerFavoriteButton.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -1961,16 +1966,26 @@ enum PlaybackIcon: String {
     case next = "PlaybackNext"
     case play = "PlaybackPlay"
     case pause = "PlaybackPause"
-    case heartOutline = "ControlHeartOutline"
-    case heartFilled = "ControlHeartFilled"
+    case heartOutline = "heart"
+    case heartFilled = "heart.fill"
     case shuffle = "ControlShuffle"
     case repeatAll = "ControlRepeat"
     case repeatOne = "ControlRepeatOne"
     case plus = "ControlPlus"
+    case queue = "ControlQueue"
+    case share = "ControlShare"
+    case broadcast = "ControlBroadcast"
+    case trash = "ControlTrash"
+    case plusCircle = "ControlPlusCircle"
+    case sleep = "ControlSleep"
 
     private static let cache = NSCache<NSString, UIImage>()
 
     func image(size: CGFloat) -> UIImage? {
+        if self == .heartOutline || self == .heartFilled {
+            return UIImage(systemName: rawValue,
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: size, weight: .semibold))
+        }
         let key = "\(rawValue)-\(size)" as NSString
         if let image = Self.cache.object(forKey: key) { return image }
         guard let source = UIImage(named: rawValue) else { return nil }
@@ -1979,8 +1994,18 @@ enum PlaybackIcon: String {
         // excluding its export padding, into that same space.
         let canvas: CGSize
         switch self {
-        case .shuffle, .repeatAll, .repeatOne:
-            let symbol = self == .shuffle ? "shuffle" : "repeat"
+        case .shuffle, .repeatAll, .repeatOne, .queue, .share, .broadcast, .trash, .plusCircle, .sleep:
+            let symbol: String
+            switch self {
+            case .shuffle: symbol = "shuffle"
+            case .queue: symbol = "list.bullet"
+            case .share: symbol = "square.and.arrow.up"
+            case .broadcast: symbol = "airplayaudio"
+            case .trash: symbol = "trash"
+            case .plusCircle: symbol = "plus.circle"
+            case .sleep: symbol = "moon.zzz"
+            default: symbol = "repeat"
+            }
             canvas = UIImage(systemName: symbol,
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: size, weight: .medium))?.size
                 ?? CGSize(width: size * 1.3, height: size)
@@ -1992,8 +2017,12 @@ enum PlaybackIcon: String {
         case .shuffle: ink = CGRect(x: 16, y: 35.97, width: 224, height: 184.06)
         case .repeatAll: ink = CGRect(x: 16, y: 33.32, width: 224, height: 189.36)
         case .repeatOne: ink = CGRect(x: 16, y: 34.33, width: 224, height: 187.34)
-        case .heartOutline: ink = CGRect(x: 16, y: 25, width: 224, height: 206)
-        case .heartFilled: ink = CGRect(x: 16, y: 24.60, width: 224, height: 206.80)
+        case .queue: ink = CGRect(x: 16.00, y: 58.69, width: 224.00, height: 138.62)
+        case .share: ink = CGRect(x: 38.82, y: 16.00, width: 178.36, height: 224.00)
+        case .broadcast: ink = CGRect(x: 16.00, y: 29.08, width: 224.00, height: 197.84)
+        case .trash: ink = CGRect(x: 30.67, y: 16.00, width: 194.66, height: 224.00)
+        case .plusCircle: ink = CGRect(x: 17.56, y: 16.52, width: 220.88, height: 223.48)
+        case .sleep: ink = CGRect(x: 21.00, y: 16.00, width: 214.00, height: 224.00)
         default: ink = CGRect(x: 0, y: 0, width: 256, height: 256)
         }
         let scale = min(canvas.width / ink.width, canvas.height / ink.height)

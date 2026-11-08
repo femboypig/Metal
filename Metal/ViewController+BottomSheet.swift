@@ -303,18 +303,18 @@ extension ViewController {
         }
         playlistElements.append(newPlaylistAction)
         
-        let playlistMenu = UIMenu(title: "Add to Playlist", image: UIImage(systemName: "plus.circle"), children: playlistElements)
+        let playlistMenu = UIMenu(title: "Add to Playlist", image: PlaybackIcon.plusCircle.image(size: 17), children: playlistElements)
         actions.append(playlistMenu)
         
         // 3. Share Song
-        let shareAction = UIAction(title: "Share Song", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
+        let shareAction = UIAction(title: "Share Song", image: PlaybackIcon.share.image(size: 17)) { [weak self] _ in
             self?.shareTrack(track)
         }
         actions.append(shareAction)
         
         // 4. Sleep Timer
         let sleepTitle = sleepTimerEndDate.map { $0 > Date() ? "Sleep Timer · On" : "Sleep Timer" } ?? "Sleep Timer"
-        let sleepTimerAction = UIAction(title: sleepTitle, image: UIImage(systemName: "moon.zzz")) { [weak self] _ in
+        let sleepTimerAction = UIAction(title: sleepTitle, image: PlaybackIcon.sleep.image(size: 17)) { [weak self] _ in
             self?.showSleepTimerSelector()
         }
         actions.append(sleepTimerAction)
@@ -328,7 +328,7 @@ extension ViewController {
         }
         
         // 6. Delete Song
-        let deleteAction = UIAction(title: "Delete Song", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
+        let deleteAction = UIAction(title: "Delete Song", image: PlaybackIcon.trash.image(size: 17), attributes: .destructive) { [weak self] _ in
             self?.deleteTrack(track: track)
         }
         actions.append(deleteAction)
@@ -990,7 +990,7 @@ private final class SleepTimerViewController: UIViewController {
         stack.addArrangedSubview(presets)
         var config = UIButton.Configuration.filled()
         config.title = endDate.map { $0 > Date() } == true ? "Update timer" : "Set timer"
-        config.image = UIImage(systemName: "moon.zzz.fill")
+        config.image = PlaybackIcon.sleep.image(size: 17)
         config.imagePadding = 10
         config.baseBackgroundColor = UIColor(red: 0.78, green: 0.24, blue: 0.12, alpha: 1)
         config.baseForegroundColor = .white

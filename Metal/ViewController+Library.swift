@@ -314,7 +314,7 @@ extension ViewController {
             }
         }
         
-        let deleteAction = UIAction(title: "Delete Playlist", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
+        let deleteAction = UIAction(title: "Delete Playlist", image: PlaybackIcon.trash.image(size: 17), attributes: .destructive) { [weak self] _ in
             self?.deletePlaylist(named: name)
         }
         
@@ -440,7 +440,7 @@ extension ViewController {
         let track = currentPlaybackTrack()
         let isFavorite = track.map { favoriteTracks.contains($0.url.lastPathComponent) } ?? false
         let icon: PlaybackIcon = isFavorite ? .heartFilled : .heartOutline
-        playerFavoriteButton?.setImage(icon.image(size: 24), for: .normal)
+        playerFavoriteButton?.setImage(icon.image(size: 22), for: .normal)
         playerFavoriteButton?.isEnabled = track != nil
         playerFavoriteButton?.accessibilityTraits = isFavorite ? [.button, .selected] : .button
         playerFavoriteButton?.accessibilityLabel = isFavorite ? "Remove from Favorites" : "Add to Favorites"
@@ -839,7 +839,7 @@ extension ViewController {
     private func updateMiniFavoriteButton(for track: Track?) {
         let isFavorite = track.map { favoriteTracks.contains($0.url.lastPathComponent) } ?? false
         let icon: PlaybackIcon = isFavorite ? .heartFilled : .heartOutline
-        miniFavoriteButton?.setImage(icon.image(size: 24), for: .normal)
+        miniFavoriteButton?.setImage(icon.image(size: 22), for: .normal)
         miniFavoriteButton?.isEnabled = track != nil
         miniFavoriteButton?.accessibilityTraits = isFavorite ? [.button, .selected] : .button
         miniFavoriteButton?.accessibilityLabel = isFavorite ? "Remove from Favorites" : "Add to Favorites"
