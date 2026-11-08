@@ -771,14 +771,14 @@ extension ViewController {
         bottomBar.addArrangedSubview(rightBottomStack)
 
         let shareButton = UIButton(type: .system)
-        shareButton.setImage(PlaybackIcon.share.image(size: 18), for: .normal)
+        shareButton.setImage(PlaybackIcon.share.footerImage(), for: .normal)
         shareButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         shareButton.addTarget(self, action: #selector(shareButtonTapped), for: .touchUpInside)
         rightBottomStack.addArrangedSubview(shareButton)
         playerShareButton = shareButton
 
         let queueButton = UIButton(type: .system)
-        queueButton.setImage(PlaybackIcon.queue.image(size: 20), for: .normal)
+        queueButton.setImage(PlaybackIcon.queue.footerImage(), for: .normal)
         queueButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         queueButton.addTarget(self, action: #selector(queueButtonTapped), for: .touchUpInside)
         rightBottomStack.addArrangedSubview(queueButton)
@@ -1992,6 +1992,29 @@ enum PlaybackIcon: String {
 
     private static let cache = NSCache<NSString, UIImage>()
 
+    /// These two glyphs share a canvas and optical center. Their SVG alpha
+    /// areas match at a 22 pt share height and a 26 pt queue width; centering
+    /// their bounds alone leaves the queue looking too high beside the arrow.
+    func footerImage() -> UIImage? {
+        guard self == .share || self == .queue else { return nil }
+        let key = "\(rawValue)-footer" as NSString
+        if let image = Self.cache.object(forKey: key) { return image }
+        guard let source = UIImage(named: rawValue) else { return nil }
+        let scale: CGFloat = self == .share ? 22 / 224 : 26 / 224
+        let inkCenter = self == .share
+            ? CGPoint(x: 128.13, y: 150.03)
+            : CGPoint(x: 129.27, y: 127.20)
+        // Preserve share's position and align the queue's center of visible ink.
+        let center = CGPoint(x: 18, y: 20.16)
+        let drawing = CGRect(x: center.x - inkCenter.x * scale,
+            y: center.y - inkCenter.y * scale, width: 256 * scale, height: 256 * scale)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 36, height: 36)).image { _ in
+            source.draw(in: drawing)
+        }.withRenderingMode(.alwaysTemplate)
+        Self.cache.setObject(image, forKey: key)
+        return image
+    }
+
     func image(size: CGFloat) -> UIImage? {
         if self == .heartOutline || self == .heartFilled {
             return UIImage(systemName: rawValue,
@@ -2005,14 +2028,11 @@ enum PlaybackIcon: String {
         // excluding its export padding, into that same space.
         let canvas: CGSize
         switch self {
-        case .queue:
-            // This wide glyph needs a comparable visible height to the adjacent share
-            // icon, rather than the much shorter SF list.bullet font box.
-            canvas = CGSize(width: size * 224 / 138.62, height: size)
-        case .shuffle, .repeatAll, .repeatOne, .share, .broadcast, .trash, .plusCircle, .sleep:
+        case .shuffle, .repeatAll, .repeatOne, .queue, .share, .broadcast, .trash, .plusCircle, .sleep:
             let symbol: String
             switch self {
             case .shuffle: symbol = "shuffle"
+            case .queue: symbol = "list.bullet"
             case .share: symbol = "square.and.arrow.up"
             case .broadcast: symbol = "airplayaudio"
             case .trash: symbol = "trash"
