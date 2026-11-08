@@ -766,7 +766,7 @@ extension ViewController {
 
         let rightBottomStack = UIStackView()
         rightBottomStack.axis = .horizontal
-        rightBottomStack.spacing = 20
+        rightBottomStack.spacing = 8
         rightBottomStack.alignment = .center
         bottomBar.addArrangedSubview(rightBottomStack)
 
@@ -778,11 +778,22 @@ extension ViewController {
         playerShareButton = shareButton
 
         let queueButton = UIButton(type: .system)
-        queueButton.setImage(PlaybackIcon.queue.image(size: 18), for: .normal)
+        queueButton.setImage(PlaybackIcon.queue.image(size: 20), for: .normal)
         queueButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         queueButton.addTarget(self, action: #selector(queueButtonTapped), for: .touchUpInside)
         rightBottomStack.addArrangedSubview(queueButton)
         playerQueueButton = queueButton
+
+        // Equal control frames keep the wide queue glyph centered beside share.
+        for button in [shareButton, queueButton] {
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.contentHorizontalAlignment = .center
+            button.contentVerticalAlignment = .center
+            NSLayoutConstraint.activate([
+                button.widthAnchor.constraint(equalToConstant: 36),
+                button.heightAnchor.constraint(equalToConstant: 36)
+            ])
+        }
 
         // --- 3. Vertically Centered Main Body (Y-Center of Screen) ---
         let centerContentView = UIView()
@@ -950,7 +961,7 @@ extension ViewController {
         playerFavoriteButton = UIButton(type: .custom)
         playerFavoriteButton.backgroundColor = .clear
         playerFavoriteButton.translatesAutoresizingMaskIntoConstraints = false
-        playerFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 22), for: .normal)
+        playerFavoriteButton.setImage(PlaybackIcon.heartOutline.image(size: 24), for: .normal)
         playerFavoriteButton.tintColor = UIColor.white.withAlphaComponent(0.8)
         playerFavoriteButton.setContentHuggingPriority(.required, for: .horizontal)
         playerFavoriteButton.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -1994,11 +2005,14 @@ enum PlaybackIcon: String {
         // excluding its export padding, into that same space.
         let canvas: CGSize
         switch self {
-        case .shuffle, .repeatAll, .repeatOne, .queue, .share, .broadcast, .trash, .plusCircle, .sleep:
+        case .queue:
+            // This wide glyph needs a comparable visible height to the adjacent share
+            // icon, rather than the much shorter SF list.bullet font box.
+            canvas = CGSize(width: size * 224 / 138.62, height: size)
+        case .shuffle, .repeatAll, .repeatOne, .share, .broadcast, .trash, .plusCircle, .sleep:
             let symbol: String
             switch self {
             case .shuffle: symbol = "shuffle"
-            case .queue: symbol = "list.bullet"
             case .share: symbol = "square.and.arrow.up"
             case .broadcast: symbol = "airplayaudio"
             case .trash: symbol = "trash"

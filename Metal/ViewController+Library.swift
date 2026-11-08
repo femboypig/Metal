@@ -440,7 +440,7 @@ extension ViewController {
         let track = currentPlaybackTrack()
         let isFavorite = track.map { favoriteTracks.contains($0.url.lastPathComponent) } ?? false
         let icon: PlaybackIcon = isFavorite ? .heartFilled : .heartOutline
-        playerFavoriteButton?.setImage(icon.image(size: 22), for: .normal)
+        playerFavoriteButton?.setImage(icon.image(size: 24), for: .normal)
         playerFavoriteButton?.isEnabled = track != nil
         playerFavoriteButton?.accessibilityTraits = isFavorite ? [.button, .selected] : .button
         playerFavoriteButton?.accessibilityLabel = isFavorite ? "Remove from Favorites" : "Add to Favorites"
