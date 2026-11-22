@@ -169,4 +169,3 @@ jobs:
           name: Metal-pulse-previews-${{ github.sha }}
           path: ${{ runner.temp }}/MetalPulsePreviews
           if-no-files-found: warn
-

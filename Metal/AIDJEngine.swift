@@ -128,6 +128,8 @@ final class AIDJTransitionCoordinator {
         beatDetector.prepare(url, knownBPM: knownBPM)
     }
 
+    func bpm(for url: URL) -> Double { beatDetector.bpm(for: url) }
+
     @discardableResult
     func startTransition(
         from playerA: AVAudioPlayer,

@@ -240,7 +240,7 @@ extension ViewController {
         myWaveView.setPlaying(true)
         let sources = players.compactMap { player -> PulseAudioSource? in
             guard let url = player.url else { return nil }
-            let bpm = Float(dailyMixVibeCache[url.lastPathComponent]?.profile.bpm ?? 120)
+            let bpm = Float(dailyMixVibeCache[url.lastPathComponent]?.profile.bpm ?? aidj.bpm(for: url))
             return PulseAudioSource(url: url, time: player.currentTime,
                 weight: aidj.isTransitioning ? player.volume * player.volume : 1, bpm: bpm)
         }
@@ -270,8 +270,12 @@ extension ViewController: UIGestureRecognizerDelegate {
         guard abs(velocity.y) > abs(velocity.x) * 1.15 else { return false }
         let point = libraryPan.location(in: page1)
         let viewportPoint = libraryPan.location(in: libraryViewport)
-        let handlePoint = libraryPan.location(in: libraryHandle)
-        if libraryHandle.bounds.contains(handlePoint) { return true }
+        let handleFrame = libraryHandle.layer.presentation()?.frame ?? libraryHandle.frame
+        if handleFrame.contains(point) { return true }
+        if libraryAnimator != nil {
+            let visible = libraryViewport.layer.presentation()?.frame ?? libraryViewport.frame
+            return point.y >= visible.minY - 25 && point.y < miniPlayerView.frame.minY - 10
+        }
         guard libraryViewport.frame.contains(point), viewportPoint.y > searchBar.frame.maxY else { return false }
         return libraryCollapse > 0.01 || (velocity.y > 0 && tableView.contentOffset.y <= -tableView.adjustedContentInset.top + 1)
     }
