@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// Shared motion and release rules, independent of UIKit gesture delivery.
 enum PlayerPresentationMotion {
