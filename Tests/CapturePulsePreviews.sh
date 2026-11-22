@@ -47,9 +47,9 @@ cleanup() {
 }
 trap cleanup EXIT
 xcodebuild -project Metal.xcodeproj -scheme Metal -configuration Debug \
-    -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -arch "$(uname -m)" \
+    -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
     -derivedDataPath "$RUNNER_TEMP/PulsePreviewBuild" \
-    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO SWIFT_COMPILATION_MODE=wholemodule SWIFT_OPTIMIZATION_LEVEL=-O build \
+    ARCHS="$(uname -m)" ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO SWIFT_COMPILATION_MODE=wholemodule SWIFT_OPTIMIZATION_LEVEL=-O build \
     > "$preview_dir/simulator-build.log" 2>&1 || { tail -100 "$preview_dir/simulator-build.log"; exit 1; }
 # Compile before booting iOS so the compiler and simulator do not compete
 # for memory on a small runner. Only the host's simulator architecture is needed.
