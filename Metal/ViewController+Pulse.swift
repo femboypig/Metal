@@ -10,7 +10,7 @@ extension ViewController {
         pulseHero.spacing = 12
         pulseHero.alpha = 0
         pulseHero.isUserInteractionEnabled = false
-        page1.insertSubview(pulseHero, belowSubview: libraryViewport)
+        page1.insertSubview(pulseHero, belowSubview: bottomPanel)
 
         pulsePlayButton = UIButton(type: .custom)
         pulsePlayButton.backgroundColor = .black
@@ -88,7 +88,7 @@ extension ViewController {
                 self.pulseVibe = vibe
                 UserDefaults.standard.set(vibe.rawValue, forKey: "Metal_PulseVibe")
                 self.myWaveView.setVibe(vibe)
-                self.activatePulseVibe(autoplay: false)
+                self.activatePulseVibe()
                 self.updatePulseCustomizeMenu()
                 self.becomeFirstResponder()
                 UISelectionFeedbackGenerator().selectionChanged()
@@ -103,7 +103,7 @@ extension ViewController {
 
     @objc func pulsePlayTapped() {
         if playbackSource == .pulseVibe { playOrPause() }
-        else { activatePulseVibe(autoplay: true) }
+        else { activatePulseVibe() }
         becomeFirstResponder()
     }
 
@@ -333,7 +333,7 @@ private enum PulseControlArtwork {
 
 extension ViewController {
     @discardableResult
-    func activatePulseVibe(autoplay: Bool) -> Bool {
+    func activatePulseVibe() -> Bool {
         let current = currentPlaybackTrack()
         let snapshot = playbackQueueSnapshot()
         let wasPulse = playbackSource == .pulseVibe
@@ -343,11 +343,11 @@ extension ViewController {
             .filter { $0.source == .pulseVibe }.suffix(64).map(\.filename))
         let ids = PulseFlowEngine.nextTracks(from: dailyMixCandidates(), vibe: pulseVibe,
             previousTrackID: current?.url.lastPathComponent, recentTrackIDs: recent,
-            reservedTrackIDs: Set(current.map { [$0.url.lastPathComponent] } ?? []),
+            reservedTrackIDs: tracks.count > 1 ? Set(current.map { [$0.url.lastPathComponent] } ?? []) : [],
             previousUpcoming: oldUpcoming, seed: UInt64.random(in: .min ... .max))
         let byID = Dictionary(tracks.map { ($0.url.lastPathComponent, $0) }, uniquingKeysWith: { a, _ in a })
         let upcoming = ids.compactMap { byID[$0] }
-        guard !upcoming.isEmpty || current != nil else {
+        guard !upcoming.isEmpty else {
             if !tracks.isEmpty { showToast(message: "No rested tracks for this vibe yet", success: false) }
             return false
         }
@@ -358,19 +358,8 @@ extension ViewController {
         pulsePreviousUpcoming = Array(oldUpcoming.prefix(24))
         playbackSource = .pulseVibe
         mixSessionRecentIDs = recent
-        if let current {
-            var history = wasPulse ? Array(snapshot.trackIDs.prefix((snapshot.currentIndex ?? -1) + 1)
-                .suffix(21).compactMap { byID[$0] }) : []
-            if history.last?.url != current.url { history.append(current) }
-            playbackQueue = history + upcoming
-            currentTrackIndex = history.count - 1
-            if mixSessionRecentIDs.last != current.url.lastPathComponent {
-                mixSessionRecentIDs.append(current.url.lastPathComponent)
-            }
-        } else {
-            playbackQueue = upcoming
-            currentTrackIndex = 0
-        }
+        playbackQueue = upcoming
+        currentTrackIndex = 0
         currentPlaybackContext = "YOUR VIBE · \(pulseVibe.title.uppercased())"
         isShuffleEnabled = false
         isRepeatEnabled = false
@@ -383,21 +372,11 @@ extension ViewController {
         playerHeaderLabel?.text = currentPlaybackContext
         queueSheetTable?.reloadData()
         queueSheetCountLabel?.text = "\(playbackQueue.count) songs in queue"
-        updateCarouselArtworks(animated: true)
-        updatePlayerOptionsMenu()
-        updateNowPlayingInfo()
-        updateMiniPlayerUI()
-        savePlaybackState()
-        if current == nil, let first = upcoming.first {
-            trackTitleLabel?.text = first.title
-            artistLabel?.text = first.artist
-            artistLabel?.isHidden = first.artist.isEmpty || first.artist == "Unknown Artist"
-            updatePlayerTheme(with: first.artwork)
-        }
-        if autoplay {
-            if audioPlayer == nil { playCurrentTrack() }
-            else if audioPlayer?.isPlaying != true { playOrPause() }
-        } else { prepareUpcomingTrack() }
+        // A new character or shake starts a fresh station immediately. Explicit
+        // customization is a selection, not negative feedback about the old song.
+        pendingListeningEndReason = .selection
+        persistedSettings.playbackPosition = 0
+        playCurrentTrack()
         return true
     }
 
@@ -414,11 +393,11 @@ extension ViewController {
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastMixShakeTime > 1.6 else { return true }
         lastMixShakeTime = now
-        if activatePulseVibe(autoplay: false) {
+        if activatePulseVibe() {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             myWaveView.shakeMix()
             UIAccessibility.post(notification: .announcement,
-                argument: "Vibe refreshed. Current song keeps playing.")
+                argument: "Vibe refreshed. Playing a new selection.")
         }
         return true
     }

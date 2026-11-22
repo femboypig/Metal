@@ -350,10 +350,10 @@ extension ViewController {
         bottomPanel.backgroundColor = cardBackgroundColor()
         bottomPanel.layer.cornerRadius = 28
         bottomPanel.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-        bottomPanel.layer.borderWidth = 1.0
+        bottomPanel.layer.borderWidth = 0
         bottomPanel.layer.borderColor = cardBorderColor().cgColor
         bottomPanel.clipsToBounds = true
-        libraryViewport.addSubview(bottomPanel)
+        page1.insertSubview(bottomPanel, belowSubview: libraryViewport)
 
         // 3. TableView (Songs List) - positioned over bottomPanel
         tableView = CylinderTableView()
@@ -499,13 +499,6 @@ extension ViewController {
             miniPlayerView.layer.shadowOpacity = 0.20
             miniPlayerView.layer.shadowRadius = 18
         }
-        // An opaque, stationary backdrop prevents the growing Metal surface
-        // from changing the glass mini-player's tint during a library drag.
-        let miniBackdrop = UIView()
-        miniBackdrop.translatesAutoresizingMaskIntoConstraints = false
-        miniBackdrop.backgroundColor = cardBackgroundColor()
-        miniBackdrop.isUserInteractionEnabled = false
-        page1.insertSubview(miniBackdrop, belowSubview: libraryViewport)
         page1.addSubview(miniPlayerView)
 
         let miniTap = UITapGestureRecognizer(target: self, action: #selector(miniPlayerTapped(_:)))
@@ -623,7 +616,7 @@ extension ViewController {
             bottomPanel.topAnchor.constraint(equalTo: searchBar.centerYAnchor),
             bottomPanel.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             bottomPanel.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            bottomPanel.bottomAnchor.constraint(equalTo: libraryViewport.bottomAnchor),
+            bottomPanel.bottomAnchor.constraint(equalTo: page1.bottomAnchor),
 
             // Floating Filters Container: floats above the song list inside the bottom panel, self-centering capsule
             floatingFiltersContainer.topAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 28),
@@ -655,10 +648,6 @@ extension ViewController {
             libraryTableHeightConstraint,
 
             // Mini Player Constraints
-            miniBackdrop.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
-            miniBackdrop.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            miniBackdrop.topAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
-            miniBackdrop.bottomAnchor.constraint(equalTo: page1.bottomAnchor),
             miniPlayerView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             miniPlayerView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
             miniPlayerView.bottomAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.bottomAnchor, constant: -8),

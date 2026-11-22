@@ -44,6 +44,11 @@ enum PulseFlowChecks {
             isUnheard: false, lastPlayedAt: nil, vibe: profiles[2])
         precondition(!next(.discover, candidates: pool + [disliked], limit: 40).contains(disliked.id),
             "The requested energy must not override strong negative taste evidence")
+        for vibe in PulseVibe.allCases {
+            let replacement = next(vibe, reserved: ["song-20"])
+            precondition(!replacement.isEmpty && replacement.first != "song-20",
+                "Customizing and shaking must select a replacement, not pin the current song")
+        }
         precondition(next(.forYou, candidates: []).isEmpty)
         precondition(next(.forYou, candidates: [pool[2]], reserved: [pool[2].id]).isEmpty)
         print("Personal vibe: mood selection, taste safeguards, queue refresh, cooldown and tiny libraries passed")
