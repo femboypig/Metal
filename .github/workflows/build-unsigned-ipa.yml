@@ -101,18 +101,6 @@ jobs:
           print("Compatibility icons:", ", ".join(icon.name for icon in icons))
           PY
 
-      - name: Capture and verify native pulse layouts
-        timeout-minutes: 10
-        run: bash Tests/CapturePulsePreviews.sh
-
-      - name: Upload native pulse previews
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: Metal-pulse-previews-${{ github.sha }}
-          path: ${{ runner.temp }}/MetalPulsePreviews
-          if-no-files-found: warn
-
       - name: Embed entitlements for sideload resigners
         run: |
           set -euo pipefail
@@ -169,3 +157,16 @@ jobs:
           path: dist/Metal-unsigned.ipa
           if-no-files-found: error
           compression-level: 0
+
+      - name: Capture and verify native pulse layouts
+        timeout-minutes: 10
+        run: bash Tests/CapturePulsePreviews.sh
+
+      - name: Upload native pulse previews
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: Metal-pulse-previews-${{ github.sha }}
+          path: ${{ runner.temp }}/MetalPulsePreviews
+          if-no-files-found: warn
+

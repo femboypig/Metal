@@ -43,12 +43,12 @@ cleanup() {
 }
 trap cleanup EXIT
 xcrun simctl boot "$device_id"
-xcrun simctl bootstatus "$device_id" -b
 xcodebuild -project Metal.xcodeproj -scheme Metal -configuration Debug \
     -sdk iphonesimulator -destination "id=$device_id" \
     -derivedDataPath "$RUNNER_TEMP/PulsePreviewBuild" \
-    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build \
+    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO SWIFT_COMPILATION_MODE=wholemodule SWIFT_OPTIMIZATION_LEVEL=-O build \
     > "$preview_dir/simulator-build.log" 2>&1 || { tail -100 "$preview_dir/simulator-build.log"; exit 1; }
+xcrun simctl bootstatus "$device_id" -b
 app_path="$RUNNER_TEMP/PulsePreviewBuild/Build/Products/Debug-iphonesimulator/Metal.app"
 xcrun simctl install "$device_id" "$app_path"
 container="$(xcrun simctl get_app_container "$device_id" ru.femboypig.Metal data)"

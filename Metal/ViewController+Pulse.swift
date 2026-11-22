@@ -316,8 +316,8 @@ extension ViewController {
                 precondition(self.miniPlayerView.frame == miniFrame)
                 let report: [String: Any] = ["passed": true,
                     "collapsed": requested, "vibe": self.pulseVibe.rawValue, "animatedMiniStable": true,
-                    "miniFrame": NSStringFromCGRect(miniFrame),
-                    "searchFrame": NSStringFromCGRect(self.searchBar.convert(self.searchBar.bounds, to: self.page1))]
+                    "miniFrame": String(describing: miniFrame),
+                    "searchFrame": String(describing: self.searchBar.convert(self.searchBar.bounds, to: self.page1))]
                 if let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
                    let data = try? JSONSerialization.data(withJSONObject: report) {
                     try? data.write(to: url.appendingPathComponent("pulse-layout-checks.json"), options: .atomic)
