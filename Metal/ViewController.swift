@@ -89,20 +89,19 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
 
     var playerPresentation: CGFloat = 0
     var playerPresentationTarget: CGFloat = 0
-    var playerPresentationVelocity: CGFloat = 0
+    var playerPresentationStart: CGFloat = 0
+    var playerPresentationDuration: CFTimeInterval = 0.34
     var playerPresentationTime: CFTimeInterval = 0
     var playerPresentationLink: CADisplayLink?
     var playerScrim: UIView!
     var playerDismissPan: UIPanGestureRecognizer!
-    var playerPanStart: CGFloat = 1
+    var playerDismissCommitted = false
+    var playerSlidingSurface: UIView!
     var coverPan: UIPanGestureRecognizer!
     var isCoverDragging = false
     var coverDragTransforms: [CGAffineTransform] = []
     var coverReleaseVelocity: CGFloat = 0
     var isCommittingCoverSwipe = false
-    let playerSurfaceMask = CAShapeLayer()
-    var playerTransitionArtwork: GlassArtworkImageView!
-    var playerPresentationContent: [UIView] = []
 
     var isPlayerPageVisible: Bool { playerPresentation > 0.5 }
     var trackTitleLabel: UILabel!

@@ -6,14 +6,6 @@ extension ViewController {
         playerDismissPan.delegate = self
         playerDismissPan.maximumNumberOfTouches = 1
         page2.addGestureRecognizer(playerDismissPan)
-        playerSurfaceMask.fillColor = UIColor.black.cgColor
-        page2.layer.mask = playerSurfaceMask
-        playerTransitionArtwork = GlassArtworkImageView()
-        playerTransitionArtwork.contentMode = .scaleAspectFill
-        playerTransitionArtwork.clipsToBounds = true
-        playerTransitionArtwork.isUserInteractionEnabled = false
-        playerTransitionArtwork.layer.cornerCurve = .continuous
-        view.addSubview(playerTransitionArtwork)
         page2.accessibilityViewIsModal = true
         page2.accessibilityCustomActions = [UIAccessibilityCustomAction(name: "Close player", target: self,
             selector: #selector(closePlayerAccessibility))]
@@ -31,17 +23,13 @@ extension ViewController {
         playerPresentationTime = 0
     }
 
-    func setPlayerPresented(_ presented: Bool, animated: Bool = true, velocity: CGFloat = 0) {
+    func setPlayerPresented(_ presented: Bool, animated: Bool = true) {
         view.endEditing(true)
-        // Keep the fullscreen layout in window coordinates before any masking begins.
-        // A transformed root changes inherited safe-area insets as it crosses the screen.
         view.layoutIfNeeded()
-        if playerPresentation == 0 || playerPresentation == 1 {
-            playerTransitionArtwork.setArtwork(coverImageView.image, seed: trackTitleLabel.text)
-        }
         stopPlayerPresentationMotion()
+        playerPresentationStart = playerPresentation
         playerPresentationTarget = presented ? 1 : 0
-        playerPresentationVelocity = velocity
+        playerPresentationDuration = presented ? (playerPresentation > 0.9 ? 0.16 : 0.34) : 0.28
         page1.accessibilityElementsHidden = presented
         page2.accessibilityElementsHidden = !presented
         if !animated || UIAccessibility.isReduceMotionEnabled {
@@ -57,14 +45,12 @@ extension ViewController {
     }
 
     func tickPlayerPresentation(_ link: CADisplayLink) {
-        let delta = playerPresentationTime == 0 ? link.targetTimestamp - link.timestamp : link.timestamp - playerPresentationTime
-        playerPresentationTime = link.timestamp
-        let result = PlayerPresentationMotion.step(position: Double(playerPresentation),
-            velocity: Double(playerPresentationVelocity), target: Double(playerPresentationTarget), delta: delta)
-        playerPresentation = CGFloat(result.position)
-        playerPresentationVelocity = CGFloat(result.velocity)
+        if playerPresentationTime == 0 { playerPresentationTime = link.timestamp }
+        let elapsed = link.targetTimestamp - playerPresentationTime
+        playerPresentation = CGFloat(PlayerPresentationMotion.position(start: Double(playerPresentationStart),
+            target: Double(playerPresentationTarget), elapsed: elapsed, duration: playerPresentationDuration))
         renderPlayerPresentation()
-        if result.finished {
+        if elapsed >= playerPresentationDuration {
             stopPlayerPresentationMotion()
             UIAccessibility.post(notification: .screenChanged,
                 argument: playerPresentationTarget == 1 ? playerDismissButton : miniPlayerView)
@@ -72,35 +58,12 @@ extension ViewController {
     }
 
     func renderPlayerPresentation() {
-        guard let page2, let miniPlayerView, let miniCoverView, let coverArtCard,
-              let coverCarouselContainer, let playerTransitionArtwork else { return }
+        guard let page2, let playerSlidingSurface else { return }
         let progress = min(1, max(0, playerPresentation))
-        let miniFrame = miniPlayerView.convert(miniPlayerView.bounds, to: view)
-        let surface = PlayerPresentationMotion.surfaceFrame(mini: miniFrame, full: view.bounds,
-            progress: Double(progress))
-        let miniCover = miniCoverView.convert(miniCoverView.bounds, to: view)
-        let fullCover = coverArtCard.convert(coverArtCard.bounds, to: view)
-        let artworkFrame = PlayerPresentationMotion.surfaceFrame(mini: miniCover, full: fullCover,
-            progress: Double(progress))
-        let contentAlpha = CGFloat(PlayerPresentationMotion.reveal(Double(progress), from: 0.3, to: 0.88))
-        let coverAlpha = CGFloat(PlayerPresentationMotion.reveal(Double(progress), from: 0.86, to: 1))
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        // Only the visible surface changes; safe areas and controls retain their final layout.
-        page2.layer.mask = progress == 1 ? nil : playerSurfaceMask
-        playerSurfaceMask.frame = page2.bounds
-        playerSurfaceMask.path = UIBezierPath(roundedRect: surface,
-            cornerRadius: miniPlayerView.layer.cornerRadius * (1 - progress)).cgPath
-        for content in playerPresentationContent { content.alpha = contentAlpha }
-        coverCarouselContainer.alpha = coverAlpha
-        playerTransitionArtwork.frame = artworkFrame
-        playerTransitionArtwork.layer.cornerRadius = 11 + 7 * progress
-        playerTransitionArtwork.alpha = 1 - coverAlpha
-        CATransaction.commit()
+        // The host and its safe-area layout stay fixed; only the inner surface slides.
+        playerSlidingSurface.transform = CGAffineTransform(translationX: 0,
+            y: (1 - progress) * view.bounds.height)
         playerScrim.alpha = 0.18 * progress
-        let atRest = progress == 0 || progress == 1
-        playerTransitionArtwork.isHidden = atRest
-        miniPlayerView.alpha = progress == 0 ? 1 : 0
         page2.isHidden = progress == 0 && playerPresentationTarget == 0
         playerScrim.isHidden = progress == 0
         page1.isUserInteractionEnabled = progress == 0
@@ -108,20 +71,28 @@ extension ViewController {
     }
 
     @objc func dragPlayerDown(_ gesture: UIPanGestureRecognizer) {
-        let height = max(1, view.bounds.height)
-        let velocity = gesture.velocity(in: view).y
-        switch gesture.state {
-        case .began:
-            playerPanStart = playerPresentation
+        // Crossing the threshold hands control to the closing animation, even while held.
+        // Remaining changed/ended/cancelled events from that touch cannot reverse it.
+        if gesture.state == .began {
+            playerDismissCommitted = false
             stopPlayerPresentationMotion()
-            playerTransitionArtwork.setArtwork(coverImageView.image, seed: trackTitleLabel.text)
-        case .changed:
-            playerPresentation = min(1, max(0, playerPanStart - max(0, gesture.translation(in: view).y - 24) * 0.85 / height))
-            renderPlayerPresentation()
-        case .ended:
-            let dismiss = PlayerPresentationMotion.shouldDismiss(progress: Double(playerPresentation),
-                translation: Double(gesture.translation(in: view).y), velocity: Double(velocity), height: Double(height))
-            setPlayerPresented(!dismiss, velocity: dismiss ? -velocity / height : 0)
+        }
+        guard !playerDismissCommitted else { return }
+        let distance = Double(gesture.translation(in: view).y)
+        let velocity = Double(gesture.velocity(in: view).y)
+        switch gesture.state {
+        case .began, .changed, .ended:
+            if PlayerPresentationMotion.shouldCommitPull(translation: distance, velocity: velocity) {
+                playerDismissCommitted = true
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.45)
+                setPlayerPresented(false)
+            } else if gesture.state == .ended {
+                setPlayerPresented(true)
+            } else {
+                let offset = PlayerPresentationMotion.pullOffset(translation: distance)
+                playerPresentation = 1 - CGFloat(offset) / max(1, view.bounds.height)
+                renderPlayerPresentation()
+            }
         case .cancelled, .failed:
             setPlayerPresented(true)
         default: break

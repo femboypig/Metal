@@ -1,63 +1,39 @@
 import Foundation
-import CoreGraphics
 
 @main
 struct PlayerPresentationChecks {
     static func main() {
         for hz in [30.0, 60, 120] {
-            var position = 0.0, velocity = 0.0
-            for target in [1.0, 0, 1] {
-                var finished = false
-                for _ in 0..<Int(hz * 2) {
-                    let next = PlayerPresentationMotion.step(position: position, velocity: velocity,
-                        target: target, delta: 1 / hz)
-                    precondition((0...1).contains(next.position))
-                    position = next.position; velocity = next.velocity
-                    if next.finished { finished = true; break }
+            for (start, target, duration) in [(0.0, 1.0, 0.34), (1, 0, 0.28), (0.97, 1, 0.16)] {
+                var previous = start
+                for i in 0...Int(ceil(duration * hz)) {
+                    let next = PlayerPresentationMotion.position(start: start, target: target,
+                        elapsed: Double(i) / hz, duration: duration)
+                    precondition((0...1).contains(next))
+                    precondition(target > start ? next >= previous : next <= previous)
+                    previous = next
                 }
-                precondition(finished && position == target, "Presentation must settle at each refresh rate")
-            }
-            // A downward drag can reverse into a cancelled dismissal without jumping or diverging.
-            position = 0.65; velocity = -1.2
-            for _ in 0..<Int(hz * 2) {
-                let next = PlayerPresentationMotion.step(position: position, velocity: velocity, target: 1, delta: 1 / hz)
-                position = next.position; velocity = next.velocity
-            }
-            precondition(position == 1)
-        }
-        for height in [568.0, 667, 844, 932, 1024] {
-            // Even an extremely quick accidental brush must return to the open player.
-            for distance in [10.0, 30, 60, 90] {
-                precondition(!PlayerPresentationMotion.shouldDismiss(progress: 0.95,
-                    translation: distance, velocity: 3000, height: height))
-            }
-            precondition(PlayerPresentationMotion.shouldDismiss(progress: 0.65,
-                translation: height * 0.4, velocity: 0, height: height))
-            precondition(PlayerPresentationMotion.shouldDismiss(progress: 0.88,
-                translation: 120, velocity: 1400, height: height))
-            precondition(!PlayerPresentationMotion.shouldDismiss(progress: 0.95,
-                translation: 150, velocity: -1000, height: height))
-            let full = CGRect(x: 0, y: 0, width: 390, height: height)
-            let mini = CGRect(x: 16, y: height - 102, width: 358, height: 60)
-            precondition(PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: 0) == mini)
-            precondition(PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: 1) == full)
-            precondition(PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: -1) == mini)
-            precondition(PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: 2) == full)
-            var last = mini
-            for i in 1...100 {
-                let frame = PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: Double(i) / 100)
-                precondition(frame.minY <= last.minY && frame.height >= last.height)
-                precondition(full.contains(frame))
-                last = frame
+                precondition(previous == target, "The slide must finish within its fixed duration")
             }
         }
-        precondition(PlayerPresentationMotion.reveal(0, from: 0.3, to: 0.88) == 0)
-        precondition(PlayerPresentationMotion.reveal(1, from: 0.3, to: 0.88) == 1)
+        // A short fast brush cannot close the player; a deliberate short pull commits immediately.
+        for distance in [0.0, 8, 20, 35] {
+            precondition(!PlayerPresentationMotion.shouldCommitPull(translation: distance, velocity: 3000))
+        }
+        precondition(!PlayerPresentationMotion.shouldCommitPull(translation: 63, velocity: 0))
+        precondition(PlayerPresentationMotion.shouldCommitPull(translation: 64, velocity: 0))
+        precondition(PlayerPresentationMotion.shouldCommitPull(translation: 36, velocity: 650))
+        precondition(!PlayerPresentationMotion.shouldCommitPull(translation: -100, velocity: 2000))
+        precondition(PlayerPresentationMotion.pullOffset(translation: 8) == 0)
+        precondition(PlayerPresentationMotion.pullOffset(translation: 64) < 28)
+        for distance in [-100.0, 0, 36, 64, 500, 2000] {
+            precondition((0...28).contains(PlayerPresentationMotion.pullOffset(translation: distance)))
+        }
         precondition(PlayerPresentationMotion.coverDirection(translation: -90, velocity: 0, width: 264) == -1)
         precondition(PlayerPresentationMotion.coverDirection(translation: 90, velocity: 0, width: 264) == 1)
         precondition(PlayerPresentationMotion.coverDirection(translation: 8, velocity: 10, width: 264) == 0)
         precondition(PlayerPresentationMotion.coverDirection(translation: -10, velocity: -600, width: 264) == -1)
         precondition(PlayerPresentationMotion.coverDirection(translation: 10, velocity: 600, width: 264) == 1)
-        print("Player presentation: settling, mini-player geometry, deliberate dismissal and cover swipes passed")
+        print("Player presentation: fixed-duration slide, bounded pull, automatic dismissal threshold and cover swipes passed")
     }
 }

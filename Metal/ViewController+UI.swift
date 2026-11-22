@@ -92,8 +92,6 @@ extension ViewController {
         playerScrim.backgroundColor = .black
         playerScrim.isUserInteractionEnabled = false
         page2.clipsToBounds = true
-        page2.layer.cornerCurve = .continuous
-        page2.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
         for container in [page1!, playerScrim!, page2!] {
             container.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(container)
@@ -107,6 +105,15 @@ extension ViewController {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
         tapGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(tapGesture)
+        playerSlidingSurface = UIView()
+        playerSlidingSurface.translatesAutoresizingMaskIntoConstraints = false
+        page2.addSubview(playerSlidingSurface)
+        NSLayoutConstraint.activate([
+            playerSlidingSurface.topAnchor.constraint(equalTo: page2.topAnchor),
+            playerSlidingSurface.bottomAnchor.constraint(equalTo: page2.bottomAnchor),
+            playerSlidingSurface.leadingAnchor.constraint(equalTo: page2.leadingAnchor),
+            playerSlidingSurface.trailingAnchor.constraint(equalTo: page2.trailingAnchor)
+        ])
         setupPage1Library()
         setupPage2NowPlaying()
         setupPlayerPresentation()
@@ -471,7 +478,7 @@ extension ViewController {
     }
 
     func setupPage2NowPlaying() {
-        page2.backgroundColor = .clear
+        playerSlidingSurface.backgroundColor = .clear
 
         // Full Edge-to-Edge Dynamic Ambient Gradient Background (Fills status bar notch & home indicator)
         let gradient = CAGradientLayer()
@@ -482,13 +489,13 @@ extension ViewController {
         gradient.locations = [0.0, 1.0]
         gradient.startPoint = CGPoint(x: 0.5, y: 0.0)
         gradient.endPoint = CGPoint(x: 0.5, y: 1.0)
-        page2.layer.insertSublayer(gradient, at: 0)
+        playerSlidingSurface.layer.insertSublayer(gradient, at: 0)
         playerGradientLayer = gradient
 
         // --- 1. Top Navigation Bar (Positioned at Safe Area Top) ---
         let topBar = UIView()
         topBar.translatesAutoresizingMaskIntoConstraints = false
-        page2.addSubview(topBar)
+        playerSlidingSurface.addSubview(topBar)
 
         let dismissButton = UIButton(type: .system)
         dismissButton.translatesAutoresizingMaskIntoConstraints = false
@@ -526,7 +533,7 @@ extension ViewController {
         bottomBar.axis = .horizontal
         bottomBar.alignment = .center
         bottomBar.distribution = .equalSpacing
-        page2.addSubview(bottomBar)
+        playerSlidingSurface.addSubview(bottomBar)
 
         let deviceButton = UIButton(type: .custom)
         deviceButton.translatesAutoresizingMaskIntoConstraints = false
@@ -592,8 +599,7 @@ extension ViewController {
         let centerContentView = UIView()
         centerContentView.translatesAutoresizingMaskIntoConstraints = false
         centerContentView.clipsToBounds = false
-        page2.addSubview(centerContentView)
-        playerPresentationContent = [topBar, bottomBar, centerContentView]
+        playerSlidingSurface.addSubview(centerContentView)
 
         // 0. Cover Art Carousel (Peek Left, Dominant Center, Peek Right)
         coverCarouselContainer = UIView()
@@ -830,8 +836,8 @@ extension ViewController {
         NSLayoutConstraint.activate([
             // Top Bar (SafeArea top)
             topBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            topBar.leadingAnchor.constraint(equalTo: page2.leadingAnchor, constant: 20),
-            topBar.trailingAnchor.constraint(equalTo: page2.trailingAnchor, constant: -20),
+            topBar.leadingAnchor.constraint(equalTo: playerSlidingSurface.leadingAnchor, constant: 20),
+            topBar.trailingAnchor.constraint(equalTo: playerSlidingSurface.trailingAnchor, constant: -20),
             topBar.heightAnchor.constraint(equalToConstant: 36),
 
             dismissButton.leadingAnchor.constraint(equalTo: topBar.leadingAnchor),
@@ -850,14 +856,14 @@ extension ViewController {
 
             // Bottom Bar (SafeArea bottom)
             bottomBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
-            bottomBar.leadingAnchor.constraint(equalTo: page2.leadingAnchor, constant: 28),
-            bottomBar.trailingAnchor.constraint(equalTo: page2.trailingAnchor, constant: -28),
+            bottomBar.leadingAnchor.constraint(equalTo: playerSlidingSurface.leadingAnchor, constant: 28),
+            bottomBar.trailingAnchor.constraint(equalTo: playerSlidingSurface.trailingAnchor, constant: -28),
             bottomBar.heightAnchor.constraint(equalToConstant: 36),
 
             // Center Content View (Vertically centered on Y axis, edge-to-edge for carousel peek)
-            centerContentView.centerYAnchor.constraint(equalTo: page2.centerYAnchor, constant: -8),
-            centerContentView.leadingAnchor.constraint(equalTo: page2.leadingAnchor),
-            centerContentView.trailingAnchor.constraint(equalTo: page2.trailingAnchor),
+            centerContentView.centerYAnchor.constraint(equalTo: playerSlidingSurface.centerYAnchor, constant: -8),
+            centerContentView.leadingAnchor.constraint(equalTo: playerSlidingSurface.leadingAnchor),
+            centerContentView.trailingAnchor.constraint(equalTo: playerSlidingSurface.trailingAnchor),
             centerContentView.topAnchor.constraint(greaterThanOrEqualTo: topBar.bottomAnchor, constant: 12),
             centerContentView.bottomAnchor.constraint(lessThanOrEqualTo: bottomBar.topAnchor, constant: -12),
 

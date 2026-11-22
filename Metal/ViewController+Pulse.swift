@@ -280,13 +280,15 @@ extension ViewController: UIGestureRecognizerDelegate {
                 && abs(velocity.x) > abs(velocity.y) * 1.15
         }
         if gestureRecognizer === playerDismissPan {
+            guard playerPresentationTarget == 1, playerPresentation > 0.99,
+                  playerPresentationLink == nil else { return false }
             let velocity = playerDismissPan.velocity(in: page2)
             var touched = page2.hitTest(playerDismissPan.location(in: page2), with: nil)
             while let candidate = touched, candidate !== page2 {
                 if candidate is UIControl { return false }
                 touched = candidate.superview
             }
-            return velocity.y > 100 && abs(velocity.y) > abs(velocity.x) * 1.35
+            return velocity.y > 0 && abs(velocity.y) > abs(velocity.x) * 1.35
                 && activeSheetView == nil && presentedViewController == nil
         }
         guard gestureRecognizer === libraryPan else { return true }
