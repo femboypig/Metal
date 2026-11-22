@@ -26,10 +26,11 @@ enum PlayerPresentationMotion {
 
     static func surfaceFrame(mini: CGRect, full: CGRect, progress: Double) -> CGRect {
         let t = CGFloat(min(1, max(0, progress)))
-        return CGRect(x: mini.minX + (full.minX - mini.minX) * t,
-            y: mini.minY + (full.minY - mini.minY) * t,
-            width: mini.width + (full.width - mini.width) * t,
-            height: mini.height + (full.height - mini.height) * t)
+        let x: CGFloat = mini.minX + (full.minX - mini.minX) * t
+        let y: CGFloat = mini.minY + (full.minY - mini.minY) * t
+        let width: CGFloat = mini.width + (full.width - mini.width) * t
+        let height: CGFloat = mini.height + (full.height - mini.height) * t
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 
     /// Negative is next, positive is previous, zero returns the covers to rest.
