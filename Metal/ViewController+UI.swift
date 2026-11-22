@@ -503,7 +503,7 @@ extension ViewController {
         // from changing the glass mini-player's tint during a library drag.
         let miniBackdrop = UIView()
         miniBackdrop.translatesAutoresizingMaskIntoConstraints = false
-        miniBackdrop.backgroundColor = primaryBackgroundColor()
+        miniBackdrop.backgroundColor = cardBackgroundColor()
         miniBackdrop.isUserInteractionEnabled = false
         page1.insertSubview(miniBackdrop, belowSubview: libraryViewport)
         page1.addSubview(miniPlayerView)
@@ -586,7 +586,8 @@ extension ViewController {
         miniPlayPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
         miniControls.addArrangedSubview(miniPlayPauseButton)
 
-        libraryTopConstraint = libraryViewport.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 92)
+        libraryTopConstraint = libraryViewport.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 82)
+        libraryTableHeightConstraint = tableView.heightAnchor.constraint(equalToConstant: 400)
         NSLayoutConstraint.activate([
             libraryTopConstraint,
             libraryViewport.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
@@ -607,7 +608,7 @@ extension ViewController {
             importButton.heightAnchor.constraint(equalToConstant: 40),
 
             // Search Bar: sits with generous empty space below safe zone, bridging the wave and bottomPanel
-            searchBar.topAnchor.constraint(equalTo: libraryViewport.topAnchor),
+            searchBar.topAnchor.constraint(equalTo: libraryViewport.topAnchor, constant: 10),
             searchBar.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 14),
             searchBar.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -14),
             searchBar.heightAnchor.constraint(equalToConstant: 44),
@@ -616,7 +617,7 @@ extension ViewController {
             myWaveView.topAnchor.constraint(equalTo: page1.topAnchor),
             myWaveView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             myWaveView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            myWaveView.bottomAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 72),
+            myWaveView.bottomAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
 
             // Bottom Underlay Panel: starts at the center of searchBar and extends to bottom of screen
             bottomPanel.topAnchor.constraint(equalTo: searchBar.centerYAnchor),
@@ -651,12 +652,12 @@ extension ViewController {
             tableView.topAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 28),
             tableView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: libraryViewport.bottomAnchor),
+            libraryTableHeightConstraint,
 
             // Mini Player Constraints
             miniBackdrop.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             miniBackdrop.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            miniBackdrop.topAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -28),
+            miniBackdrop.topAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
             miniBackdrop.bottomAnchor.constraint(equalTo: page1.bottomAnchor),
             miniPlayerView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             miniPlayerView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
@@ -1410,7 +1411,7 @@ struct WaveUniforms {
     float4 audio; // bass, treble, loudness, energy
     float4 dynamics; // vibe speed, deformation, detail, glow
     float3 vibeTint;
-    float4 presentation; // expansion, vertical center, reduce motion, unused
+    float4 presentation; // expansion, vertical center, reduce motion, compact height
 };
 
 vertex VertexOut waveVertexShader(uint vertexID [[vertex_id]]) {
@@ -1467,9 +1468,12 @@ fragment float4 waveFragmentShader(
         return float4(0.0);
     }
 
-    float minDim = min(res.x, res.y);
     float expansion = uniforms.presentation.x;
-    float centerY = mix(0.5 - 0.07 * minDim / res.y, uniforms.presentation.y, expansion);
+    float compactHeight = max(1.0, res.y * uniforms.presentation.w);
+    float visualHeight = mix(compactHeight, res.y, expansion);
+    if (in.position.y > visualHeight + 2.0) { return float4(0.0); }
+    float minDim = min(res.x, visualHeight);
+    float centerY = uniforms.presentation.y;
     float2 p = (in.position.xy - float2(res.x * 0.5, res.y * centerY)) / minDim;
     float bass = uniforms.audio.x;
     float treble = uniforms.audio.y;
@@ -1703,8 +1707,8 @@ class YandexWaveView: UIView, MTKViewDelegate {
     private var targetVibe = PulseVibe.forYou
     private var vibeDynamics = PulseVibe.forYou.dynamics
     private var vibeTint = PulseVibe.forYou.tint
-    private var presentation = SIMD4<Float>(0, 0.43, 0, 0)
-    private var presentationTarget = SIMD4<Float>(0, 0.43, 0, 0)
+    private var presentation = SIMD4<Float>(0, 0.43, 0, 0.35)
+    private var presentationTarget = SIMD4<Float>(0, 0.43, 0, 0.35)
     private var renderingActive = true
 
     private var mtkView: MTKView?
@@ -1787,9 +1791,11 @@ class YandexWaveView: UIView, MTKViewDelegate {
 
     func setVibe(_ vibe: PulseVibe) { targetVibe = vibe }
 
-    func setPresentation(_ progress: Float, centerY: Float) {
+    func setPresentation(_ progress: Float, centerY: Float, compactHeight: Float) {
         presentationTarget.x = min(1, max(0, progress))
         presentationTarget.y = min(0.9, max(0.1, centerY))
+        presentationTarget.w = min(1, max(0.1, compactHeight))
+        presentation = presentationTarget
     }
 
     func setRenderingActive(_ active: Bool) {
@@ -1826,6 +1832,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        mtkView?.contentScaleFactor = min(2, max(1, traitCollection.displayScale))
         mtkView?.isPaused = window == nil || !renderingActive
         if window != nil {
             lastFrameTime = CACurrentMediaTime()
@@ -1859,7 +1866,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
         currentBPM += ((isPlayingState ? targetAudio.bpm : 90) - currentBPM) * slowResponse
         vibeDynamics += (targetVibe.dynamics - vibeDynamics) * slowResponse
         vibeTint += (targetVibe.tint - vibeTint) * slowResponse
-        presentation += (presentationTarget - presentation) * response
+        presentation = presentationTarget
         presentation.z = reduceMotion ? 1 : 0
 
         let shakeAge = Float(now - shakeStartedAt)

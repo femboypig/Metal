@@ -1,6 +1,6 @@
 import Foundation
 
-/// Presentation preferences only. These never change the playback queue or taste profile.
+/// Sound and visual characters for a continuous, taste-led station.
 enum PulseVibe: String, CaseIterable {
     case forYou, favorites, discover, rediscover
 
@@ -43,20 +43,33 @@ enum PulseVibe: String, CaseIterable {
 }
 
 struct LibraryDrawerGeometry {
+    static let searchOverscan = 10.0
     let expandedTop: Double
     let collapsedTop: Double
     var travel: Double { max(0, collapsedTop - expandedTop) }
 
     init(safeTop: Double, miniPlayerTop: Double) {
-        expandedTop = safeTop + 92
+        expandedTop = safeTop + 92 - Self.searchOverscan
         // 44 pt search field + 12 pt panel reveal; the mini-player never moves.
-        collapsedTop = max(expandedTop, miniPlayerTop - 10 - 56)
+        collapsedTop = max(expandedTop, miniPlayerTop - 10 - 56 - Self.searchOverscan)
     }
 
     func top(progress: Double) -> Double { expandedTop + travel * min(1, max(0, progress)) }
     func destination(progress: Double, velocity: Double) -> Double {
         guard travel > 0 else { return 0 }
         return min(1, max(0, progress + velocity * 0.18 / travel)) > 0.5 ? 1 : 0
+    }
+}
+
+
+struct LibraryDrawerMotion {
+    static func step(position: Double, velocity: Double, target: Double, delta: Double)
+        -> (position: Double, velocity: Double, finished: Bool) {
+        let dt = min(1.0 / 30, max(0, delta))
+        let nextVelocity = velocity + ((target - position) * 190 - velocity * 28) * dt
+        let next = min(1, max(0, position + nextVelocity * dt))
+        let finished = abs(target - next) < 0.0007 && abs(nextVelocity) < 0.01
+        return (finished ? target : next, nextVelocity, finished)
     }
 }
 

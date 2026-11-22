@@ -8,8 +8,8 @@ enum PulseExperienceChecks {
             for safeTop in [20.0, 47, 59] {
                 let miniTop = height - 34 - 8 - 60
                 let drawer = LibraryDrawerGeometry(safeTop: safeTop, miniPlayerTop: miniTop)
-                precondition(drawer.top(progress: 0) == safeTop + 92)
-                precondition(abs(drawer.top(progress: 1) + 56 - (miniTop - 10)) < 0.001)
+                precondition(drawer.top(progress: 0) + LibraryDrawerGeometry.searchOverscan == safeTop + 92)
+                precondition(abs(drawer.top(progress: 1) + 56 + LibraryDrawerGeometry.searchOverscan - (miniTop - 10)) < 0.001)
                 precondition(drawer.top(progress: -1) == drawer.expandedTop)
                 precondition(drawer.top(progress: 2) == drawer.collapsedTop)
                 precondition(drawer.destination(progress: 0.6, velocity: 0) == 1)
@@ -21,6 +21,18 @@ enum PulseExperienceChecks {
         let tiny = LibraryDrawerGeometry(safeTop: 59, miniPlayerTop: 140)
         precondition(tiny.travel == 0 && tiny.destination(progress: 1, velocity: 2000) == 0)
 
+        for destination in [0.0, 1.0] {
+            for velocity in [-3.0, 0, 3] {
+                var state = (position: 1 - destination, velocity: velocity, finished: false)
+                for _ in 0..<120 {
+                    state = LibraryDrawerMotion.step(position: state.position, velocity: state.velocity,
+                        target: destination, delta: 1.0 / 60)
+                    precondition((0...1).contains(state.position), "Drawer must never overshoot")
+                    if state.finished { break }
+                }
+                precondition(state.finished && state.position == destination, "Drawer must settle precisely")
+            }
+        }
         func analyze(frequency: Double, amplitude: Double) -> PulseAudioFrame {
             var analyzer = PulseBandAnalyzer(sampleRate: 44100)
             var frames: [(PulseAudioFrame, Float)] = []

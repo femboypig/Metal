@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F70000000000000000000002 /* PulseFlowEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000012 /* PulseFlowEngine.swift */; };
+		F70000000000000000000001 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000011 /* Fonts */; };
 		F60000000000000000000003 /* ViewController+Pulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000013 /* ViewController+Pulse.swift */; };
 		F60000000000000000000002 /* PulseAudioSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000012 /* PulseAudioSampler.swift */; };
 		F60000000000000000000001 /* PulseExperience.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* PulseExperience.swift */; };
@@ -72,6 +74,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F70000000000000000000012 /* PulseFlowEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseFlowEngine.swift; sourceTree = "<group>"; };
+		F70000000000000000000011 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 		F60000000000000000000013 /* ViewController+Pulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Pulse.swift"; sourceTree = "<group>"; };
 		F60000000000000000000012 /* PulseAudioSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PulseAudioSampler.swift"; sourceTree = "<group>"; };
 		F60000000000000000000011 /* PulseExperience.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PulseExperience.swift"; sourceTree = "<group>"; };
@@ -164,6 +168,8 @@
 				F60000000000000000000013 /* ViewController+Pulse.swift */,
 				F60000000000000000000012 /* PulseAudioSampler.swift */,
 				F60000000000000000000011 /* PulseExperience.swift */,
+				F70000000000000000000012 /* PulseFlowEngine.swift */,
+				F70000000000000000000011 /* Fonts */,
 				F40000000000000000000012 /* ViewController+Collections.swift */,
 				F40000000000000000000011 /* LibraryCollectionEngine.swift */,
 				F30000000000000000000012 /* ViewController+MixSession.swift */,
@@ -296,6 +302,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F6000000000003 /* MetalStarAppIcon.icon in Resources */,
+				F70000000000000000000001 /* Fonts in Resources */,
 				04C7492F2FEFF60E00B62262 /* LaunchScreen.storyboard in Resources */,
 				04C7492C2FEFF60E00B62262 /* Assets.xcassets in Resources */,
 				04C749272FEFF60C00B62262 /* Main.storyboard in Resources */,
@@ -326,6 +333,7 @@
 				F60000000000000000000003 /* ViewController+Pulse.swift in Sources */,
 				F60000000000000000000002 /* PulseAudioSampler.swift in Sources */,
 				F60000000000000000000001 /* PulseExperience.swift in Sources */,
+				F70000000000000000000002 /* PulseFlowEngine.swift in Sources */,
 				F40000000000000000000002 /* ViewController+Collections.swift in Sources */,
 				F40000000000000000000001 /* LibraryCollectionEngine.swift in Sources */,
 				F30000000000000000000002 /* ViewController+MixSession.swift in Sources */,

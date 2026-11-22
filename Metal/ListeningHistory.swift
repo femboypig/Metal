@@ -130,7 +130,7 @@ struct ListeningSessionEvent: Codable {
 }
 
 enum ListeningSource: String, Codable {
-    case library, dailyMix, favorites, playlist, widget, trackVibe
+    case library, dailyMix, favorites, playlist, widget, trackVibe, pulseVibe
 }
 
 enum ListeningEndReason: String, Codable {

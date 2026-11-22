@@ -84,6 +84,7 @@ extension ViewController {
     
     @objc func dismissKeyboard() {
         searchBar.resignFirstResponder()
+        becomeFirstResponder()
     }
     
     // MARK: - UIScrollViewDelegate

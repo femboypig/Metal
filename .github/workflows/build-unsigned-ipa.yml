@@ -6,11 +6,6 @@ on:
       - main
   pull_request:
   workflow_dispatch:
-    inputs:
-      pulse_previews:
-        description: Capture native pulse layouts
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -24,17 +19,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 2
-
-      - name: Detect pulse presentation changes
-        id: pulse_changes
-        run: |
-          if git diff --quiet HEAD^ HEAD -- Metal/PulseExperience.swift Metal/PulseAudioSampler.swift Metal/ViewController+Pulse.swift Tests/CapturePulsePreviews.sh; then
-            echo "capture=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "capture=true" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Verify Xcode and SDK
         run: |
@@ -61,6 +45,8 @@ jobs:
           set -euo pipefail
           xcrun swiftc Metal/PulseExperience.swift Metal/PulseAudioSampler.swift Tests/PulseExperienceChecks.swift -o "$RUNNER_TEMP/pulse-experience-checks"
           "$RUNNER_TEMP/pulse-experience-checks"
+          xcrun swiftc Metal/DailyMixEngine.swift Metal/PulseExperience.swift Metal/PulseFlowEngine.swift Tests/PulseFlowChecks.swift -o "$RUNNER_TEMP/pulse-flow-checks"
+          "$RUNNER_TEMP/pulse-flow-checks"
 
       - name: Verify Metal shader pipelines
         run: |
@@ -104,6 +90,8 @@ jobs:
           with (app / "Info.plist").open("rb") as stream:
               info = plistlib.load(stream)
           assert info["CFBundleVersion"] == os.environ["EXPECTED_BUILD_VERSION"], info["CFBundleVersion"]
+          assert (app / "Fonts/Fraunces72pt-Bold.ttf").is_file(), "missing Fraunces font"
+          assert "Fonts/Fraunces72pt-Bold.ttf" in info.get("UIAppFonts", []), "Fraunces is not registered"
           for key in ("CFBundleIcons", "CFBundleIcons~ipad"):
               primary = info[key]["CFBundlePrimaryIcon"]
               assert primary["CFBundleIconName"] == "MetalStarAppIcon", primary
@@ -173,16 +161,3 @@ jobs:
           path: dist/Metal-unsigned.ipa
           if-no-files-found: error
           compression-level: 0
-
-      - name: Capture and verify native pulse layouts
-        if: steps.pulse_changes.outputs.capture == 'true' || inputs.pulse_previews == true
-        timeout-minutes: 10
-        run: bash Tests/CapturePulsePreviews.sh
-
-      - name: Upload native pulse previews
-        if: always() && (steps.pulse_changes.outputs.capture == 'true' || inputs.pulse_previews == true)
-        uses: actions/upload-artifact@v6
-        with:
-          name: Metal-pulse-previews-${{ github.sha }}
-          path: ${{ runner.temp }}/MetalPulsePreviews
-          if-no-files-found: warn

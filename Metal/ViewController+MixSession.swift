@@ -1,7 +1,7 @@
 import UIKit
 
 extension ViewController {
-    var isContinuousMix: Bool { playbackSource == .dailyMix || playbackSource == .trackVibe }
+    var isContinuousMix: Bool { playbackSource == .dailyMix || playbackSource == .trackVibe || playbackSource == .pulseVibe }
 
     /// Starts from the song already playing, including its current position and pause state.
     func continueTrackVibe(from track: Track) {
@@ -58,6 +58,14 @@ extension ViewController {
         let candidates = dailyMixCandidates()
         let previousID = currentPlaybackTrack()?.url.lastPathComponent
         let seedID = playbackSource == .trackVibe ? vibeSeedFilename : previousID
+        if playbackSource == .pulseVibe {
+            let ids = PulseFlowEngine.nextTracks(from: candidates, vibe: pulseVibe,
+                previousTrackID: previousID, recentTrackIDs: mixSessionRecentIDs,
+                reservedTrackIDs: reserved, previousUpcoming: pulsePreviousUpcoming,
+                seed: UInt64.random(in: .min ... .max))
+            let byID = Dictionary(tracks.map { ($0.url.lastPathComponent, $0) }, uniquingKeysWith: { a, _ in a })
+            return ids.compactMap { byID[$0] }
+        }
         let ids = MixSessionEngine.nextTracks(from: candidates, seedTrackID: seedID,
             previousTrackID: previousID, recentTrackIDs: mixSessionRecentIDs,
             reservedTrackIDs: reserved, randomSeed: UInt64.random(in: .min ... .max),
@@ -77,7 +85,7 @@ extension ViewController {
         guard remaining.count <= minimumUpcoming else { return }
         let reserved = Set(remaining.map { playbackQueue[$0].url.lastPathComponent } + [current.url.lastPathComponent])
         let lastEvent = listeningTelemetry.sessions?.last?.timestamp ?? 0
-        let attempt = "\(current.url.lastPathComponent)|\(reserved.sorted())|\(tracks.count)|\(dailyMixVibeCache.count)|\(lastEvent)|\(dailyMixMode.rawValue)"
+        let attempt = "\(current.url.lastPathComponent)|\(reserved.sorted())|\(tracks.count)|\(dailyMixVibeCache.count)|\(lastEvent)|\(dailyMixMode.rawValue)|\(pulseVibe.rawValue)"
         guard lastMixExtensionAttempt != attempt else { return }
         lastMixExtensionAttempt = attempt
         isUpdatingMixQueue = true

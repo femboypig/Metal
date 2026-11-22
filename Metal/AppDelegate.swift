@@ -17,13 +17,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         let notificationCenter = UNUserNotificationCenter.current()
         notificationCenter.delegate = self
-        #if DEBUG
-        if !ProcessInfo.processInfo.arguments.contains("--verify-pulse-layout") {
-            DailyMixNotificationScheduler.shared.requestAuthorizationAndSchedule()
-        }
-        #else
         DailyMixNotificationScheduler.shared.requestAuthorizationAndSchedule()
-        #endif
         return true
     }
 

@@ -49,15 +49,22 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
 
     var libraryViewport: UIView!
     var libraryTopConstraint: NSLayoutConstraint!
-    var libraryHandle: UIButton!
     var libraryPan: UIPanGestureRecognizer!
     var libraryCollapse: CGFloat = 0
     var libraryPanStart: CGFloat = 0
-    var libraryAnimator: UIViewPropertyAnimator?
+    var libraryDisplayLink: CADisplayLink?
+    var libraryMotionTarget: CGFloat = 0
+    var libraryMotionVelocity: CGFloat = 0
+    var libraryMotionTime: CFTimeInterval = 0
+    var libraryTableHeightConstraint: NSLayoutConstraint!
     var pulseHero: UIStackView!
     var pulsePlayButton: UIButton!
     var pulseCustomizeButton: UIButton!
+    var pulseHeroCenterConstraint: NSLayoutConstraint!
+    var isLayingOutLibrary = false
     var pulseTitleLabel: UILabel!
+    var pulseReadabilityView: UIView!
+    var pulsePreviousUpcoming: [String] = []
     var pulseVibe: PulseVibe = PulseVibe(rawValue: UserDefaults.standard.string(forKey: "Metal_PulseVibe") ?? "") ?? .forYou
     let pulseAudioSampler = PulseAudioSampler()
     var pulseSamplePending = false
@@ -234,6 +241,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     deinit {
         dailyMixRefreshTimer?.invalidate()
+        libraryDisplayLink?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
     
@@ -243,13 +251,12 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         super.viewDidAppear(animated)
         becomeFirstResponder()
         updatePulseVisibility()
-        #if DEBUG
-        verifyPulseLayoutIfRequested()
-        #endif
     }
 
     override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
-        if motion == .motionShake { shakeDailyMix() }
+        if motion == .motionShake {
+            if !shakePulseVibeIfVisible() { shakeDailyMix() }
+        }
         else { super.motionEnded(motion, with: event) }
     }
 
@@ -351,6 +358,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     @objc func appWillResignActive() {
+        if libraryDisplayLink != nil { setLibraryCollapsed(libraryMotionTarget > 0.5, animated: false) }
         myWaveView?.setRenderingActive(false)
         if let player = audioPlayer {
             updateListeningTelemetry(with: player)
@@ -371,11 +379,11 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     func registerCustomFonts() {
-        guard let fontURL = Bundle.main.url(forResource: "DrukWideBold", withExtension: "ttf") else {
-            return
+        for (name, directory) in [("DrukWideBold", nil as String?), ("Fraunces72pt-Bold", "Fonts")] {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "ttf", subdirectory: directory) else { continue }
+            var error: Unmanaged<CFError>?
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
         }
-        var error: Unmanaged<CFError>?
-        CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, &error)
     }
 
     func updateWavePlayingState() {

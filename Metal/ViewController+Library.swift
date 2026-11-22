@@ -815,8 +815,8 @@ extension ViewController {
     func miniPlayerTrack() -> Track? {
         if let playing = currentPlaybackTrack() {
             return playing
-        } else if let index = currentTrackIndex, index < filteredTracks.count {
-            return filteredTracks[index]
+        } else if let index = currentTrackIndex, currentQueue.indices.contains(index) {
+            return currentQueue[index]
         } else if let lastFile = persistedSettings.lastTrackFile, let saved = tracks.first(where: { $0.url.lastPathComponent == lastFile }) {
             return saved
         } else {
@@ -992,5 +992,6 @@ extension ViewController: UISearchBarDelegate {
 
     public func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         searchBar.resignFirstResponder()
+        becomeFirstResponder()
     }
 }
