@@ -11,9 +11,25 @@ enum PlayerPresentationMotion {
         return (finished ? target : next, finished ? 0 : speed, finished)
     }
 
-    static func shouldDismiss(progress: Double, velocity: Double, height: Double) -> Bool {
-        let projected = progress - velocity * 0.18 / max(1, height)
-        return projected < 0.8
+    static func shouldDismiss(progress: Double, translation: Double, velocity: Double, height: Double) -> Bool {
+        // Velocity alone must never turn a short accidental touch into a dismissal.
+        let deliberatePull = translation >= max(120, height * 0.19)
+        let deliberateFlick = translation >= 110 && velocity >= 1250
+        let projected = progress - max(0, velocity) * 0.12 / max(1, height)
+        return (deliberatePull && projected < 0.74) || deliberateFlick
+    }
+
+    static func reveal(_ progress: Double, from start: Double, to end: Double) -> Double {
+        let t = min(1, max(0, (progress - start) / max(0.001, end - start)))
+        return t * t * (3 - 2 * t)
+    }
+
+    static func surfaceFrame(mini: CGRect, full: CGRect, progress: Double) -> CGRect {
+        let t = CGFloat(min(1, max(0, progress)))
+        return CGRect(x: mini.minX + (full.minX - mini.minX) * t,
+            y: mini.minY + (full.minY - mini.minY) * t,
+            width: mini.width + (full.width - mini.width) * t,
+            height: mini.height + (full.height - mini.height) * t)
     }
 
     /// Negative is next, positive is previous, zero returns the covers to rest.

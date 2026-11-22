@@ -316,7 +316,7 @@ extension ViewController {
 
         miniTitleLabel = UILabel()
         miniTitleLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
-            for: UIFont(name: "BricolageGrotesque-Bold", size: 15) ?? .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 19)
+            for: UIFont(name: "Georgia-Bold", size: 15) ?? .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 19)
         miniTitleLabel.adjustsFontForContentSizeCategory = true
         miniTitleLabel.numberOfLines = 1
         miniTitleLabel.lineBreakMode = .byTruncatingTail
@@ -326,8 +326,8 @@ extension ViewController {
         miniTextStack.addArrangedSubview(miniTitleLabel)
 
         miniArtistLabel = UILabel()
-        miniArtistLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
-            for: UIFont(name: "BricolageGrotesque-SemiBold", size: 15) ?? .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 19)
+        miniArtistLabel.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(
+            for: UIFont(name: "Georgia", size: 12) ?? .systemFont(ofSize: 12), maximumPointSize: 15)
         miniArtistLabel.adjustsFontForContentSizeCategory = true
         miniArtistLabel.numberOfLines = 1
         miniArtistLabel.lineBreakMode = .byTruncatingTail
@@ -593,6 +593,7 @@ extension ViewController {
         centerContentView.translatesAutoresizingMaskIntoConstraints = false
         centerContentView.clipsToBounds = false
         page2.addSubview(centerContentView)
+        playerPresentationContent = [topBar, bottomBar, centerContentView]
 
         // 0. Cover Art Carousel (Peek Left, Dominant Center, Peek Right)
         coverCarouselContainer = UIView()
@@ -828,7 +829,7 @@ extension ViewController {
         // Layout Constraints
         NSLayoutConstraint.activate([
             // Top Bar (SafeArea top)
-            topBar.topAnchor.constraint(equalTo: page2.safeAreaLayoutGuide.topAnchor, constant: 8),
+            topBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             topBar.leadingAnchor.constraint(equalTo: page2.leadingAnchor, constant: 20),
             topBar.trailingAnchor.constraint(equalTo: page2.trailingAnchor, constant: -20),
             topBar.heightAnchor.constraint(equalToConstant: 36),
@@ -848,7 +849,7 @@ extension ViewController {
             topOptionsButton.heightAnchor.constraint(equalToConstant: 44),
 
             // Bottom Bar (SafeArea bottom)
-            bottomBar.bottomAnchor.constraint(equalTo: page2.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            bottomBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
             bottomBar.leadingAnchor.constraint(equalTo: page2.leadingAnchor, constant: 28),
             bottomBar.trailingAnchor.constraint(equalTo: page2.trailingAnchor, constant: -28),
             bottomBar.heightAnchor.constraint(equalToConstant: 36),

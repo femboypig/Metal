@@ -35,6 +35,8 @@ struct Track {
         return cache
     }()
 
+    var cachedArtwork: UIImage? { Self.artworkCache.object(forKey: url as NSURL) }
+
     var artwork: UIImage? {
         let nsURL = url as NSURL
         if let cached = Track.artworkCache.object(forKey: nsURL) {

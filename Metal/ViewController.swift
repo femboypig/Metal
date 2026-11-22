@@ -98,6 +98,11 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var coverPan: UIPanGestureRecognizer!
     var isCoverDragging = false
     var coverDragTransforms: [CGAffineTransform] = []
+    var coverReleaseVelocity: CGFloat = 0
+    var isCommittingCoverSwipe = false
+    let playerSurfaceMask = CAShapeLayer()
+    var playerTransitionArtwork: GlassArtworkImageView!
+    var playerPresentationContent: [UIView] = []
 
     var isPlayerPageVisible: Bool { playerPresentation > 0.5 }
     var trackTitleLabel: UILabel!
@@ -363,7 +368,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     func registerCustomFonts() {
-        for (name, directory) in [("DrukWideBold", nil as String?), ("Fraunces72pt-Bold", "Fonts"), ("BricolageGrotesque-Bold", "Fonts"), ("BricolageGrotesque-SemiBold", "Fonts")] {
+        for (name, directory) in [("DrukWideBold", nil as String?), ("Fraunces72pt-Bold", "Fonts")] {
             guard let url = Bundle.main.url(forResource: name, withExtension: "ttf", subdirectory: directory) else { continue }
             var error: Unmanaged<CFError>?
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)

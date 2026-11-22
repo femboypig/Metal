@@ -6,6 +6,14 @@ extension ViewController {
         playerDismissPan.delegate = self
         playerDismissPan.maximumNumberOfTouches = 1
         page2.addGestureRecognizer(playerDismissPan)
+        playerSurfaceMask.fillColor = UIColor.black.cgColor
+        page2.layer.mask = playerSurfaceMask
+        playerTransitionArtwork = GlassArtworkImageView()
+        playerTransitionArtwork.contentMode = .scaleAspectFill
+        playerTransitionArtwork.clipsToBounds = true
+        playerTransitionArtwork.isUserInteractionEnabled = false
+        playerTransitionArtwork.layer.cornerCurve = .continuous
+        view.addSubview(playerTransitionArtwork)
         page2.accessibilityViewIsModal = true
         page2.accessibilityCustomActions = [UIAccessibilityCustomAction(name: "Close player", target: self,
             selector: #selector(closePlayerAccessibility))]
@@ -25,6 +33,12 @@ extension ViewController {
 
     func setPlayerPresented(_ presented: Bool, animated: Bool = true, velocity: CGFloat = 0) {
         view.endEditing(true)
+        // Keep the fullscreen layout in window coordinates before any masking begins.
+        // A transformed root changes inherited safe-area insets as it crosses the screen.
+        view.layoutIfNeeded()
+        if playerPresentation == 0 || playerPresentation == 1 {
+            playerTransitionArtwork.setArtwork(coverImageView.image, seed: trackTitleLabel.text)
+        }
         stopPlayerPresentationMotion()
         playerPresentationTarget = presented ? 1 : 0
         playerPresentationVelocity = velocity
@@ -58,15 +72,35 @@ extension ViewController {
     }
 
     func renderPlayerPresentation() {
-        guard page2 != nil else { return }
+        guard let page2, let miniPlayerView, let miniCoverView, let coverArtCard,
+              let coverCarouselContainer, let playerTransitionArtwork else { return }
         let progress = min(1, max(0, playerPresentation))
-        // The library stays fixed. The player rises above it and its artwork settles separately.
-        page2.transform = CGAffineTransform(translationX: 0, y: (1 - progress) * view.bounds.height)
-        page2.layer.cornerRadius = 30 * min(1, (1 - progress) * 5)
-        let settle = 1 - progress
-        coverCarouselContainer?.transform = CGAffineTransform(translationX: 0, y: settle * 22)
-            .scaledBy(x: 1 - settle * 0.045, y: 1 - settle * 0.045)
-        playerScrim.alpha = 0.22 * progress
+        let miniFrame = miniPlayerView.convert(miniPlayerView.bounds, to: view)
+        let surface = PlayerPresentationMotion.surfaceFrame(mini: miniFrame, full: view.bounds,
+            progress: Double(progress))
+        let miniCover = miniCoverView.convert(miniCoverView.bounds, to: view)
+        let fullCover = coverArtCard.convert(coverArtCard.bounds, to: view)
+        let artworkFrame = PlayerPresentationMotion.surfaceFrame(mini: miniCover, full: fullCover,
+            progress: Double(progress))
+        let contentAlpha = CGFloat(PlayerPresentationMotion.reveal(Double(progress), from: 0.3, to: 0.88))
+        let coverAlpha = CGFloat(PlayerPresentationMotion.reveal(Double(progress), from: 0.86, to: 1))
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        // Only the visible surface changes; safe areas and controls retain their final layout.
+        page2.layer.mask = progress == 1 ? nil : playerSurfaceMask
+        playerSurfaceMask.frame = page2.bounds
+        playerSurfaceMask.path = UIBezierPath(roundedRect: surface,
+            cornerRadius: miniPlayerView.layer.cornerRadius * (1 - progress)).cgPath
+        for content in playerPresentationContent { content.alpha = contentAlpha }
+        coverCarouselContainer.alpha = coverAlpha
+        playerTransitionArtwork.frame = artworkFrame
+        playerTransitionArtwork.layer.cornerRadius = 11 + 7 * progress
+        playerTransitionArtwork.alpha = 1 - coverAlpha
+        CATransaction.commit()
+        playerScrim.alpha = 0.18 * progress
+        let atRest = progress == 0 || progress == 1
+        playerTransitionArtwork.isHidden = atRest
+        miniPlayerView.alpha = progress == 0 ? 1 : 0
         page2.isHidden = progress == 0 && playerPresentationTarget == 0
         playerScrim.isHidden = progress == 0
         page1.isUserInteractionEnabled = progress == 0
@@ -80,13 +114,14 @@ extension ViewController {
         case .began:
             playerPanStart = playerPresentation
             stopPlayerPresentationMotion()
+            playerTransitionArtwork.setArtwork(coverImageView.image, seed: trackTitleLabel.text)
         case .changed:
-            playerPresentation = min(1, max(0, playerPanStart - gesture.translation(in: view).y / height))
+            playerPresentation = min(1, max(0, playerPanStart - max(0, gesture.translation(in: view).y - 24) * 0.85 / height))
             renderPlayerPresentation()
         case .ended:
             let dismiss = PlayerPresentationMotion.shouldDismiss(progress: Double(playerPresentation),
-                velocity: Double(velocity), height: Double(height))
-            setPlayerPresented(!dismiss, velocity: -velocity / height)
+                translation: Double(gesture.translation(in: view).y), velocity: Double(velocity), height: Double(height))
+            setPlayerPresented(!dismiss, velocity: dismiss ? -velocity / height : 0)
         case .cancelled, .failed:
             setPlayerPresented(true)
         default: break
@@ -98,15 +133,30 @@ extension ViewController {
         switch gesture.state {
         case .began:
             isCoverDragging = true
-            coverDragTransforms = cards.map(\.transform)
-            cards.forEach { $0.layer.removeAllAnimations() }
+            coverDragTransforms = cards.map { $0.layer.presentation()?.affineTransform() ?? $0.transform }
+            for (card, transform) in zip(cards, coverDragTransforms) {
+                card.layer.removeAllAnimations()
+                card.transform = transform
+            }
+            Track.preheatArtwork(for: [getTrackAfterNext()?.url, getTrackBeforePrevious()?.url].compactMap { $0 })
         case .changed:
             let distance = gesture.translation(in: page2).x
             let available = distance < 0 ? getNextTrack() != nil : getPreviousTrack() != nil
             let offset = available ? distance : distance * 0.18
-            for (card, base) in zip(cards, coverDragTransforms) {
+            let sideOffset = max(1, abs(coverDragTransforms[distance < 0 ? 2 : 0].tx))
+            let fraction = min(1, abs(offset) / sideOffset)
+            let playingScale: CGFloat = audioPlayer?.isPlaying == true ? 1.18 : 1
+            for (index, card) in cards.enumerated() {
+                let base = coverDragTransforms[index]
                 var transform = base
                 transform.tx += offset
+                if index == 1 {
+                    transform.a = base.a + (1 - base.a) * fraction
+                    transform.d = transform.a
+                } else if index == (distance < 0 ? 2 : 0) {
+                    transform.a = base.a + (playingScale - base.a) * fraction
+                    transform.d = transform.a
+                }
                 card.transform = transform
             }
         case .ended, .cancelled, .failed:
@@ -114,8 +164,12 @@ extension ViewController {
             let direction = gesture.state == .ended ? PlayerPresentationMotion.coverDirection(
                 translation: Double(gesture.translation(in: page2).x),
                 velocity: Double(gesture.velocity(in: page2).x), width: 264) : 0
-            if direction < 0, getNextTrack() != nil { playNextTrack() }
-            else if direction > 0, getPreviousTrack() != nil { playPreviousTrack() }
+            coverReleaseVelocity = gesture.velocity(in: page2).x
+            if direction < 0, getNextTrack() != nil {
+                animateCarouselSlide(direction: .forward, incomingTrack: getTrackAfterNext(), commitsSwipe: true)
+            } else if direction > 0, getPreviousTrack() != nil {
+                animateCarouselSlide(direction: .backward, incomingTrack: getTrackBeforePrevious(), commitsSwipe: true)
+            }
             if !isCarouselAnimating {
                 applyCarouselLayout(isPlaying: audioPlayer?.isPlaying == true, animated: true)
             }

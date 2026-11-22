@@ -286,7 +286,7 @@ extension ViewController: UIGestureRecognizerDelegate {
                 if candidate is UIControl { return false }
                 touched = candidate.superview
             }
-            return velocity.y > 0 && abs(velocity.y) > abs(velocity.x) * 1.15
+            return velocity.y > 100 && abs(velocity.y) > abs(velocity.x) * 1.35
                 && activeSheetView == nil && presentedViewController == nil
         }
         guard gestureRecognizer === libraryPan else { return true }

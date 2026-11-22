@@ -24,15 +24,39 @@ struct PlayerPresentationChecks {
             }
             precondition(position == 1)
         }
-        precondition(!PlayerPresentationMotion.shouldDismiss(progress: 0.95, velocity: 0, height: 850))
-        precondition(PlayerPresentationMotion.shouldDismiss(progress: 0.72, velocity: 0, height: 850))
-        precondition(PlayerPresentationMotion.shouldDismiss(progress: 0.95, velocity: 1000, height: 850))
-        precondition(!PlayerPresentationMotion.shouldDismiss(progress: 0.72, velocity: -1000, height: 850))
+        for height in [568.0, 667, 844, 932, 1024] {
+            // Even an extremely quick accidental brush must return to the open player.
+            for distance in [10.0, 30, 60, 90] {
+                precondition(!PlayerPresentationMotion.shouldDismiss(progress: 0.95,
+                    translation: distance, velocity: 3000, height: height))
+            }
+            precondition(PlayerPresentationMotion.shouldDismiss(progress: 0.65,
+                translation: height * 0.4, velocity: 0, height: height))
+            precondition(PlayerPresentationMotion.shouldDismiss(progress: 0.88,
+                translation: 120, velocity: 1400, height: height))
+            precondition(!PlayerPresentationMotion.shouldDismiss(progress: 0.95,
+                translation: 150, velocity: -1000, height: height))
+            let full = CGRect(x: 0, y: 0, width: 390, height: height)
+            let mini = CGRect(x: 16, y: height - 102, width: 358, height: 60)
+            precondition(PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: 0) == mini)
+            precondition(PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: 1) == full)
+            precondition(PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: -1) == mini)
+            precondition(PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: 2) == full)
+            var last = mini
+            for i in 1...100 {
+                let frame = PlayerPresentationMotion.surfaceFrame(mini: mini, full: full, progress: Double(i) / 100)
+                precondition(frame.minY <= last.minY && frame.height >= last.height)
+                precondition(full.contains(frame))
+                last = frame
+            }
+        }
+        precondition(PlayerPresentationMotion.reveal(0, from: 0.3, to: 0.88) == 0)
+        precondition(PlayerPresentationMotion.reveal(1, from: 0.3, to: 0.88) == 1)
         precondition(PlayerPresentationMotion.coverDirection(translation: -90, velocity: 0, width: 264) == -1)
         precondition(PlayerPresentationMotion.coverDirection(translation: 90, velocity: 0, width: 264) == 1)
         precondition(PlayerPresentationMotion.coverDirection(translation: 8, velocity: 10, width: 264) == 0)
         precondition(PlayerPresentationMotion.coverDirection(translation: -10, velocity: -600, width: 264) == -1)
         precondition(PlayerPresentationMotion.coverDirection(translation: 10, velocity: 600, width: 264) == 1)
-        print("Player presentation: settling, cancelled dismissal, release velocity and cover swipes passed")
+        print("Player presentation: settling, mini-player geometry, deliberate dismissal and cover swipes passed")
     }
 }

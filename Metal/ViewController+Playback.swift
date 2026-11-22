@@ -325,7 +325,7 @@ extension ViewController {
     @objc func playNextTrack() {
         let queue = currentQueue
         guard !queue.isEmpty else { return }
-        guard !isCarouselAnimating else { return }
+        guard !isCarouselAnimating || isCommittingCoverSwipe else { return }
 
         if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
 
@@ -334,9 +334,9 @@ extension ViewController {
             let reason: ListeningEndReason = pendingListeningEndReason == .dislike ? .dislike : (currentQueue.count > 1 ? .next : .selection)
             finishListeningTelemetry(completed: false, skipped: true,
                 progress: player.duration > 0 ? player.currentTime / player.duration : 0, reason: reason)
-            adaptDailyMixQueueIfNeeded()
+            if !isCommittingCoverSwipe { adaptDailyMixQueueIfNeeded() }
         }
-        if isPlayerPageVisible && currentQueue.count > 1 {
+        if !isCommittingCoverSwipe && isPlayerPageVisible && currentQueue.count > 1 {
             let nextTrack = getNextTrack()
             let trackAfterNext = getTrackAfterNext()
             if nextTrack != nil {
@@ -345,6 +345,7 @@ extension ViewController {
         }
 
         forcePlayNextTrack()
+        if isCommittingCoverSwipe { adaptDailyMixQueueIfNeeded() }
     }
 
     func forcePlayNextTrack() {
@@ -490,11 +491,11 @@ extension ViewController {
         pendingListeningEndReason = .previous
         let queue = currentQueue
         guard !queue.isEmpty else { return }
-        guard !isCarouselAnimating else { return }
+        guard !isCarouselAnimating || isCommittingCoverSwipe else { return }
 
         if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
 
-        if isPlayerPageVisible && queue.count > 1 {
+        if !isCommittingCoverSwipe && isPlayerPageVisible && queue.count > 1 {
             let prevTrack = getPreviousTrack()
             let trackBeforePrev = getTrackBeforePrevious()
             if prevTrack != nil {
@@ -562,7 +563,7 @@ extension ViewController {
             savePlaybackState()
         }
 
-        if sleepFadeTimer == nil && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
+        if !isCoverDragging && !isCarouselAnimating && sleepFadeTimer == nil && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
             transitionToNextTrack()
         }
     }
@@ -1011,7 +1012,7 @@ extension ViewController {
         case backward
     }
 
-    func animateCarouselSlide(direction: CarouselSlideDirection, incomingTrack: Track?) {
+    func animateCarouselSlide(direction: CarouselSlideDirection, incomingTrack: Track?, commitsSwipe: Bool = false) {
         guard isViewLoaded,
               let container = coverCarouselContainer,
               let coverArtCard = coverArtCard,
@@ -1027,7 +1028,7 @@ extension ViewController {
 
         let baseOffset = baseCardSize + gap
         let expansion = (baseCardSize * (playingScale - 1.0)) / 2.0
-        let isPlaying = audioPlayer?.isPlaying == true
+        let isPlaying = commitsSwipe || audioPlayer?.isPlaying == true
         let sideOffset = isPlaying ? (baseOffset + expansion) : baseOffset
         let centerScale: CGFloat = isPlaying ? playingScale : 1.0
 
@@ -1058,7 +1059,8 @@ extension ViewController {
         incomingImageView.layer.cornerRadius = 18
         incomingImageView.layer.cornerCurve = .continuous
         incomingImageView.clipsToBounds = true
-        incomingImageView.setArtwork(incomingTrack?.artwork, seed: incomingTrack?.title)
+        incomingImageView.setArtwork(incomingTrack?.cachedArtwork, seed: incomingTrack?.title)
+        if let incomingTrack { Track.prepareArtwork(for: incomingTrack.url) }
         incomingCard.addSubview(incomingImageView)
 
         let incomingDim = UIView(frame: CGRect(x: 0, y: 0, width: baseCardSize, height: baseCardSize))
@@ -1070,6 +1072,9 @@ extension ViewController {
 
         container.addSubview(incomingCard)
 
+        let remaining = max(1, sideOffset - abs(coverArtCard.transform.tx))
+        let duration: TimeInterval = commitsSwipe ? max(0.16, 0.32 * Double(remaining / sideOffset)) : 0.38
+        let releaseSpeed: CGFloat = commitsSwipe ? min(3, abs(coverReleaseVelocity) / remaining) : 0.2
         switch direction {
         case .forward:
             incomingCard.alpha = 0.0
@@ -1080,11 +1085,11 @@ extension ViewController {
             leftCoverCard.layer.zPosition = 1
 
             UIView.animate(
-                withDuration: 0.38,
+                withDuration: duration,
                 delay: 0,
                 usingSpringWithDamping: 0.88,
-                initialSpringVelocity: 0.2,
-                options: [.curveEaseInOut, .allowUserInteraction],
+                initialSpringVelocity: releaseSpeed,
+                options: [.curveEaseInOut, .allowUserInteraction, .beginFromCurrentState],
                 animations: {
                     leftCoverCard.transform = CGAffineTransform(translationX: -(sideOffset + baseCardSize), y: 0)
                     leftCoverCard.alpha = 0.0
@@ -1102,10 +1107,18 @@ extension ViewController {
                     rightCoverCard.layer.shadowOpacity = isPlaying ? 0.40 : 0.28
 
                     incomingCard.transform = CGAffineTransform(translationX: sideOffset, y: 0)
-                    incomingCard.alpha = incomingTrack == nil ? 0 : (incomingTrack?.artwork == nil ? 1 : 0.55)
+                    incomingCard.alpha = incomingTrack == nil ? 0 : (incomingTrack?.cachedArtwork == nil ? 1 : 0.55)
                 },
                 completion: { [weak self] _ in
                     guard let self else { return }
+                    // Commit file access, telemetry and audio only after the covers have settled.
+                    // Keep carousel writes locked until the preview is exchanged for the selected track.
+                    if commitsSwipe {
+                        self.isCommittingCoverSwipe = true
+                        if direction == .forward { self.playNextTrack() }
+                        else { self.playPreviousTrack() }
+                        self.isCommittingCoverSwipe = false
+                    }
                     CATransaction.begin()
                     CATransaction.setDisableActions(true)
 
@@ -1130,11 +1143,11 @@ extension ViewController {
             rightCoverCard.layer.zPosition = 1
 
             UIView.animate(
-                withDuration: 0.38,
+                withDuration: duration,
                 delay: 0,
                 usingSpringWithDamping: 0.88,
-                initialSpringVelocity: 0.2,
-                options: [.curveEaseInOut, .allowUserInteraction],
+                initialSpringVelocity: releaseSpeed,
+                options: [.curveEaseInOut, .allowUserInteraction, .beginFromCurrentState],
                 animations: {
                     rightCoverCard.transform = CGAffineTransform(translationX: sideOffset + baseCardSize, y: 0)
                     rightCoverCard.alpha = 0.0
@@ -1152,10 +1165,18 @@ extension ViewController {
                     leftCoverCard.layer.shadowOpacity = isPlaying ? 0.40 : 0.28
 
                     incomingCard.transform = CGAffineTransform(translationX: -sideOffset, y: 0)
-                    incomingCard.alpha = incomingTrack == nil ? 0 : (incomingTrack?.artwork == nil ? 1 : 0.55)
+                    incomingCard.alpha = incomingTrack == nil ? 0 : (incomingTrack?.cachedArtwork == nil ? 1 : 0.55)
                 },
                 completion: { [weak self] _ in
                     guard let self else { return }
+                    // Commit file access, telemetry and audio only after the covers have settled.
+                    // Keep carousel writes locked until the preview is exchanged for the selected track.
+                    if commitsSwipe {
+                        self.isCommittingCoverSwipe = true
+                        if direction == .forward { self.playNextTrack() }
+                        else { self.playPreviousTrack() }
+                        self.isCommittingCoverSwipe = false
+                    }
                     CATransaction.begin()
                     CATransaction.setDisableActions(true)
 
