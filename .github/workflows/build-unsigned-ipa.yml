@@ -6,6 +6,11 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      pulse_previews:
+        description: Capture native pulse layouts
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,6 +24,17 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Detect pulse presentation changes
+        id: pulse_changes
+        run: |
+          if git diff --quiet HEAD^ HEAD -- Metal/PulseExperience.swift Metal/PulseAudioSampler.swift Metal/ViewController+Pulse.swift Tests/CapturePulsePreviews.sh; then
+            echo "capture=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "capture=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Verify Xcode and SDK
         run: |
@@ -159,11 +175,12 @@ jobs:
           compression-level: 0
 
       - name: Capture and verify native pulse layouts
+        if: steps.pulse_changes.outputs.capture == 'true' || inputs.pulse_previews == true
         timeout-minutes: 10
         run: bash Tests/CapturePulsePreviews.sh
 
       - name: Upload native pulse previews
-        if: always()
+        if: always() && (steps.pulse_changes.outputs.capture == 'true' || inputs.pulse_previews == true)
         uses: actions/upload-artifact@v6
         with:
           name: Metal-pulse-previews-${{ github.sha }}

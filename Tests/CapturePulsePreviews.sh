@@ -21,8 +21,12 @@ if supported:
     types = [d for d in types if d["identifier"] in supported]
 else:
     types = [d for d in types if d.get("minRuntimeVersion",0) <= encoded <= d.get("maxRuntimeVersion",4294967295)]
+# Prefer a conventional portrait phone; foldable devices can expose multiple
+# displays and make an unqualified simulator screenshot ambiguous.
+preferred = ["iPhone 17 Pro", "iPhone 16 Pro", "iPhone 17", "iPhone 16", "iPhone 15 Pro", "iPhone 15", "iPhone 14 Pro", "iPhone 14", "iPhone 13", "iPhone 12", "iPhone 11"]
+types.sort(key=lambda d: (preferred.index(d["name"]) if d["name"] in preferred else len(preferred), d["name"]))
 errors = []
-for device in reversed(types):
+for device in types:
     result = subprocess.run(["xcrun","simctl","create", "Metal pulse CI " + os.environ.get("GITHUB_RUN_ID","local"),
         device["identifier"],runtime["identifier"]], capture_output=True,text=True)
     if result.returncode == 0:
@@ -68,7 +72,7 @@ for preset in expanded:forYou:dark collapsed:forYou:dark collapsed:favorites:dar
         sleep 1
     done
     if [ ! -f "$container/Documents/pulse-layout-checks.json" ]; then
-        xcrun simctl io "$device_id" screenshot "$preview_dir/failed-$state-$vibe.png" || true
+        xcrun simctl io "$device_id" screenshot --display=1 "$preview_dir/failed-$state-$vibe.png" || true
         xcrun simctl spawn "$device_id" log show --last 2m --style compact --predicate 'process == "Metal"' \
             > "$preview_dir/failed-$state-$vibe.log" 2>&1 || true
     fi
@@ -84,5 +88,5 @@ print("Native layout checks passed:", report)
 PY
     cp "$container/Documents/pulse-layout-checks.json" "$preview_dir/$state-$vibe-$appearance.json"
     sleep 1
-    xcrun simctl io "$device_id" screenshot "$preview_dir/$state-$vibe-$appearance.png"
+    xcrun simctl io "$device_id" screenshot --display=1 "$preview_dir/$state-$vibe-$appearance.png"
 done
