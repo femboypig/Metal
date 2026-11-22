@@ -499,6 +499,13 @@ extension ViewController {
             miniPlayerView.layer.shadowOpacity = 0.20
             miniPlayerView.layer.shadowRadius = 18
         }
+        // An opaque, stationary backdrop prevents the growing Metal surface
+        // from changing the glass mini-player's tint during a library drag.
+        let miniBackdrop = UIView()
+        miniBackdrop.translatesAutoresizingMaskIntoConstraints = false
+        miniBackdrop.backgroundColor = primaryBackgroundColor()
+        miniBackdrop.isUserInteractionEnabled = false
+        page1.insertSubview(miniBackdrop, belowSubview: libraryViewport)
         page1.addSubview(miniPlayerView)
 
         let miniTap = UITapGestureRecognizer(target: self, action: #selector(miniPlayerTapped(_:)))
@@ -647,6 +654,10 @@ extension ViewController {
             tableView.bottomAnchor.constraint(equalTo: libraryViewport.bottomAnchor),
 
             // Mini Player Constraints
+            miniBackdrop.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
+            miniBackdrop.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
+            miniBackdrop.topAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -28),
+            miniBackdrop.bottomAnchor.constraint(equalTo: page1.bottomAnchor),
             miniPlayerView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             miniPlayerView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
             miniPlayerView.bottomAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.bottomAnchor, constant: -8),

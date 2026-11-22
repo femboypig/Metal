@@ -65,11 +65,19 @@ for preset in expanded:forYou:dark collapsed:forYou:dark collapsed:favorites:dar
         if [ -f "$container/Documents/pulse-layout-checks.json" ]; then break; fi
         sleep 1
     done
-    python3 - "$container/Documents/pulse-layout-checks.json" <<'PY'
+    if [ ! -f "$container/Documents/pulse-layout-checks.json" ]; then
+        xcrun simctl io "$device_id" screenshot "$preview_dir/failed-$state-$vibe.png" || true
+        xcrun simctl spawn "$device_id" log show --last 2m --style compact --predicate 'process == "Metal"' \
+            > "$preview_dir/failed-$state-$vibe.log" 2>&1 || true
+    fi
+    python3 - "$container/Documents/pulse-layout-checks.json" "$state" "$vibe" <<'PY'
 import json,sys
 with open(sys.argv[1]) as stream:
     report=json.load(stream)
 assert report["passed"], report
+assert report["collapsed"] == (sys.argv[2] == "collapsed"), report
+if "vibe" in report:
+    assert report["vibe"] == sys.argv[3], report
 print("Native layout checks passed:", report)
 PY
     cp "$container/Documents/pulse-layout-checks.json" "$preview_dir/$state-$vibe-$appearance.json"

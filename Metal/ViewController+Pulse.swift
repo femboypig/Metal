@@ -161,11 +161,23 @@ extension ViewController {
         setLibraryCollapsed(libraryCollapse < 0.5, animated: true)
     }
 
+    private func stopLibrarySpringAtVisiblePosition() {
+        guard let animator = libraryAnimator else { return }
+        let top = libraryViewport.layer.presentation()?.frame.minY ?? libraryViewport.frame.minY
+        animator.stopAnimation(true)
+        libraryAnimator = nil
+        libraryCollapse = CGFloat(min(1, max(0, (Double(top) - drawerGeometry.expandedTop) / max(1, drawerGeometry.travel))))
+        libraryTopConstraint.constant = drawerGeometry.top(progress: Double(libraryCollapse)) - Double(page1.safeAreaInsets.top)
+        UIView.performWithoutAnimation {
+            self.page1.layoutIfNeeded()
+            self.applyLibraryPresentation()
+        }
+    }
+
     func setLibraryCollapsed(_ collapsed: Bool, animated: Bool) {
         guard libraryViewport != nil else { return }
         if collapsed { searchBar.resignFirstResponder() }
-        libraryAnimator?.stopAnimation(true)
-        libraryAnimator = nil
+        stopLibrarySpringAtVisiblePosition()
         libraryCollapse = collapsed && drawerGeometry.travel > 1 ? 1 : 0
         UserDefaults.standard.set(libraryCollapse > 0.5, forKey: "Metal_LibraryCollapsed")
         libraryTopConstraint.constant = drawerGeometry.top(progress: Double(libraryCollapse)) - Double(page1.safeAreaInsets.top)
@@ -187,10 +199,7 @@ extension ViewController {
         switch pan.state {
         case .began:
             // Continue from the rendered position if a spring is interrupted.
-            let renderedTop = libraryViewport.layer.presentation()?.frame.minY ?? libraryViewport.frame.minY
-            libraryAnimator?.stopAnimation(true)
-            libraryAnimator = nil
-            libraryCollapse = CGFloat((Double(renderedTop) - drawerGeometry.expandedTop) / max(1, drawerGeometry.travel))
+            stopLibrarySpringAtVisiblePosition()
             libraryPanStart = libraryCollapse
             searchBar.resignFirstResponder()
             tableView.isScrollEnabled = false
@@ -256,6 +265,7 @@ extension ViewController {
 extension ViewController: UIGestureRecognizerDelegate {
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard gestureRecognizer === libraryPan else { return true }
+        guard drawerGeometry.travel > 1 else { return false }
         let velocity = libraryPan.velocity(in: page1)
         guard abs(velocity.y) > abs(velocity.x) * 1.15 else { return false }
         let point = libraryPan.location(in: page1)
@@ -295,12 +305,23 @@ extension ViewController {
             precondition(self.libraryViewport.clipsToBounds)
             self.setLibraryCollapsed(requested, animated: false)
             self.view.layoutIfNeeded()
-            let report: [String: Any] = ["passed": true,
-                "collapsed": requested, "miniFrame": NSStringFromCGRect(miniFrame),
-                "searchFrame": NSStringFromCGRect(self.searchBar.convert(self.searchBar.bounds, to: self.page1))]
-            if let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-               let data = try? JSONSerialization.data(withJSONObject: report) {
-                try? data.write(to: url.appendingPathComponent("pulse-layout-checks.json"), options: .atomic)
+            // Check a real intermediate spring frame as well as both endpoints.
+            self.setLibraryCollapsed(!requested, animated: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                let visibleMini = self.miniPlayerView.layer.presentation()?.frame ?? self.miniPlayerView.frame
+                precondition(abs(visibleMini.minY - miniFrame.minY) < 0.1)
+                precondition(visibleMini.size == miniFrame.size)
+                self.setLibraryCollapsed(requested, animated: false)
+                self.view.layoutIfNeeded()
+                precondition(self.miniPlayerView.frame == miniFrame)
+                let report: [String: Any] = ["passed": true,
+                    "collapsed": requested, "vibe": self.pulseVibe.rawValue, "animatedMiniStable": true,
+                    "miniFrame": NSStringFromCGRect(miniFrame),
+                    "searchFrame": NSStringFromCGRect(self.searchBar.convert(self.searchBar.bounds, to: self.page1))]
+                if let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+                   let data = try? JSONSerialization.data(withJSONObject: report) {
+                    try? data.write(to: url.appendingPathComponent("pulse-layout-checks.json"), options: .atomic)
+                }
             }
         }
     }
