@@ -100,7 +100,8 @@ extension ViewController {
                 self.updatePulseCustomizeMenu()
                 UISelectionFeedbackGenerator().selectionChanged()
             }
-            action.subtitle = vibe.subtitle
+            if #available(iOS 16.0, *) { action.subtitle = vibe.subtitle }
+            else { action.title = "\(vibe.title) · \(vibe.subtitle)" }
             return action
         }
         pulseCustomizeButton.menu = UIMenu(title: "Pulse character", children: choices)
@@ -239,6 +240,9 @@ extension ViewController {
             let sum = sources.reduce(Float(0)) { $0 + $1.weight }
             let fraction = sum > 0 ? CGFloat(sources.last!.weight / sum) : 0
             myWaveView.setThemeColor(interpolateColor(from: pulseColor(for: a), to: pulseColor(for: b), progress: fraction))
+        }
+        if players.count == 1, let url = players[0].url, let track = tracks.first(where: { $0.url == url }) {
+            myWaveView.setThemeColor(pulseColor(for: track))
         }
         pulseSamplePending = true
         pulseAudioSampler.sample(sources) { [weak self] frame in
