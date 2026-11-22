@@ -693,6 +693,15 @@ extension ViewController {
         return PlayerArtworkPalette(topColor: colors.top, bottomColor: colors.bottom, waveColor: colors.accent)
     }
 
+    func pulseColor(for track: Track) -> UIColor {
+        if let cached = pulseArtworkColors[track.url] { return cached }
+        let dark = traitCollection.userInterfaceStyle == .dark
+        let color = track.artwork?.extractPlayerPalette(isDark: dark).waveColor
+            ?? fallbackPalette(for: track.title, isDark: dark).waveColor
+        pulseArtworkColors[track.url] = color
+        return color
+    }
+
     func fallbackTrackColor(for trackTitle: String?) -> UIColor {
         fallbackPalette(for: trackTitle, isDark: traitCollection.userInterfaceStyle == .dark).waveColor
     }
@@ -717,6 +726,7 @@ extension ViewController {
             palette = fallbackPalette(for: trackTitle, isDark: isDark)
         }
 
+        pulseArtworkColors.removeAll()
         currentDominantColor = palette.topColor
         myWaveView?.setThemeColor(palette.waveColor)
 

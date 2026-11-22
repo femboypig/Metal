@@ -857,6 +857,7 @@ extension ViewController {
     }
 
     func updateMiniPlayerUI() {
+        updatePulsePlayButton()
         guard !tracks.isEmpty else {
             miniTitleLabel?.text = "No Tracks Loaded"
             miniArtistLabel?.text = "Import music files to begin"
@@ -981,6 +982,10 @@ private extension UIImage {
 
 // MARK: - UISearchBarDelegate
 extension ViewController: UISearchBarDelegate {
+    public func searchBarTextDidBeginEditing(_ searchBar: UISearchBar) {
+        setLibraryCollapsed(false, animated: true)
+    }
+
     public func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         filterTracks()
     }

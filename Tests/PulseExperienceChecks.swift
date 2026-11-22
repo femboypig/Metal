@@ -1,0 +1,81 @@
+import Foundation
+import AVFoundation
+
+@main
+enum PulseExperienceChecks {
+    static func main() throws {
+        for height in [568.0, 667, 812, 844, 932, 1024] {
+            for safeTop in [20.0, 47, 59] {
+                let miniTop = height - 34 - 8 - 60
+                let drawer = LibraryDrawerGeometry(safeTop: safeTop, miniPlayerTop: miniTop)
+                precondition(drawer.top(progress: 0) == safeTop + 92)
+                precondition(abs(drawer.top(progress: 1) + 56 - (miniTop - 10)) < 0.001)
+                precondition(drawer.top(progress: -1) == drawer.expandedTop)
+                precondition(drawer.top(progress: 2) == drawer.collapsedTop)
+                precondition(drawer.destination(progress: 0.6, velocity: 0) == 1)
+                precondition(drawer.destination(progress: 0.4, velocity: 0) == 0)
+                precondition(drawer.destination(progress: 0.4, velocity: 2000) == 1)
+                precondition(drawer.destination(progress: 0.6, velocity: -2000) == 0)
+            }
+        }
+        let tiny = LibraryDrawerGeometry(safeTop: 59, miniPlayerTop: 140)
+        precondition(tiny.travel == 0 && tiny.destination(progress: 1, velocity: 2000) == 0)
+
+        func analyze(frequency: Double, amplitude: Double) -> PulseAudioFrame {
+            var analyzer = PulseBandAnalyzer(sampleRate: 44100)
+            var frames: [(PulseAudioFrame, Float)] = []
+            for index in 0..<44100 {
+                if let frame = analyzer.consume(amplitude * sin(2 * .pi * frequency * Double(index) / 44100)) {
+                    if index > 4410 { frames.append((frame, 1)) }
+                }
+            }
+            return PulseAudioFrame.blend(frames)
+        }
+        let silence = analyze(frequency: 0, amplitude: 0)
+        precondition(silence.bass == 0 && silence.treble == 0 && silence.loudness == 0)
+        let bass = analyze(frequency: 70, amplitude: 0.25)
+        let treble = analyze(frequency: 6000, amplitude: 0.25)
+        precondition(bass.bass > treble.bass + 0.2)
+        precondition(treble.treble > bass.treble + 0.2)
+        precondition(analyze(frequency: 70, amplitude: 0.01).loudness < bass.loudness)
+        let blend = PulseAudioFrame.blend([(bass, 0.5), (treble, 0.5)])
+        precondition(abs(blend.bass - (bass.bass + treble.bass) / 2) < 0.0001)
+        precondition(PulseAudioFrame.blend([(bass, 0), (treble, 1)]).bass == treble.bass)
+        for vibe in PulseVibe.allCases {
+            precondition(vibe.dynamics.x > 0 && vibe.dynamics.x <= 1.5)
+            precondition(!vibe.subtitle.isEmpty)
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("pulse-test-\(UUID().uuidString).wav")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let rate = 44100.0
+        let format = AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 44100 * 8)!
+        buffer.frameLength = buffer.frameCapacity
+        for index in 0..<Int(buffer.frameLength) {
+            let frequency = index < 44100 * 4 ? 70.0 : 6000.0
+            let value = Float(0.25 * sin(2 * .pi * frequency * Double(index) / rate))
+            buffer.floatChannelData![0][index] = value
+            buffer.floatChannelData![1][index] = -value // Anti-phase stereo must not cancel the visual signal.
+        }
+        do {
+            let file = try AVAudioFile(forWriting: url, settings: format.settings)
+            try file.write(from: buffer)
+        }
+        let sampler = PulseAudioSampler()
+        func sample(at time: Double) -> PulseAudioFrame {
+            var result: PulseAudioFrame?
+            sampler.sample([PulseAudioSource(url: url, time: time, weight: 1, bpm: 136)]) { result = $0 }
+            let deadline = Date().addingTimeInterval(10)
+            while result == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+            precondition(result != nil, "Audio decoding timed out")
+            return result!
+        }
+        let decodedBass = sample(at: 1)
+        let decodedTreble = sample(at: 6)
+        precondition(decodedBass.bass > decodedTreble.bass + 0.2)
+        precondition(decodedTreble.treble > decodedBass.treble + 0.2)
+        precondition(decodedBass.bpm == 136 && decodedBass.loudness > 0.5)
+        precondition(abs(sample(at: 1).bass - decodedBass.bass) < 0.01, "Seeking should recover the original spectrum")
+        print("Pulse: layout, snapping, frequency bands, loudness, crossfade, stereo decoding and seeking passed")
+    }
+}

@@ -339,6 +339,11 @@ extension ViewController {
         myWaveView.clipsToBounds = true
         page1.addSubview(myWaveView)
 
+        libraryViewport = UIView()
+        libraryViewport.translatesAutoresizingMaskIntoConstraints = false
+        libraryViewport.clipsToBounds = true
+        page1.addSubview(libraryViewport)
+
         // 2. Bottom Underlay Panel ("снизу подложка, обрывается сзади половины searchsongs и по бокам закругляется")
         bottomPanel = UIView()
         bottomPanel.translatesAutoresizingMaskIntoConstraints = false
@@ -348,7 +353,7 @@ extension ViewController {
         bottomPanel.layer.borderWidth = 1.0
         bottomPanel.layer.borderColor = cardBorderColor().cgColor
         bottomPanel.clipsToBounds = true
-        page1.addSubview(bottomPanel)
+        libraryViewport.addSubview(bottomPanel)
 
         // 3. TableView (Songs List) - positioned over bottomPanel
         tableView = CylinderTableView()
@@ -364,7 +369,7 @@ extension ViewController {
         tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.identifier)
         tableView.contentInset = UIEdgeInsets(top: 56, left: 0, bottom: 0, right: 0)
         tableView.scrollIndicatorInsets = UIEdgeInsets(top: 56, left: 0, bottom: 0, right: 0)
-        page1.addSubview(tableView)
+        libraryViewport.addSubview(tableView)
 
         applyTableGradientMask()
 
@@ -378,7 +383,7 @@ extension ViewController {
         floatingFiltersContainer.layer.shadowOpacity = 0.16
         floatingFiltersContainer.layer.shadowRadius = 8
         floatingFiltersContainer.layer.shadowOffset = CGSize(width: 0, height: 3)
-        page1.addSubview(floatingFiltersContainer)
+        libraryViewport.addSubview(floatingFiltersContainer)
 
         let pillGlass: UIView
         if #available(iOS 26.0, *) {
@@ -428,7 +433,7 @@ extension ViewController {
         searchBar.layer.shadowRadius = 6
         searchBar.layer.shadowOffset = CGSize(width: 0, height: 2)
         searchBar.clipsToBounds = false
-        page1.addSubview(searchBar)
+        libraryViewport.addSubview(searchBar)
 
         // 6. Header Titles and Action Button (Mathematically centered between safe zone and search bar)
         let headerArea = UIView()
@@ -574,9 +579,14 @@ extension ViewController {
         miniPlayPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
         miniControls.addArrangedSubview(miniPlayPauseButton)
 
+        libraryTopConstraint = libraryViewport.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 92)
         NSLayoutConstraint.activate([
+            libraryTopConstraint,
+            libraryViewport.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
+            libraryViewport.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
+            libraryViewport.bottomAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
             headerArea.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor),
-            headerArea.bottomAnchor.constraint(equalTo: searchBar.topAnchor),
+            headerArea.heightAnchor.constraint(equalToConstant: 92),
             headerArea.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             headerArea.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
 
@@ -590,7 +600,7 @@ extension ViewController {
             importButton.heightAnchor.constraint(equalToConstant: 40),
 
             // Search Bar: sits with generous empty space below safe zone, bridging the wave and bottomPanel
-            searchBar.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 92),
+            searchBar.topAnchor.constraint(equalTo: libraryViewport.topAnchor),
             searchBar.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 14),
             searchBar.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -14),
             searchBar.heightAnchor.constraint(equalToConstant: 44),
@@ -605,7 +615,7 @@ extension ViewController {
             bottomPanel.topAnchor.constraint(equalTo: searchBar.centerYAnchor),
             bottomPanel.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             bottomPanel.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            bottomPanel.bottomAnchor.constraint(equalTo: page1.bottomAnchor),
+            bottomPanel.bottomAnchor.constraint(equalTo: libraryViewport.bottomAnchor),
 
             // Floating Filters Container: floats above the song list inside the bottom panel, self-centering capsule
             floatingFiltersContainer.topAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 28),
@@ -634,7 +644,7 @@ extension ViewController {
             tableView.topAnchor.constraint(equalTo: bottomPanel.topAnchor, constant: 28),
             tableView.leadingAnchor.constraint(equalTo: page1.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: page1.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: miniPlayerView.topAnchor, constant: -10),
+            tableView.bottomAnchor.constraint(equalTo: libraryViewport.bottomAnchor),
 
             // Mini Player Constraints
             miniPlayerView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
@@ -664,6 +674,8 @@ extension ViewController {
             miniPlayPauseButton.widthAnchor.constraint(equalToConstant: 44),
             miniPlayPauseButton.heightAnchor.constraint(equalToConstant: 44)
         ])
+
+        setupPulseExperience(header: headerArea)
 
         let pillWidthConstraint = floatingFiltersContainer.widthAnchor.constraint(equalTo: filtersStackView.widthAnchor, constant: 12)
         pillWidthConstraint.priority = UILayoutPriority(999)
@@ -1265,20 +1277,20 @@ extension ViewController {
     // MARK: - Cylinder / Drum-Roll Fade Overlays
 
     func applyTableGradientMask() {
-        page1.viewWithTag(7701)?.removeFromSuperview()
-        page1.viewWithTag(7702)?.removeFromSuperview()
+        libraryViewport.viewWithTag(7701)?.removeFromSuperview()
+        libraryViewport.viewWithTag(7702)?.removeFromSuperview()
 
         let topFade = GradientOverlayView(fromTop: true) { [weak self] in
             self?.cardBackgroundColor() ?? .clear
         }
         topFade.tag = 7701
-        page1.addSubview(topFade)
+        libraryViewport.addSubview(topFade)
 
         let bottomFade = GradientOverlayView(fromTop: false) { [weak self] in
             self?.cardBackgroundColor() ?? .clear
         }
         bottomFade.tag = 7702
-        page1.addSubview(bottomFade)
+        libraryViewport.addSubview(bottomFade)
 
         page1.setNeedsLayout()
     }
@@ -1384,6 +1396,10 @@ struct WaveUniforms {
     float hasThemeColor;
     float mixShake;
     float3 themeColor;
+    float4 audio; // bass, treble, loudness, energy
+    float4 dynamics; // vibe speed, deformation, detail, glow
+    float3 vibeTint;
+    float4 presentation; // expansion, vertical center, reduce motion, unused
 };
 
 vertex VertexOut waveVertexShader(uint vertexID [[vertex_id]]) {
@@ -1441,17 +1457,22 @@ fragment float4 waveFragmentShader(
     }
 
     float minDim = min(res.x, res.y);
-    float2 p = (in.position.xy - 0.5 * res) / minDim;
-
-    // Slight vertical center offset for balanced visual mass extending to screen top
-    p.y += 0.07;
+    float expansion = uniforms.presentation.x;
+    float centerY = mix(0.5 - 0.07 * minDim / res.y, uniforms.presentation.y, expansion);
+    float2 p = (in.position.xy - float2(res.x * 0.5, res.y * centerY)) / minDim;
+    float bass = uniforms.audio.x;
+    float treble = uniforms.audio.y;
+    float loudness = uniforms.audio.z;
+    float energy = uniforms.audio.w;
+    float sensitivity = uniforms.presentation.z > 0.5 ? 0.12 : 1.0;
     // A decaying liquid ripple reshapes the existing wave after a remix.
     float shake = uniforms.mixShake;
     p += float2(sin(uniforms.time * 12.0 + p.y * 8.0),
                 cos(uniforms.time * 10.0 + p.x * 7.0)) * shake * 0.012;
 
     float t = uniforms.time * 0.28;
-    float amp = uniforms.amplitude + uniforms.mixShake * 0.20;
+    float amp = (uniforms.amplitude + energy * 0.24 * sensitivity) * uniforms.dynamics.y
+        + uniforms.mixShake * 0.20;
 
     // Polar coordinates from center
     float angle = atan2(p.y, p.x);
@@ -1478,8 +1499,11 @@ fragment float4 waveFragmentShader(
     float bulgeSpatial = snoise(p * 1.7 + warp2 * 0.35 + float2(t * 0.12, -t * 0.15));
 
     // Base radius: fills the area generously with organic curvature
-    float baseRadius = 0.55;
-    float targetRadius = baseRadius + (bulgeLarge * 0.22 + bulgeMedium * 0.12 + bulgeSpatial * 0.08) * amp;
+    float baseRadius = mix(0.55, 0.38, expansion) + bass * 0.065 * sensitivity;
+    float fineRays = sin(angle * 34.0 + bulgeMedium * 2.0 + t * 0.7) * treble
+        * expansion * uniforms.dynamics.z * 0.016 * sensitivity;
+    float targetRadius = baseRadius + fineRays
+        + (bulgeLarge * 0.18 + bulgeMedium * 0.10 + bulgeSpatial * 0.06) * amp;
 
     // Signed distance to the morphing contour
     float d = dist - targetRadius;
@@ -1525,6 +1549,14 @@ fragment float4 waveFragmentShader(
     float3 cHighlight    = float3(1.00, 0.98, 0.86); // luminous center highlight
     float3 cElectricCyan = float3(0.12, 0.78, 0.94); // soft electric cyan accent
 
+    // Vibe is one color influence; the artwork blend below stays independent.
+    float3 vibe = uniforms.vibeTint;
+    cDeepIndigo = mix(cDeepIndigo, vibe * 0.32, 0.45);
+    cRoyalPurple = mix(cRoyalPurple, vibe, 0.55);
+    cHotMagenta = mix(cHotMagenta, saturate(vibe * 1.12 + float3(0.18, 0.03, 0.08)), 0.45);
+    cMoltenOrange = mix(cMoltenOrange, saturate(vibe * 0.65 + float3(0.40, 0.24, 0.10)), 0.32);
+    cGoldenYellow = mix(cGoldenYellow, saturate(vibe * 0.30 + float3(0.65, 0.58, 0.24)), 0.25);
+
     // Subtly adapt colors to album artwork if themeColor is present ("цвета мб чуток под обложку")
     if (uniforms.hasThemeColor > 0.5) {
         float3 cover = uniforms.themeColor;
@@ -1563,7 +1595,11 @@ fragment float4 waveFragmentShader(
     liquidColor = mix(cDeepIndigo, liquidColor, smoothstep(0.42, 0.04, d));
 
     // Volumetric luminance boosting:
-    float bloom = 1.0 + deepCore * 0.32 + highlightMix * 0.42;
+    float bloom = 1.0 + (deepCore * 0.24 + highlightMix * 0.30)
+        * uniforms.dynamics.w + loudness * 0.20 * sensitivity;
+    float rayGlow = pow(0.5 + 0.5 * sin(angle * 34.0 + internalFluid2), 8.0)
+        * expansion * treble * 0.08 * sensitivity;
+    bloom += rayGlow;
     float3 finalRGB = liquidColor * bloom;
 
     // Alpha falloff blending all layers:
@@ -1642,7 +1678,23 @@ class YandexWaveView: UIView, MTKViewDelegate {
         var hasThemeColor: Float = 0.0
         var mixShake: Float = 0.0
         var themeColor: SIMD3<Float> = .zero
+        var audio: SIMD4<Float> = .zero
+        var dynamics: SIMD4<Float> = SIMD4(1, 1, 1, 1)
+        var vibeTint: SIMD3<Float> = PulseVibe.forYou.tint
+        var presentation: SIMD4<Float> = .zero
     }
+
+    var onAudioFrame: (() -> Void)?
+    private var lastAudioSample: CFTimeInterval = 0
+    private var targetAudio = PulseAudioFrame()
+    private var smoothedAudio = SIMD4<Float>.zero
+    private var currentBPM: Float = 120
+    private var targetVibe = PulseVibe.forYou
+    private var vibeDynamics = PulseVibe.forYou.dynamics
+    private var vibeTint = PulseVibe.forYou.tint
+    private var presentation = SIMD4<Float>(0, 0.43, 0, 0)
+    private var presentationTarget = SIMD4<Float>(0, 0.43, 0, 0)
+    private var renderingActive = true
 
     private var mtkView: MTKView?
     private var device: MTLDevice?
@@ -1719,6 +1771,22 @@ class YandexWaveView: UIView, MTKViewDelegate {
         }
     }
 
+    func setAudioFrame(_ frame: PulseAudioFrame) { targetAudio = frame }
+
+    func setVibe(_ vibe: PulseVibe) { targetVibe = vibe }
+
+    func setPresentation(_ progress: Float, centerY: Float) {
+        presentationTarget.x = min(1, max(0, progress))
+        presentationTarget.y = min(0.9, max(0.1, centerY))
+    }
+
+    func setRenderingActive(_ active: Bool) {
+        guard renderingActive != active else { return }
+        renderingActive = active
+        mtkView?.isPaused = !active || window == nil
+        if active { lastFrameTime = CACurrentMediaTime() }
+    }
+
     func shakeMix() {
         guard !UIAccessibility.isReduceMotionEnabled else { return }
         shakeStartedAt = CACurrentMediaTime()
@@ -1746,7 +1814,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
-        mtkView?.isPaused = (window == nil)
+        mtkView?.isPaused = window == nil || !renderingActive
         if window != nil {
             lastFrameTime = CACurrentMediaTime()
         }
@@ -1764,16 +1832,35 @@ class YandexWaveView: UIView, MTKViewDelegate {
         let dt = lastFrameTime > 0 ? Float(min(now - lastFrameTime, 0.1)) : 0.016
         lastFrameTime = now
 
+        if now - lastAudioSample >= 0.05 {
+            lastAudioSample = now
+            onAudioFrame?()
+        }
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        let desiredFPS = reduceMotion || lowPower ? 30 : 60
+        if view.preferredFramesPerSecond != desiredFPS { view.preferredFramesPerSecond = desiredFPS }
+        let response = 1 - exp(-dt * 9)
+        let slowResponse = 1 - exp(-dt * 3.5)
+        let audio = isPlayingState ? SIMD4(targetAudio.bass, targetAudio.treble, targetAudio.loudness, targetAudio.energy) : .zero
+        smoothedAudio += (audio - smoothedAudio) * response
+        currentBPM += ((isPlayingState ? targetAudio.bpm : 90) - currentBPM) * slowResponse
+        vibeDynamics += (targetVibe.dynamics - vibeDynamics) * slowResponse
+        vibeTint += (targetVibe.tint - vibeTint) * slowResponse
+        presentation += (presentationTarget - presentation) * response
+        presentation.z = reduceMotion ? 1 : 0
+
         let shakeAge = Float(now - shakeStartedAt)
         let shakeIntensity = max(0, 1 - shakeAge / 0.85)
-        let speedMultiplier: Float = (isPlayingState ? 1.40 : 0.85) + shakeIntensity * 0.5
-        elapsedTime += dt * speedMultiplier
+        let tempo = min(1.65, max(0.55, currentBPM / 120))
+        let speedMultiplier: Float = (isPlayingState ? 1.15 * tempo : 0.30) * vibeDynamics.x + shakeIntensity * 0.5
+        elapsedTime += reduceMotion ? 0 : dt * speedMultiplier
         if elapsedTime > 10000.0 { elapsedTime = 0 }
 
-        currentAmplitude += (targetAmplitude - currentAmplitude) * 0.05
+        currentAmplitude += (targetAmplitude - currentAmplitude) * slowResponse
 
         if hasThemeColor {
-            currentThemeColor += (targetThemeColor - currentThemeColor) * 0.04
+            currentThemeColor += (targetThemeColor - currentThemeColor) * slowResponse
         }
 
         let drawableSize = view.drawableSize
@@ -1787,7 +1874,11 @@ class YandexWaveView: UIView, MTKViewDelegate {
             isDark: traitCollection.userInterfaceStyle == .dark ? 1.0 : 0.0,
             hasThemeColor: hasThemeColor ? 1.0 : 0.0,
             mixShake: shakeIntensity,
-            themeColor: currentThemeColor
+            themeColor: currentThemeColor,
+            audio: smoothedAudio,
+            dynamics: vibeDynamics,
+            vibeTint: vibeTint,
+            presentation: presentation
         )
 
         guard let commandBuffer = commandQueue.makeCommandBuffer(),

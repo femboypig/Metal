@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F60000000000000000000003 /* ViewController+Pulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000013 /* ViewController+Pulse.swift */; };
+		F60000000000000000000002 /* PulseAudioSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000012 /* PulseAudioSampler.swift */; };
+		F60000000000000000000001 /* PulseExperience.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* PulseExperience.swift */; };
 		F50000000000000000000002 /* ArtworkPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000011 /* ArtworkPlaceholder.swift */; };
 		F50000000000000000000001 /* ArtworkPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000011 /* ArtworkPlaceholder.swift */; };
 		F40000000000000000000002 /* ViewController+Collections.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000012 /* ViewController+Collections.swift */; };
@@ -69,6 +72,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F60000000000000000000013 /* ViewController+Pulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Pulse.swift"; sourceTree = "<group>"; };
+		F60000000000000000000012 /* PulseAudioSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PulseAudioSampler.swift"; sourceTree = "<group>"; };
+		F60000000000000000000011 /* PulseExperience.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PulseExperience.swift"; sourceTree = "<group>"; };
 		F50000000000000000000011 /* ArtworkPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkPlaceholder.swift; sourceTree = "<group>"; };
 		F40000000000000000000012 /* ViewController+Collections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Collections.swift"; sourceTree = "<group>"; };
 		F40000000000000000000011 /* LibraryCollectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryCollectionEngine.swift"; sourceTree = "<group>"; };
@@ -155,6 +161,9 @@
 				A1B2C3D4E5F6000000000002 /* ListeningTelemetry.swift */,
 				E20000000000000000000002 /* ListeningHistory.swift */,
 				F50000000000000000000011 /* ArtworkPlaceholder.swift */,
+				F60000000000000000000013 /* ViewController+Pulse.swift */,
+				F60000000000000000000012 /* PulseAudioSampler.swift */,
+				F60000000000000000000011 /* PulseExperience.swift */,
 				F40000000000000000000012 /* ViewController+Collections.swift */,
 				F40000000000000000000011 /* LibraryCollectionEngine.swift */,
 				F30000000000000000000012 /* ViewController+MixSession.swift */,
@@ -314,6 +323,9 @@
 				A1B2C3D4E5F6000000000001 /* ListeningTelemetry.swift in Sources */,
 				E20000000000000000000001 /* ListeningHistory.swift in Sources */,
 				F50000000000000000000001 /* ArtworkPlaceholder.swift in Sources */,
+				F60000000000000000000003 /* ViewController+Pulse.swift in Sources */,
+				F60000000000000000000002 /* PulseAudioSampler.swift in Sources */,
+				F60000000000000000000001 /* PulseExperience.swift in Sources */,
 				F40000000000000000000002 /* ViewController+Collections.swift in Sources */,
 				F40000000000000000000001 /* LibraryCollectionEngine.swift in Sources */,
 				F30000000000000000000002 /* ViewController+MixSession.swift in Sources */,

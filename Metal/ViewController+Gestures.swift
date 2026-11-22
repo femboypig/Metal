@@ -96,6 +96,7 @@ extension ViewController {
     
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         if scrollView === self.scrollView {
+            updatePulseVisibility()
             let width = scrollView.bounds.width
             if width > 0 {
                 let offset = scrollView.contentOffset.x

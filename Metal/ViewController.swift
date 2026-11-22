@@ -46,6 +46,23 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var myWaveView: YandexWaveView!
     var floatingFiltersContainer: UIView!
     var currentDominantColor: UIColor?
+
+    var libraryViewport: UIView!
+    var libraryTopConstraint: NSLayoutConstraint!
+    var libraryHandle: UIButton!
+    var libraryPan: UIPanGestureRecognizer!
+    var libraryCollapse: CGFloat = 0
+    var libraryPanStart: CGFloat = 0
+    var libraryAnimator: UIViewPropertyAnimator?
+    var pulseHero: UIStackView!
+    var pulsePlayButton: UIButton!
+    var pulseCustomizeButton: UIButton!
+    var pulseTitleLabel: UILabel!
+    var pulseVibe: PulseVibe = PulseVibe(rawValue: UserDefaults.standard.string(forKey: "Metal_PulseVibe") ?? "") ?? .forYou
+    let pulseAudioSampler = PulseAudioSampler()
+    var pulseSamplePending = false
+    var pulseArtworkColors: [URL: UIColor] = [:]
+
     
     // Horizontal Playlists/Favorites Pill Scroller
     var filtersScrollView: UIScrollView!
@@ -225,6 +242,10 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()
+        updatePulseVisibility()
+        #if DEBUG
+        verifyPulseLayoutIfRequested()
+        #endif
     }
 
     override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
@@ -250,6 +271,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)), name: UIResponder.keyboardWillShowNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
         
+        NotificationCenter.default.addObserver(self, selector: #selector(pulseDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification, object: nil)
+
         // Listen for app foregrounding to refresh UI state
         NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
@@ -275,6 +299,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        updateLibraryPresentationForLayout()
         updateCardBorders()
         updateTableGradientMaskFrame()
         applyCylinderEffect()
@@ -317,6 +342,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         startDailyMixRefreshTimer()
         updateMiniPlayerUI()
         scheduleWidgetRecommendationsPublish()
+        updatePulseVisibility()
         if audioPlayer?.isPlaying == true { startTimer() }
         if let player = audioPlayer {
             let playIcon: PlaybackIcon = player.isPlaying ? .pause : .play
@@ -325,6 +351,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     @objc func appWillResignActive() {
+        myWaveView?.setRenderingActive(false)
         if let player = audioPlayer {
             updateListeningTelemetry(with: player)
         }
@@ -354,6 +381,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     func updateWavePlayingState() {
         let isPlaying = audioPlayer?.isPlaying == true
         myWaveView?.setPlaying(isPlaying)
+        updatePulsePlayButton()
         applyCarouselLayout(isPlaying: isPlaying, animated: true)
     }
 }
