@@ -2,13 +2,41 @@
 set -euo pipefail
 preview_dir="${RUNNER_TEMP:?}/MetalPulsePreviews"
 mkdir -p "$preview_dir"
-runtime_id="$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; values=[r for r in json.load(sys.stdin)["runtimes"] if r.get("isAvailable") and "iOS" in r["name"]]; print(sorted(values,key=lambda r:tuple(int(p) for p in r["version"].split(".")))[-1]["identifier"] if values else "")')"
-if [ -z "$runtime_id" ]; then
+device_id="$(python3 - <<'PYCODE'
+import json,os,subprocess,sys
+
+def read(kind):
+    return json.loads(subprocess.check_output(["xcrun","simctl","list",kind,"-j"]))
+runtimes = [r for r in read("runtimes")["runtimes"] if r.get("isAvailable") and "iOS" in r["name"]]
+if not runtimes:
+    print("unavailable")
+    sys.exit(0)
+runtime = max(runtimes, key=lambda r: tuple(int(p) for p in r["version"].split(".")))
+version = [int(v) for v in runtime["version"].split(".")]
+version += [0] * (3-len(version))
+encoded = version[0]*65536 + version[1]*256 + version[2]
+types = [d for d in read("devicetypes")["devicetypes"] if d["name"].startswith("iPhone")]
+supported = {d["identifier"] for d in runtime.get("supportedDeviceTypes", [])}
+if supported:
+    types = [d for d in types if d["identifier"] in supported]
+else:
+    types = [d for d in types if d.get("minRuntimeVersion",0) <= encoded <= d.get("maxRuntimeVersion",4294967295)]
+errors = []
+for device in reversed(types):
+    result = subprocess.run(["xcrun","simctl","create", "Metal pulse CI " + os.environ.get("GITHUB_RUN_ID","local"),
+        device["identifier"],runtime["identifier"]], capture_output=True,text=True)
+    if result.returncode == 0:
+        print("Native preview device: " + device["name"] + " / " + runtime["name"],file=sys.stderr)
+        print(result.stdout.strip())
+        sys.exit(0)
+    errors.append(device["name"] + ": " + result.stderr.strip())
+raise SystemExit("No compatible iPhone simulator could be created: " + "\n".join(errors[-3:]))
+PYCODE
+)"
+if [ "$device_id" = unavailable ]; then
     echo "Native pulse screenshots unavailable: no installed iOS simulator runtime"
     exit 0
 fi
-device_type="$(xcrun simctl list devicetypes -j | python3 -c 'import json,sys; values=[d for d in json.load(sys.stdin)["devicetypes"] if d["name"].startswith("iPhone") and "Pro Max" not in d["name"]]; print(values[-1]["identifier"])')"
-device_id="$(xcrun simctl create "Metal pulse CI ${GITHUB_RUN_ID:-local}" "$device_type" "$runtime_id")"
 cleanup() {
     xcrun simctl shutdown "$device_id" >/dev/null 2>&1 || true
     xcrun simctl delete "$device_id" >/dev/null 2>&1 || true

@@ -1723,6 +1723,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
     }
 
     private func setupMetalPipeline() {
+        assert(MemoryLayout<WaveUniforms>.stride == 112, "Swift/Metal pulse uniforms must share the same layout")
         backgroundColor = .clear
         isUserInteractionEnabled = false
         clipsToBounds = true
