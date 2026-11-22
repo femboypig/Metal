@@ -46,6 +46,8 @@
 	<array>
 		<string>DrukWideBold.ttf</string>
 		<string>Fonts/Fraunces72pt-Bold.ttf</string>
+		<string>Fonts/BricolageGrotesque-Bold.ttf</string>
+		<string>Fonts/BricolageGrotesque-SemiBold.ttf</string>
 	</array>
 </dict>
 </plist>

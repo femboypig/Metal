@@ -32,7 +32,7 @@ struct MetalSettingsDocument: Codable {
     var repeatEnabled: Bool = false
     var lastTrackFile: String?
     var playbackPosition: TimeInterval = 0
-    var playerFontStyle: String = "serif"
+    var playerFontStyle: String = "wide"
     var queue: PlaybackQueueSnapshot?
     var libraryCollection: String?
     var dailyMixMode: String?
@@ -51,25 +51,23 @@ extension ViewController {
         if let data = try? Data(contentsOf: settingsFileURL),
            let savedSettings = try? JSONDecoder().decode(MetalSettingsDocument.self, from: data) {
             persistedSettings = savedSettings
-            playerFontStyle = PlayerFontStyle(rawValue: savedSettings.playerFontStyle) ?? .serif
         } else {
             let defaults = UserDefaults.standard
-            let savedStyle = defaults.string(forKey: "Metal_PlayerFontStyle") ?? "serif"
-            playerFontStyle = PlayerFontStyle(rawValue: savedStyle) ?? .serif
             persistedSettings = MetalSettingsDocument(
                 favoriteTracks: defaults.stringArray(forKey: "Metal_Favorites") ?? [],
-                aidjEnabled: defaults.object(forKey: "Metal_AIDJEnabled") == nil
-                    ? true
-                    : defaults.bool(forKey: "Metal_AIDJEnabled"),
+                aidjEnabled: true,
                 shuffleEnabled: defaults.bool(forKey: "Metal_Shuffle"),
                 repeatEnabled: defaults.bool(forKey: "Metal_Repeat"),
                 lastTrackFile: defaults.string(forKey: "Metal_LastTrackFile"),
                 playbackPosition: 0,
-                playerFontStyle: playerFontStyle.rawValue
+                playerFontStyle: "wide"
             )
             writeSettingsDocument()
         }
 
+        persistedSettings.aidjEnabled = true
+        persistedSettings.playerFontStyle = "wide"
+        UserDefaults.standard.set("wide", forKey: "Metal_PlayerFontStyle")
         favoriteTracks = Set(persistedSettings.favoriteTracks)
         libraryCollection = persistedSettings.libraryCollection.flatMap(LibraryCollection.init(rawValue:)) ?? .all
         dailyMixMode = persistedSettings.dailyMixMode.flatMap(DailyMixMode.init(rawValue:)) ?? .forYou
@@ -95,14 +93,14 @@ extension ViewController {
         guard !isRestoringPersistentState else { return }
 
         persistedSettings.favoriteTracks = favoriteTracks.sorted()
-        persistedSettings.aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
+        persistedSettings.aidjEnabled = true
         persistedSettings.shuffleEnabled = isShuffleEnabled
         persistedSettings.repeatEnabled = isRepeatEnabled
-        persistedSettings.playerFontStyle = playerFontStyle.rawValue
+        persistedSettings.playerFontStyle = "wide"
         persistedSettings.libraryCollection = libraryCollection.rawValue
         persistedSettings.dailyMixMode = dailyMixMode.rawValue
         persistedSettings.importedTrackDates = trackImportedAt
-        UserDefaults.standard.set(playerFontStyle.rawValue, forKey: "Metal_PlayerFontStyle")
+        UserDefaults.standard.set("wide", forKey: "Metal_PlayerFontStyle")
 
         let queue = currentQueue
         let selected = currentPlaybackTrack() ?? currentTrackIndex.flatMap { queue.indices.contains($0) ? queue[$0] : nil }
@@ -851,9 +849,7 @@ extension ViewController {
         let playFrame = miniPlayPauseButton.convert(miniPlayPauseButton.bounds, to: miniPlayerView)
         if favoriteFrame.contains(location) || playFrame.contains(location) { return }
 
-        // Scroll to Page 2
-        let width = scrollView.frame.size.width
-        scrollView.setContentOffset(CGPoint(x: width * 2, y: 0), animated: true)
+        setPlayerPresented(true)
     }
 
     func updateMiniPlayerUI() {

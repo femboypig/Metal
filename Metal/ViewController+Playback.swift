@@ -156,13 +156,6 @@ extension ViewController {
         rebuildFiltersRow()
         tableView.reloadData()
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.scrollView.bounds.width > 0 else { return }
-            self.scrollView.setContentOffset(
-                CGPoint(x: self.scrollView.bounds.width * 2, y: 0),
-                animated: true
-            )
-        }
     }
 
     func playCurrentTrack() {
@@ -254,15 +247,6 @@ extension ViewController {
             updatePlayerTheme(with: track.artwork)
             updatePlayerOptionsMenu()
             savePlaybackState()
-
-            // Scroll to full player page ONLY if we are not already on the player page
-            let width = scrollView.bounds.width
-            if width > 0 {
-                let currentPage = Int(round(scrollView.contentOffset.x / width))
-                if currentPage != 2 {
-                    scrollView.setContentOffset(CGPoint(x: width * 2, y: 0), animated: true)
-                }
-            }
 
         } catch {
             print("Audio Player playback error: \(error)")
@@ -578,8 +562,7 @@ extension ViewController {
             savePlaybackState()
         }
 
-        let aidjEnabled = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
-        if aidjEnabled && sleepFadeTimer == nil && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
+        if sleepFadeTimer == nil && !isRepeatEnabled && player.duration - player.currentTime <= 7.0 && player.duration > 14.0 && !aidj.isTransitioning {
             transitionToNextTrack()
         }
     }
@@ -629,8 +612,7 @@ extension ViewController {
     }
 
     @objc func dismissPlayerTapped() {
-        let width = scrollView.frame.size.width
-        scrollView.setContentOffset(CGPoint(x: width, y: 0), animated: true)
+        setPlayerPresented(false)
     }
 
     @objc func dislikeTapped() {
@@ -737,13 +719,7 @@ extension ViewController {
 
         updatePlayerControlsTheme(isDark: isDark)
 
-        if let sv = scrollView, sv.bounds.width > 0, sv.contentOffset.x >= sv.bounds.width * 1.5 {
-            view.backgroundColor = palette.topColor
-            scrollView.backgroundColor = palette.topColor
-            setNeedsStatusBarAppearanceUpdate()
-        }
     }
-
 
     // MARK: - AVAudioPlayerDelegate
 
@@ -967,7 +943,7 @@ extension ViewController {
     }
 
     func applyCarouselLayout(isPlaying: Bool, animated: Bool) {
-        guard isViewLoaded, !isCarouselAnimating,
+        guard isViewLoaded, !isCarouselAnimating, !isCoverDragging,
               let coverArtCard = coverArtCard,
               let leftCoverCard = leftCoverCard,
               let rightCoverCard = rightCoverCard else { return }

@@ -232,8 +232,8 @@ extension ViewController {
     @objc func pulseDidBecomeActive() { updatePulseVisibility() }
 
     func updatePulseVisibility() {
-        guard isViewLoaded, let wave = myWaveView, let scroll = scrollView, let page = page1 else { return }
-        wave.setRenderingActive(UIApplication.shared.applicationState == .active && scroll.bounds.intersects(page.frame))
+        guard isViewLoaded, let wave = myWaveView else { return }
+        wave.setRenderingActive(UIApplication.shared.applicationState == .active && playerPresentation < 0.999)
     }
 
     func samplePulseAudio() {
@@ -274,6 +274,21 @@ extension ViewController {
 
 extension ViewController: UIGestureRecognizerDelegate {
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === coverPan {
+            let velocity = coverPan.velocity(in: page2)
+            return playerPresentation > 0.99 && !isCarouselAnimating && currentQueue.count > 1
+                && abs(velocity.x) > abs(velocity.y) * 1.15
+        }
+        if gestureRecognizer === playerDismissPan {
+            let velocity = playerDismissPan.velocity(in: page2)
+            var touched = page2.hitTest(playerDismissPan.location(in: page2), with: nil)
+            while let candidate = touched, candidate !== page2 {
+                if candidate is UIControl { return false }
+                touched = candidate.superview
+            }
+            return velocity.y > 0 && abs(velocity.y) > abs(velocity.x) * 1.15
+                && activeSheetView == nil && presentedViewController == nil
+        }
         guard gestureRecognizer === libraryPan else { return true }
         guard pulseDrawerGeometry.travel > 1 else { return false }
         let velocity = libraryPan.velocity(in: page1)
@@ -381,8 +396,7 @@ extension ViewController {
     }
 
     func shakePulseVibeIfVisible() -> Bool {
-        let width = scrollView?.bounds.width ?? 0
-        let libraryVisible = width > 0 && abs(scrollView.contentOffset.x - width) < width * 0.4
+        let libraryVisible = !isPlayerPageVisible
         let showingVibe = (libraryVisible && (libraryCollapse > 0.5 || playbackSource == .pulseVibe))
             || (isPlayerPageVisible && playbackSource == .pulseVibe)
         guard showingVibe else { return false }

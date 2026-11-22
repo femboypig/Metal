@@ -96,36 +96,11 @@ extension ViewController {
     }
     
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        if scrollView === self.scrollView {
-            updatePulseVisibility()
-            let width = scrollView.bounds.width
-            if width > 0 {
-                let offset = scrollView.contentOffset.x
-                if offset > width {
-                    let progress = min(max((offset - width) / width, 0.0), 1.0)
-                    let targetColor = currentDominantColor ?? UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1.0)
-                    let bg = interpolateColor(from: primaryBackgroundColor(), to: targetColor, progress: progress)
-                    view.backgroundColor = bg
-                    scrollView.backgroundColor = bg
-                } else {
-                    view.backgroundColor = primaryBackgroundColor()
-                    scrollView.backgroundColor = primaryBackgroundColor()
-                }
-                setNeedsStatusBarAppearanceUpdate()
-            }
-            return
-        }
-
         guard scrollView === tableView else { return }
         applyCylinderEffect()
         updateOverlayAlphas()
     }
 
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        if scrollView === self.scrollView {
-            setNeedsStatusBarAppearanceUpdate()
-        }
-    }
     
     // MARK: - Cylinder / Drum-Roll Effect
     
@@ -239,14 +214,6 @@ extension ViewController {
     func stopArtworkAnimation() {
         guard !isCarouselAnimating else { return }
         applyCarouselLayout(isPlaying: false, animated: true)
-    }
-
-    @objc func carouselSwipeLeft() {
-        playNextTrack()
-    }
-
-    @objc func carouselSwipeRight() {
-        playPreviousTrack()
     }
 
     @objc func leftCoverTapped() {

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F80000000000000000000002 /* ViewController+PlayerPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000012 /* ViewController+PlayerPresentation.swift */; };
+		F80000000000000000000001 /* PlayerPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000011 /* PlayerPresentation.swift */; };
 		F70000000000000000000002 /* PulseFlowEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000012 /* PulseFlowEngine.swift */; };
 		F70000000000000000000001 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000011 /* Fonts */; };
 		F60000000000000000000003 /* ViewController+Pulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000013 /* ViewController+Pulse.swift */; };
@@ -74,6 +76,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F80000000000000000000012 /* ViewController+PlayerPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+PlayerPresentation.swift"; sourceTree = "<group>"; };
+		F80000000000000000000011 /* PlayerPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerPresentation.swift"; sourceTree = "<group>"; };
 		F70000000000000000000012 /* PulseFlowEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseFlowEngine.swift; sourceTree = "<group>"; };
 		F70000000000000000000011 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
 		F60000000000000000000013 /* ViewController+Pulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Pulse.swift"; sourceTree = "<group>"; };
@@ -166,6 +170,8 @@
 				E20000000000000000000002 /* ListeningHistory.swift */,
 				F50000000000000000000011 /* ArtworkPlaceholder.swift */,
 				F60000000000000000000013 /* ViewController+Pulse.swift */,
+				F80000000000000000000012 /* ViewController+PlayerPresentation.swift */,
+				F80000000000000000000011 /* PlayerPresentation.swift */,
 				F60000000000000000000012 /* PulseAudioSampler.swift */,
 				F60000000000000000000011 /* PulseExperience.swift */,
 				F70000000000000000000012 /* PulseFlowEngine.swift */,
@@ -331,6 +337,8 @@
 				E20000000000000000000001 /* ListeningHistory.swift in Sources */,
 				F50000000000000000000001 /* ArtworkPlaceholder.swift in Sources */,
 				F60000000000000000000003 /* ViewController+Pulse.swift in Sources */,
+				F80000000000000000000002 /* ViewController+PlayerPresentation.swift in Sources */,
+				F80000000000000000000001 /* PlayerPresentation.swift in Sources */,
 				F60000000000000000000002 /* PulseAudioSampler.swift in Sources */,
 				F60000000000000000000001 /* PulseExperience.swift in Sources */,
 				F70000000000000000000002 /* PulseFlowEngine.swift in Sources */,

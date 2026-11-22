@@ -11,31 +11,13 @@ import MediaPlayer
 import UniformTypeIdentifiers
 import CoreText
 
-enum PlayerFontStyle: String, CaseIterable, Codable {
-    case serif = "serif"
-    case rounded = "rounded"
-    case wide = "wide"
-
-    var displayName: String {
-        switch self {
-        case .serif: return "Serif"
-        case .rounded: return "Default"
-        case .wide: return "Wide"
-        }
-    }
-}
-
 class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSource, UIScrollViewDelegate, UIDocumentPickerDelegate, AVAudioPlayerDelegate {
 
     // Category association key for Objective-C runtime
     static var categoryAssociationKey: UInt8 = 0
     static var textAssociationKey: UInt8 = 1
 
-    // Swipable Container
-    var scrollView: UIScrollView!
-    
-    // Page 0 (Settings) & Page 1 (Library) Subviews
-    var page0: UIView!
+    // Library and independently presented player
     var page1: UIView!
     var tableView: CylinderTableView!
     var searchBar: UISearchBar!
@@ -105,11 +87,19 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var rightCoverDimOverlay: UIView!
     var isCarouselAnimating: Bool = false
 
-    var isPlayerPageVisible: Bool {
-        guard isViewLoaded, let sv = scrollView, sv.bounds.width > 0 else { return false }
-        let currentPage = Int(round(sv.contentOffset.x / sv.bounds.width))
-        return currentPage == 2
-    }
+    var playerPresentation: CGFloat = 0
+    var playerPresentationTarget: CGFloat = 0
+    var playerPresentationVelocity: CGFloat = 0
+    var playerPresentationTime: CFTimeInterval = 0
+    var playerPresentationLink: CADisplayLink?
+    var playerScrim: UIView!
+    var playerDismissPan: UIPanGestureRecognizer!
+    var playerPanStart: CGFloat = 1
+    var coverPan: UIPanGestureRecognizer!
+    var isCoverDragging = false
+    var coverDragTransforms: [CGAffineTransform] = []
+
+    var isPlayerPageVisible: Bool { playerPresentation > 0.5 }
     var trackTitleLabel: UILabel!
     var artistLabel: UILabel!
     var progressSlider: UISlider!
@@ -127,7 +117,6 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var repeatButton: UIButton!
     var playerFavoriteButton: UIButton!
     var playerDislikeButton: UIButton!
-    var playerFontStyle: PlayerFontStyle = .serif
     
     // Playback State & Audio Player
     var tracks: [Track] = []
@@ -203,7 +192,6 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var lastCenterRow: Int?
     let scrollFeedbackGenerator = UIImpactFeedbackGenerator(style: .light)
     let aidj = AIDJTransitionCoordinator()
-    var didInitialScroll = false
     
     // Favorites & Playlists Local Data Store
     var favoriteTracks: Set<String> = []
@@ -241,6 +229,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     deinit {
         dailyMixRefreshTimer?.invalidate()
+        playerPresentationLink?.invalidate()
         libraryDisplayLink?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
@@ -315,11 +304,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             applyCarouselLayout(isPlaying: audioPlayer?.isPlaying == true, animated: false)
         }
         
-        if !didInitialScroll && scrollView.frame.size.width > 0 {
-            didInitialScroll = true
-            let width = scrollView.frame.size.width
-            scrollView.contentOffset = CGPoint(x: width, y: 0)
-        }
+        renderPlayerPresentation()
     }
     
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -327,7 +312,6 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
             guard isViewLoaded else { return }
             view.backgroundColor = primaryBackgroundColor()
-            page0?.backgroundColor = primaryBackgroundColor()
             page1?.backgroundColor = primaryBackgroundColor()
             tableView?.reloadData()
             updateCardBorders()
@@ -379,7 +363,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     func registerCustomFonts() {
-        for (name, directory) in [("DrukWideBold", nil as String?), ("Fraunces72pt-Bold", "Fonts")] {
+        for (name, directory) in [("DrukWideBold", nil as String?), ("Fraunces72pt-Bold", "Fonts"), ("BricolageGrotesque-Bold", "Fonts"), ("BricolageGrotesque-SemiBold", "Fonts")] {
             guard let url = Bundle.main.url(forResource: name, withExtension: "ttf", subdirectory: directory) else { continue }
             var error: Unmanaged<CFError>?
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)

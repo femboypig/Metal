@@ -86,245 +86,30 @@ extension ViewController {
     func setupUI() {
         view.backgroundColor = primaryBackgroundColor()
 
-        // Paging ScrollView - Edge-to-Edge full screen
-        scrollView = UIScrollView()
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.contentInsetAdjustmentBehavior = .never
-        scrollView.isPagingEnabled = true
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.bounces = true
-        scrollView.delegate = self
-        view.addSubview(scrollView)
-
-        // Page Containers
-        page0 = UIView()
-        page0.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(page0)
-
         page1 = UIView()
-        page1.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(page1)
-
         page2 = UIView()
-        page2.translatesAutoresizingMaskIntoConstraints = false
+        playerScrim = UIView()
+        playerScrim.backgroundColor = .black
+        playerScrim.isUserInteractionEnabled = false
         page2.clipsToBounds = true
-        scrollView.addSubview(page2)
-
-        // Gesture to dismiss keyboard
+        page2.layer.cornerCurve = .continuous
+        page2.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        for container in [page1!, playerScrim!, page2!] {
+            container.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(container)
+            NSLayoutConstraint.activate([
+                container.topAnchor.constraint(equalTo: view.topAnchor),
+                container.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                container.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                container.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+            ])
+        }
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
         tapGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(tapGesture)
-
-        NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            page0.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            page0.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            page0.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            page0.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
-            page0.heightAnchor.constraint(equalTo: scrollView.heightAnchor),
-
-            page1.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            page1.leadingAnchor.constraint(equalTo: page0.trailingAnchor),
-            page1.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            page1.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
-            page1.heightAnchor.constraint(equalTo: scrollView.heightAnchor),
-
-            page2.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            page2.leadingAnchor.constraint(equalTo: page1.trailingAnchor),
-            page2.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            page2.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            page2.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
-            page2.heightAnchor.constraint(equalTo: scrollView.heightAnchor)
-        ])
-
-        setupPage0Settings()
         setupPage1Library()
         setupPage2NowPlaying()
-    }
-
-    func setupPage0Settings() {
-        page0.backgroundColor = primaryBackgroundColor()
-
-        let backButton = UIButton(type: .system)
-        backButton.translatesAutoresizingMaskIntoConstraints = false
-        backButton.setImage(UIImage(systemName: "chevron.right", withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)), for: .normal)
-        backButton.tintColor = primaryTextColor()
-        backButton.backgroundColor = cardBackgroundColor()
-        backButton.layer.cornerRadius = 20
-        backButton.addTarget(self, action: #selector(showLibraryTapped), for: .touchUpInside)
-        page0.addSubview(backButton)
-
-        let titleLabel = UILabel()
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = UIFont(name: "Georgia-Bold", size: 34)
-        titleLabel.textColor = primaryTextColor()
-        titleLabel.text = "Settings"
-        page0.addSubview(titleLabel)
-
-        let sectionLabel = UILabel()
-        sectionLabel.translatesAutoresizingMaskIntoConstraints = false
-        sectionLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
-        sectionLabel.textColor = secondaryTextColor()
-        sectionLabel.text = "PLAYBACK"
-        sectionLabel.letterSpacing(1.2)
-        page0.addSubview(sectionLabel)
-
-        // Settings Card
-        let card = UIView()
-        card.translatesAutoresizingMaskIntoConstraints = false
-        card.backgroundColor = cardBackgroundColor()
-        card.layer.cornerRadius = 18
-        card.layer.borderWidth = 1.0
-        card.layer.borderColor = cardBorderColor().cgColor
-        page0.addSubview(card)
-
-        let label = UILabel()
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
-        label.textColor = primaryTextColor()
-        label.text = "DJ Transitions"
-        card.addSubview(label)
-
-        let descLabel = UILabel()
-        descLabel.translatesAutoresizingMaskIntoConstraints = false
-        descLabel.font = UIFont.systemFont(ofSize: 12, weight: .regular)
-        descLabel.textColor = secondaryTextColor()
-        descLabel.numberOfLines = 0
-        descLabel.text = "Analyzes tempo locally, aligns the next song to the beat, and blends it with an adaptive crossfade."
-        card.addSubview(descLabel)
-
-        let toggle = UISwitch()
-        toggle.translatesAutoresizingMaskIntoConstraints = false
-
-        if UserDefaults.standard.object(forKey: "Metal_AIDJEnabled") == nil {
-            UserDefaults.standard.set(true, forKey: "Metal_AIDJEnabled")
-        }
-        toggle.isOn = UserDefaults.standard.bool(forKey: "Metal_AIDJEnabled")
-        toggle.onTintColor = UIColor(red: 0.85, green: 0.36, blue: 0.22, alpha: 1.0)
-        toggle.addTarget(self, action: #selector(aidjToggleChanged(_:)), for: .valueChanged)
-        card.addSubview(toggle)
-
-        NSLayoutConstraint.activate([
-            backButton.topAnchor.constraint(equalTo: page0.safeAreaLayoutGuide.topAnchor, constant: 12),
-            backButton.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -20),
-            backButton.widthAnchor.constraint(equalToConstant: 40),
-            backButton.heightAnchor.constraint(equalToConstant: 40),
-
-            titleLabel.topAnchor.constraint(equalTo: page0.safeAreaLayoutGuide.topAnchor, constant: 14),
-            titleLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-
-            sectionLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 34),
-            sectionLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-
-            card.topAnchor.constraint(equalTo: sectionLabel.bottomAnchor, constant: 12),
-            card.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-            card.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24),
-            card.heightAnchor.constraint(equalToConstant: 112),
-
-            toggle.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
-            toggle.centerYAnchor.constraint(equalTo: card.centerYAnchor),
-
-            label.topAnchor.constraint(equalTo: card.topAnchor, constant: 18),
-            label.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
-            label.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16),
-
-            descLabel.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 6),
-            descLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
-            descLabel.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16)
-        ])
-
-        // Section: Player Typography
-        let typoSectionLabel = UILabel()
-        typoSectionLabel.translatesAutoresizingMaskIntoConstraints = false
-        typoSectionLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
-        typoSectionLabel.textColor = secondaryTextColor()
-        typoSectionLabel.text = "PLAYER TYPOGRAPHY"
-        typoSectionLabel.letterSpacing(1.2)
-        page0.addSubview(typoSectionLabel)
-
-        let fontCard = UIView()
-        fontCard.translatesAutoresizingMaskIntoConstraints = false
-        fontCard.backgroundColor = cardBackgroundColor()
-        fontCard.layer.cornerRadius = 18
-        fontCard.layer.borderWidth = 1.0
-        fontCard.layer.borderColor = cardBorderColor().cgColor
-        page0.addSubview(fontCard)
-
-        let fontLabel = UILabel()
-        fontLabel.translatesAutoresizingMaskIntoConstraints = false
-        fontLabel.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
-        fontLabel.textColor = primaryTextColor()
-        fontLabel.text = "Font Style"
-        fontCard.addSubview(fontLabel)
-
-        let fontDescLabel = UILabel()
-        fontDescLabel.translatesAutoresizingMaskIntoConstraints = false
-        fontDescLabel.font = UIFont.systemFont(ofSize: 12, weight: .regular)
-        fontDescLabel.textColor = secondaryTextColor()
-        fontDescLabel.text = "Track title, artist, and header in player."
-        fontCard.addSubview(fontDescLabel)
-
-        let fontSegmentedControl = UISegmentedControl(items: ["Serif", "Default", "Wide"])
-        fontSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
-        switch playerFontStyle {
-        case .serif: fontSegmentedControl.selectedSegmentIndex = 0
-        case .rounded: fontSegmentedControl.selectedSegmentIndex = 1
-        case .wide: fontSegmentedControl.selectedSegmentIndex = 2
-        }
-        fontSegmentedControl.addTarget(self, action: #selector(playerFontStyleChanged(_:)), for: .valueChanged)
-        fontCard.addSubview(fontSegmentedControl)
-
-        NSLayoutConstraint.activate([
-            typoSectionLabel.topAnchor.constraint(equalTo: card.bottomAnchor, constant: 28),
-            typoSectionLabel.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-
-            fontCard.topAnchor.constraint(equalTo: typoSectionLabel.bottomAnchor, constant: 12),
-            fontCard.leadingAnchor.constraint(equalTo: page0.leadingAnchor, constant: 24),
-            fontCard.trailingAnchor.constraint(equalTo: page0.trailingAnchor, constant: -24),
-            fontCard.heightAnchor.constraint(equalToConstant: 116),
-
-            fontLabel.topAnchor.constraint(equalTo: fontCard.topAnchor, constant: 16),
-            fontLabel.leadingAnchor.constraint(equalTo: fontCard.leadingAnchor, constant: 20),
-            fontLabel.trailingAnchor.constraint(equalTo: fontCard.trailingAnchor, constant: -20),
-
-            fontDescLabel.topAnchor.constraint(equalTo: fontLabel.bottomAnchor, constant: 4),
-            fontDescLabel.leadingAnchor.constraint(equalTo: fontCard.leadingAnchor, constant: 20),
-            fontDescLabel.trailingAnchor.constraint(equalTo: fontCard.trailingAnchor, constant: -20),
-
-            fontSegmentedControl.topAnchor.constraint(equalTo: fontDescLabel.bottomAnchor, constant: 12),
-            fontSegmentedControl.leadingAnchor.constraint(equalTo: fontCard.leadingAnchor, constant: 20),
-            fontSegmentedControl.trailingAnchor.constraint(equalTo: fontCard.trailingAnchor, constant: -20),
-            fontSegmentedControl.heightAnchor.constraint(equalToConstant: 32)
-        ])
-    }
-
-    @objc func playerFontStyleChanged(_ sender: UISegmentedControl) {
-        switch sender.selectedSegmentIndex {
-        case 0: playerFontStyle = .serif
-        case 1: playerFontStyle = .rounded
-        case 2: playerFontStyle = .wide
-        default: playerFontStyle = .serif
-        }
-        saveSettings()
-        updatePlayerFonts()
-    }
-
-    @objc func showLibraryTapped() {
-        view.endEditing(true)
-        scrollView.setContentOffset(CGPoint(x: scrollView.bounds.width, y: 0), animated: true)
-    }
-
-    @objc func aidjToggleChanged(_ sender: UISwitch) {
-        UserDefaults.standard.set(sender.isOn, forKey: "Metal_AIDJEnabled")
-        saveSettings()
-
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.prepare()
-        generator.impactOccurred()
+        setupPlayerPresentation()
     }
 
     func setupPage1Library() {
@@ -531,7 +316,7 @@ extension ViewController {
 
         miniTitleLabel = UILabel()
         miniTitleLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
-            for: UIFont(name: "Georgia-Bold", size: 15) ?? .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 19)
+            for: UIFont(name: "BricolageGrotesque-Bold", size: 15) ?? .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 19)
         miniTitleLabel.adjustsFontForContentSizeCategory = true
         miniTitleLabel.numberOfLines = 1
         miniTitleLabel.lineBreakMode = .byTruncatingTail
@@ -541,8 +326,8 @@ extension ViewController {
         miniTextStack.addArrangedSubview(miniTitleLabel)
 
         miniArtistLabel = UILabel()
-        miniArtistLabel.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(
-            for: UIFont(name: "Georgia", size: 12) ?? .systemFont(ofSize: 12), maximumPointSize: 15)
+        miniArtistLabel.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
+            for: UIFont(name: "BricolageGrotesque-SemiBold", size: 15) ?? .systemFont(ofSize: 15, weight: .semibold), maximumPointSize: 19)
         miniArtistLabel.adjustsFontForContentSizeCategory = true
         miniArtistLabel.numberOfLines = 1
         miniArtistLabel.lineBreakMode = .byTruncatingTail
@@ -685,11 +470,6 @@ extension ViewController {
         rebuildFiltersRow()
     }
 
-    @objc func showSettingsTapped() {
-        view.endEditing(true)
-        scrollView.setContentOffset(.zero, animated: true)
-    }
-
     func setupPage2NowPlaying() {
         page2.backgroundColor = .clear
 
@@ -821,13 +601,10 @@ extension ViewController {
         coverCarouselContainer.isUserInteractionEnabled = true
         centerContentView.addSubview(coverCarouselContainer)
 
-        let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(carouselSwipeLeft))
-        swipeLeft.direction = .left
-        coverCarouselContainer.addGestureRecognizer(swipeLeft)
-
-        let swipeRight = UISwipeGestureRecognizer(target: self, action: #selector(carouselSwipeRight))
-        swipeRight.direction = .right
-        coverCarouselContainer.addGestureRecognizer(swipeRight)
+        coverPan = UIPanGestureRecognizer(target: self, action: #selector(dragPlayerCovers(_:)))
+        coverPan.delegate = self
+        coverPan.maximumNumberOfTouches = 1
+        coverCarouselContainer.addGestureRecognizer(coverPan)
 
         // Previous Cover (Left) - Dimmed
         leftCoverCard = UIView()
@@ -1200,38 +977,16 @@ extension ViewController {
     }
 
     func updatePlayerFonts() {
-        switch playerFontStyle {
-        case .serif:
-            playerHeaderLabel?.font = UIFont(name: "Georgia-Bold", size: 13) ?? UIFont.systemFont(ofSize: 13, weight: .bold)
-            trackTitleLabel?.font = UIFont(name: "Georgia-Bold", size: 22) ?? UIFont.systemFont(ofSize: 22, weight: .bold)
-            artistLabel?.font = UIFont(name: "Georgia-Italic", size: 16) ?? UIFont.italicSystemFont(ofSize: 16)
-            elapsedLabel?.font = UIFont(name: "Georgia-Italic", size: 12) ?? UIFont.italicSystemFont(ofSize: 12)
-            remainingLabel?.font = UIFont(name: "Georgia-Italic", size: 12) ?? UIFont.italicSystemFont(ofSize: 12)
-        case .rounded:
-            let headerDesc = UIFont.systemFont(ofSize: 13, weight: .bold).fontDescriptor.withDesign(.rounded)
-            playerHeaderLabel?.font = headerDesc.map { UIFont(descriptor: $0, size: 13) } ?? UIFont.systemFont(ofSize: 13, weight: .bold)
+        let wideHeaderFont = UIFont(name: "DrukWide-Bold", size: 10) ?? UIFont.systemFont(ofSize: 11, weight: .heavy)
+        let wideTitleFont = UIFont(name: "DrukWide-Bold", size: 16) ?? UIFont.systemFont(ofSize: 17, weight: .heavy)
+        let wideArtistFont = UIFont(name: "DrukWide-Bold", size: 12) ?? UIFont.systemFont(ofSize: 13, weight: .bold)
+        let wideTimerFont = UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .bold)
 
-            let titleDesc = UIFont.systemFont(ofSize: 22, weight: .bold).fontDescriptor.withDesign(.rounded)
-            trackTitleLabel?.font = titleDesc.map { UIFont(descriptor: $0, size: 22) } ?? UIFont.systemFont(ofSize: 22, weight: .bold)
-
-            let artistDesc = UIFont.systemFont(ofSize: 16, weight: .semibold).fontDescriptor.withDesign(.rounded)
-            artistLabel?.font = artistDesc.map { UIFont(descriptor: $0, size: 16) } ?? UIFont.systemFont(ofSize: 16, weight: .semibold)
-
-            let timerDesc = UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium).fontDescriptor.withDesign(.rounded)
-            elapsedLabel?.font = timerDesc.map { UIFont(descriptor: $0, size: 12) } ?? UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-            remainingLabel?.font = timerDesc.map { UIFont(descriptor: $0, size: 12) } ?? UIFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        case .wide:
-            let wideHeaderFont = UIFont(name: "DrukWide-Bold", size: 10) ?? UIFont.systemFont(ofSize: 11, weight: .heavy)
-            let wideTitleFont = UIFont(name: "DrukWide-Bold", size: 16) ?? UIFont.systemFont(ofSize: 17, weight: .heavy)
-            let wideArtistFont = UIFont(name: "DrukWide-Bold", size: 12) ?? UIFont.systemFont(ofSize: 13, weight: .bold)
-            let wideTimerFont = UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .bold)
-
-            playerHeaderLabel?.font = wideHeaderFont
-            trackTitleLabel?.font = wideTitleFont
-            artistLabel?.font = wideArtistFont
-            elapsedLabel?.font = wideTimerFont
-            remainingLabel?.font = wideTimerFont
-        }
+        playerHeaderLabel?.font = wideHeaderFont
+        trackTitleLabel?.font = wideTitleFont
+        artistLabel?.font = wideArtistFont
+        elapsedLabel?.font = wideTimerFont
+        remainingLabel?.font = wideTimerFont
     }
 
     func updatePlayerControlsTheme(isDark: Bool) {

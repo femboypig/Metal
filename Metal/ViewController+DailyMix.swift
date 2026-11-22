@@ -227,12 +227,7 @@ extension ViewController {
         filterTracks()
         rebuildFiltersRow()
 
-        if scrollView.bounds.width > 0 {
-            scrollView.setContentOffset(
-                CGPoint(x: scrollView.bounds.width, y: 0),
-                animated: !autoplayFirstTrack
-            )
-        }
+        setPlayerPresented(false, animated: !autoplayFirstTrack)
 
         guard autoplayFirstTrack else { return }
         guard !filteredTracks.isEmpty else {
@@ -319,8 +314,7 @@ extension ViewController {
 
     func shakeDailyMix() {
         let now = ProcessInfo.processInfo.systemUptime
-        let width = scrollView.bounds.width
-        let libraryVisible = width > 0 && abs(scrollView.contentOffset.x - width) < width * 0.4
+        let libraryVisible = !isPlayerPageVisible
         let playerVisible = isPlayerPageVisible && isContinuousMix
         guard UIApplication.shared.applicationState == .active,
               presentedViewController == nil, activeSheetView == nil,

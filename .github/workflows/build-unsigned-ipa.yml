@@ -48,6 +48,12 @@ jobs:
           xcrun swiftc Metal/DailyMixEngine.swift Metal/PulseExperience.swift Metal/PulseFlowEngine.swift Tests/PulseFlowChecks.swift -o "$RUNNER_TEMP/pulse-flow-checks"
           "$RUNNER_TEMP/pulse-flow-checks"
 
+      - name: Verify player motion and gestures
+        run: |
+          set -euo pipefail
+          xcrun swiftc Metal/PlayerPresentation.swift Tests/PlayerPresentationChecks.swift -o "$RUNNER_TEMP/player-presentation-checks"
+          "$RUNNER_TEMP/player-presentation-checks"
+
       - name: Verify Metal shader pipelines
         run: |
           set -euo pipefail
@@ -92,6 +98,10 @@ jobs:
           assert info["CFBundleVersion"] == os.environ["EXPECTED_BUILD_VERSION"], info["CFBundleVersion"]
           assert (app / "Fonts/Fraunces72pt-Bold.ttf").is_file(), "missing Fraunces font"
           assert "Fonts/Fraunces72pt-Bold.ttf" in info.get("UIAppFonts", []), "Fraunces is not registered"
+          for weight in ("Bold", "SemiBold"):
+              font = f"Fonts/BricolageGrotesque-{weight}.ttf"
+              assert (app / font).is_file(), f"missing {font}"
+              assert font in info.get("UIAppFonts", []), f"unregistered {font}"
           for key in ("CFBundleIcons", "CFBundleIcons~ipad"):
               primary = info[key]["CFBundlePrimaryIcon"]
               assert primary["CFBundleIconName"] == "MetalStarAppIcon", primary
