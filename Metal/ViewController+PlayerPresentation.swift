@@ -45,7 +45,7 @@ extension ViewController {
             return
         }
         // UIKit commits all real view transforms and the clipping viewport together.
-        // No per-frame layout, replica artwork, opacity ramps, or temporary background.
+        // The source mini-player stays live underneath; its material takes over during arrival.
         let duration: TimeInterval = presented ? (playerPresentation > 0.9 ? 0.16 : 0.38) : 0.32
         let animator = UIViewPropertyAnimator(duration: duration,
             controlPoint1: CGPoint(x: 0.22, y: 0.78), controlPoint2: CGPoint(x: 0.24, y: 1))
@@ -67,14 +67,16 @@ extension ViewController {
             if let pending, pending != presented { self.setPlayerPresented(pending) }
         }
         if !presented {
-            // A discrete compositor handoff, not a fade. The final 10% of the easing covers
-            // only the last pixels of travel, but a delayed main-thread completion can linger here.
-            // Expose the already-rendered mini-player on the render server before that tail.
+            // Blend the two real styles while the viewport is still moving. A binary
+            // handoff near the endpoint exposes an abrupt gradient/font -> glass/font swap.
+            // Finish before the easing tail so the final settled frames are already native glass.
+            // Run on the compositor so a busy main thread cannot delay this material transition.
             let arrival = CAKeyframeAnimation(keyPath: "opacity")
-            arrival.values = [1, 0, 0]
-            arrival.keyTimes = [0, 0.9, 1]
-            arrival.calculationMode = .discrete
-            arrival.timingFunction = CAMediaTimingFunction(name: .linear)
+            arrival.values = [1, 1, 0, 0]
+            arrival.keyTimes = [0, 0.5, 0.8, 1]
+            arrival.calculationMode = .linear
+            arrival.timingFunctions = [CAMediaTimingFunction(name: .linear),
+                CAMediaTimingFunction(name: .easeInEaseOut), CAMediaTimingFunction(name: .linear)]
             arrival.duration = duration
             arrival.fillMode = .forwards
             arrival.isRemovedOnCompletion = false
