@@ -369,6 +369,8 @@ extension ViewController {
         miniControls.addArrangedSubview(miniPlayPauseButton)
 
         libraryTopConstraint = libraryViewport.topAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.topAnchor, constant: 82)
+        libraryCollapsedTopConstraint = libraryViewport.topAnchor.constraint(equalTo: miniPlayerView.topAnchor,
+            constant: -CGFloat(LibraryDrawerGeometry.collapsedTopSpacing))
         libraryTableHeightConstraint = tableView.heightAnchor.constraint(equalToConstant: 400)
         NSLayoutConstraint.activate([
             libraryTopConstraint,

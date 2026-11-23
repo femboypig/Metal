@@ -25,6 +25,7 @@ enum PulseExperienceChecks {
                 let miniTop = height - safeBottom - LibraryDrawerGeometry.miniPlayerBottomSpacing
                     - LibraryDrawerGeometry.miniPlayerHeight
                 precondition(drawer.miniPlayerTop == miniTop)
+                precondition(abs(drawer.top(progress: 1) - (miniTop - LibraryDrawerGeometry.collapsedTopSpacing)) < 0.001)
                 let searchBottom = drawer.top(progress: 1) + LibraryDrawerGeometry.searchOverscan + 44
                 precondition(searchBottom < miniTop - 10,
                     "A restored collapsed search field must stay above the mini-player on the first layout")

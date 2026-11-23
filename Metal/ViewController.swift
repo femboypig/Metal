@@ -31,6 +31,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
 
     var libraryViewport: UIView!
     var libraryTopConstraint: NSLayoutConstraint!
+    var libraryCollapsedTopConstraint: NSLayoutConstraint!
     var libraryPan: UIPanGestureRecognizer!
     var libraryCollapse: CGFloat = 0
     var libraryPanStart: CGFloat = 0

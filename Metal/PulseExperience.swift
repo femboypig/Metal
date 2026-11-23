@@ -44,6 +44,7 @@ enum PulseVibe: String, CaseIterable {
 
 struct LibraryDrawerGeometry {
     static let searchOverscan = 10.0
+    static let collapsedTopSpacing = 10.0 + 56.0 + searchOverscan
     static let miniPlayerHeight = 60.0
     static let miniPlayerBottomSpacing = 8.0
     let miniPlayerTop: Double
@@ -60,7 +61,7 @@ struct LibraryDrawerGeometry {
         self.miniPlayerTop = miniPlayerTop
         expandedTop = safeTop + 92 - Self.searchOverscan
         // 44 pt search field + 12 pt panel reveal; the mini-player never moves.
-        collapsedTop = max(expandedTop, miniPlayerTop - 10 - 56 - Self.searchOverscan)
+        collapsedTop = max(expandedTop, miniPlayerTop - Self.collapsedTopSpacing)
     }
 
     func top(progress: Double) -> Double { expandedTop + travel * min(1, max(0, progress)) }
