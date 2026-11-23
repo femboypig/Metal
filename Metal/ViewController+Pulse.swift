@@ -133,8 +133,13 @@ extension ViewController {
         let pinnedToMiniPlayer = libraryCollapse == 1 && geometry.travel > 0
         // At the collapsed endpoint, Auto Layout follows the mini-player directly even if
         // safe-area insets change later in the first layout. No cached frame can overlap it.
-        libraryTopConstraint.isActive = !pinnedToMiniPlayer
-        libraryCollapsedTopConstraint.isActive = pinnedToMiniPlayer
+        if pinnedToMiniPlayer {
+            libraryTopConstraint.isActive = false
+            libraryCollapsedTopConstraint.isActive = true
+        } else {
+            libraryCollapsedTopConstraint.isActive = false
+            libraryTopConstraint.isActive = true
+        }
         libraryTopConstraint.constant = geometry.top(progress: Double(libraryCollapse)) - Double(page1.safeAreaInsets.top)
         let expandedSearchTop = CGFloat(geometry.expandedTop + LibraryDrawerGeometry.searchOverscan)
         libraryTableHeightConstraint.constant = max(1, CGFloat(geometry.miniPlayerTop) - 10 - expandedSearchTop - 32)
