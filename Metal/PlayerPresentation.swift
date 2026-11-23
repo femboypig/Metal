@@ -1,11 +1,28 @@
 import Foundation
+import CoreGraphics
 
 /// Shared motion and release rules, independent of UIKit gesture delivery.
 enum PlayerPresentationMotion {
     static func position(start: Double, target: Double, elapsed: Double, duration: Double) -> Double {
         let t = min(1, max(0, elapsed / max(0.001, duration)))
-        let eased = 1 - pow(1 - t, 3)
+        // A critically damped response: one coherent motion without overshoot or a bounce.
+        let response = 1 - (1 + 8 * t) * exp(-8 * t)
+        let eased = response / (1 - 9 * exp(-8))
         return start + (target - start) * eased
+    }
+
+    static func phase(_ progress: Double, from start: Double, to end: Double) -> Double {
+        let t = min(1, max(0, (progress - start) / max(0.001, end - start)))
+        return t * t * (3 - 2 * t)
+    }
+
+    static func frame(source: CGRect, destination: CGRect, progress: Double) -> CGRect {
+        let t = CGFloat(min(1, max(0, progress)))
+        let x: CGFloat = source.origin.x + (destination.origin.x - source.origin.x) * t
+        let y: CGFloat = source.origin.y + (destination.origin.y - source.origin.y) * t
+        let width: CGFloat = source.size.width + (destination.size.width - source.size.width) * t
+        let height: CGFloat = source.size.height + (destination.size.height - source.size.height) * t
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 
     static func pullOffset(translation: Double) -> Double {

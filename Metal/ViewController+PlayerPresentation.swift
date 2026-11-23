@@ -6,6 +6,30 @@ extension ViewController {
         playerDismissPan.delegate = self
         playerDismissPan.maximumNumberOfTouches = 1
         page2.addGestureRecognizer(playerDismissPan)
+        playerTransitionCard = UIView()
+        playerTransitionCard.isUserInteractionEnabled = false
+        playerTransitionCard.clipsToBounds = true
+        playerTransitionCard.layer.cornerCurve = .continuous
+        playerTransitionCard.layer.addSublayer(playerTransitionGradient)
+        playerTransitionGradient.startPoint = CGPoint(x: 0.5, y: 0)
+        playerTransitionGradient.endPoint = CGPoint(x: 0.5, y: 1)
+        page2.insertSubview(playerTransitionCard, belowSubview: playerSlidingSurface)
+        playerTransitionArtwork = GlassArtworkImageView()
+        playerTransitionArtwork.contentMode = .scaleAspectFill
+        playerTransitionArtwork.clipsToBounds = true
+        playerTransitionArtwork.layer.cornerCurve = .continuous
+        playerTransitionArtwork.isUserInteractionEnabled = false
+        page2.addSubview(playerTransitionArtwork)
+        playerTransitionTitle = PlayerTransitionLabel()
+        playerTransitionArtist = PlayerTransitionLabel()
+        page2.addSubview(playerTransitionTitle)
+        page2.addSubview(playerTransitionArtist)
+        for button in [miniFavoriteButton!, miniPlayPauseButton!] {
+            let icon = UIImageView()
+            icon.contentMode = .scaleAspectFit
+            page2.addSubview(icon)
+            playerTransitionMiniControls.append((icon, button))
+        }
         page2.accessibilityViewIsModal = true
         page2.accessibilityCustomActions = [UIAccessibilityCustomAction(name: "Close player", target: self,
             selector: #selector(closePlayerAccessibility))]
@@ -27,9 +51,10 @@ extension ViewController {
         view.endEditing(true)
         view.layoutIfNeeded()
         stopPlayerPresentationMotion()
+        if playerPresentation == 0 || playerPresentation == 1 { preparePlayerTransition() }
         playerPresentationStart = playerPresentation
         playerPresentationTarget = presented ? 1 : 0
-        playerPresentationDuration = presented ? (playerPresentation > 0.9 ? 0.16 : 0.34) : 0.28
+        playerPresentationDuration = presented ? (playerPresentation > 0.9 ? 0.16 : 0.46) : 0.38
         page1.accessibilityElementsHidden = presented
         page2.accessibilityElementsHidden = !presented
         if !animated || UIAccessibility.isReduceMotionEnabled {
@@ -57,12 +82,71 @@ extension ViewController {
         }
     }
 
+    func preparePlayerTransition() {
+        playerTransitionArtwork.setArtwork(coverImageView.image, seed: trackTitleLabel.text)
+        playerTransitionTitle.configure(source: miniTitleLabel, destination: trackTitleLabel)
+        playerTransitionArtist.configure(source: miniArtistLabel, destination: artistLabel)
+        for (icon, button) in playerTransitionMiniControls {
+            icon.image = button.currentImage
+            icon.tintColor = button.tintColor
+        }
+    }
+
     func renderPlayerPresentation() {
-        guard let page2, let playerSlidingSurface else { return }
+        guard let page2, let playerSlidingSurface, let playerTransitionCard,
+              let playerTransitionArtwork, let coverArtCard else { return }
         let progress = min(1, max(0, playerPresentation))
-        // The host and its safe-area layout stay fixed; only the inner surface slides.
-        playerSlidingSurface.transform = CGAffineTransform(translationX: 0,
-            y: (1 - progress) * view.bounds.height)
+        let moving = progress > 0 && progress < 1
+        let miniFrame = miniPlayerView.convert(miniPlayerView.bounds, to: view)
+        let cardFrame = PlayerPresentationMotion.frame(source: miniFrame,
+            destination: view.bounds, progress: Double(progress))
+        let coverFrame = PlayerPresentationMotion.frame(
+            source: miniCoverView.convert(miniCoverView.bounds, to: view),
+            destination: coverArtCard.convert(coverArtCard.bounds, to: view), progress: Double(progress))
+        let bodyAlpha = CGFloat(PlayerPresentationMotion.phase(Double(progress), from: 0.4, to: 0.85))
+        let coverAlpha = CGFloat(PlayerPresentationMotion.phase(Double(progress), from: 0.82, to: 1))
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        // Fullscreen layout never moves or resizes. Only this independent card and shared elements do.
+        playerSlidingSurface.transform = .identity
+        playerTransitionCard.frame = cardFrame
+        playerTransitionCard.layer.cornerRadius = miniPlayerView.layer.cornerRadius * (1 - progress)
+        playerTransitionCard.backgroundColor = miniPlayerBackgroundColor()
+        playerTransitionGradient.frame = playerTransitionCard.bounds
+        playerTransitionGradient.colors = playerGradientLayer.colors
+        playerTransitionGradient.opacity = Float(PlayerPresentationMotion.phase(Double(progress), from: 0, to: 0.35))
+        playerTransitionCard.isHidden = !moving
+        playerGradientLayer.isHidden = progress < 1
+        playerTransitionBody.alpha = progress == 0 ? 0 : bodyAlpha
+        playerTransitionHeader.alpha = CGFloat(PlayerPresentationMotion.phase(Double(progress), from: 0.94, to: 1))
+        playerTransitionFooter.alpha = CGFloat(PlayerPresentationMotion.phase(Double(progress), from: 0.55, to: 1))
+        coverCarouselContainer.alpha = coverAlpha
+        trackTitleLabel.alpha = moving ? 0 : 1
+        artistLabel.alpha = moving ? 0 : 1
+        playerTransitionArtwork.frame = coverFrame
+        let fullCorner = coverArtCard.layer.cornerRadius * abs(coverArtCard.transform.a)
+        playerTransitionArtwork.layer.cornerRadius = 11 + (fullCorner - 11) * progress
+        playerTransitionArtwork.alpha = 1 - coverAlpha
+        playerTransitionArtwork.isHidden = !moving
+        let titleFrame = PlayerPresentationMotion.frame(source: miniTitleLabel.convert(miniTitleLabel.bounds, to: view),
+            destination: trackTitleLabel.convert(trackTitleLabel.bounds, to: view), progress: Double(progress))
+        playerTransitionTitle.render(frame: titleFrame, progress: progress)
+        let artistFrame = PlayerPresentationMotion.frame(source: miniArtistLabel.convert(miniArtistLabel.bounds, to: view),
+            destination: artistLabel.convert(artistLabel.bounds, to: view), progress: Double(progress))
+        playerTransitionArtist.render(frame: artistFrame, progress: progress)
+        playerTransitionTitle.isHidden = !moving
+        playerTransitionArtist.isHidden = !moving
+        for (icon, button) in playerTransitionMiniControls {
+            if let source = button.imageView {
+                icon.transform = .identity
+                icon.frame = source.convert(source.bounds, to: view)
+                icon.transform = CGAffineTransform(translationX: 0, y: cardFrame.minY - miniFrame.minY)
+            }
+            icon.alpha = 1 - CGFloat(PlayerPresentationMotion.phase(Double(progress), from: 0, to: 0.2))
+            icon.isHidden = !moving
+        }
+        CATransaction.commit()
+        miniPlayerView.alpha = progress == 0 ? 1 : 0
         playerScrim.alpha = 0.18 * progress
         page2.isHidden = progress == 0 && playerPresentationTarget == 0
         playerScrim.isHidden = progress == 0
@@ -76,6 +160,7 @@ extension ViewController {
         if gesture.state == .began {
             playerDismissCommitted = false
             stopPlayerPresentationMotion()
+            preparePlayerTransition()
         }
         guard !playerDismissCommitted else { return }
         let distance = Double(gesture.translation(in: view).y)
@@ -156,5 +241,44 @@ private final class PlayerPresentationDriver: NSObject {
     @objc func tick(_ link: CADisplayLink) {
         guard let owner else { link.invalidate(); return }
         owner.tickPlayerPresentation(link)
+    }
+}
+
+/// The source and destination fonts crossfade while their shared frame moves along the same path.
+/// Text is always drawn at its actual font size, avoiding stretched snapshots.
+final class PlayerTransitionLabel: UIView {
+    private let source = UILabel()
+    private let destination = UILabel()
+    private var destinationHidden = false
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        clipsToBounds = true
+        addSubview(source)
+        addSubview(destination)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(source from: UILabel, destination to: UILabel) {
+        for (copy, original) in [(source, from), (destination, to)] {
+            copy.text = original.text
+            copy.font = original.font
+            copy.textColor = original.textColor
+            copy.textAlignment = original.textAlignment
+            copy.numberOfLines = original.numberOfLines
+            copy.lineBreakMode = original.lineBreakMode
+        }
+        destinationHidden = to.isHidden
+    }
+
+    func render(frame: CGRect, progress: CGFloat) {
+        self.frame = frame
+        source.frame = bounds
+        destination.frame = bounds
+        let blend = CGFloat(PlayerPresentationMotion.phase(Double(progress), from: 0.2, to: 0.8))
+        source.alpha = 1 - blend
+        destination.alpha = destinationHidden ? 0 : blend
     }
 }

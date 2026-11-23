@@ -97,6 +97,15 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var playerDismissPan: UIPanGestureRecognizer!
     var playerDismissCommitted = false
     var playerSlidingSurface: UIView!
+    var playerTransitionCard: UIView!
+    let playerTransitionGradient = CAGradientLayer()
+    var playerTransitionArtwork: GlassArtworkImageView!
+    var playerTransitionTitle: PlayerTransitionLabel!
+    var playerTransitionArtist: PlayerTransitionLabel!
+    var playerTransitionHeader: UIView!
+    var playerTransitionFooter: UIView!
+    var playerTransitionBody: UIView!
+    var playerTransitionMiniControls: [(UIImageView, UIButton)] = []
     var coverPan: UIPanGestureRecognizer!
     var isCoverDragging = false
     var coverDragTransforms: [CGAffineTransform] = []

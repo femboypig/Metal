@@ -496,6 +496,7 @@ extension ViewController {
         let topBar = UIView()
         topBar.translatesAutoresizingMaskIntoConstraints = false
         playerSlidingSurface.addSubview(topBar)
+        playerTransitionHeader = topBar
 
         let dismissButton = UIButton(type: .system)
         dismissButton.translatesAutoresizingMaskIntoConstraints = false
@@ -534,6 +535,7 @@ extension ViewController {
         bottomBar.alignment = .center
         bottomBar.distribution = .equalSpacing
         playerSlidingSurface.addSubview(bottomBar)
+        playerTransitionFooter = bottomBar
 
         let deviceButton = UIButton(type: .custom)
         deviceButton.translatesAutoresizingMaskIntoConstraints = false
@@ -600,6 +602,7 @@ extension ViewController {
         centerContentView.translatesAutoresizingMaskIntoConstraints = false
         centerContentView.clipsToBounds = false
         playerSlidingSurface.addSubview(centerContentView)
+        playerTransitionBody = centerContentView
 
         // 0. Cover Art Carousel (Peek Left, Dominant Center, Peek Right)
         coverCarouselContainer = UIView()

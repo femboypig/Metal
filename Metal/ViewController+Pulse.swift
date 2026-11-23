@@ -281,7 +281,7 @@ extension ViewController: UIGestureRecognizerDelegate {
         }
         if gestureRecognizer === playerDismissPan {
             guard playerPresentationTarget == 1, playerPresentation > 0.99,
-                  playerPresentationLink == nil else { return false }
+                  playerPresentationLink == nil, !isCarouselAnimating, !isCoverDragging else { return false }
             let velocity = playerDismissPan.velocity(in: page2)
             var touched = page2.hitTest(playerDismissPan.location(in: page2), with: nil)
             while let candidate = touched, candidate !== page2 {
