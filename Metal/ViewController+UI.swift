@@ -88,11 +88,8 @@ extension ViewController {
 
         page1 = UIView()
         page2 = UIView()
-        playerScrim = UIView()
-        playerScrim.backgroundColor = .black
-        playerScrim.isUserInteractionEnabled = false
         page2.clipsToBounds = true
-        for container in [page1!, playerScrim!, page2!] {
+        for container in [page1!, page2!] {
             container.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(container)
             NSLayoutConstraint.activate([
@@ -602,7 +599,6 @@ extension ViewController {
         centerContentView.translatesAutoresizingMaskIntoConstraints = false
         centerContentView.clipsToBounds = false
         playerSlidingSurface.addSubview(centerContentView)
-        playerTransitionBody = centerContentView
 
         // 0. Cover Art Carousel (Peek Left, Dominant Center, Peek Right)
         coverCarouselContainer = UIView()
@@ -692,6 +688,18 @@ extension ViewController {
         let rightTap = UITapGestureRecognizer(target: self, action: #selector(rightCoverTapped))
         rightCoverCard.addGestureRecognizer(rightTap)
 
+        // The wrapper moves the current artwork independently of the carousel's track transforms.
+        playerArtworkMotionView = UIView()
+        playerArtworkMotionView.translatesAutoresizingMaskIntoConstraints = false
+        playerArtworkMotionView.layer.zPosition = 2
+        coverCarouselContainer.addSubview(playerArtworkMotionView)
+        NSLayoutConstraint.activate([
+            playerArtworkMotionView.topAnchor.constraint(equalTo: coverCarouselContainer.topAnchor),
+            playerArtworkMotionView.bottomAnchor.constraint(equalTo: coverCarouselContainer.bottomAnchor),
+            playerArtworkMotionView.leadingAnchor.constraint(equalTo: coverCarouselContainer.leadingAnchor),
+            playerArtworkMotionView.trailingAnchor.constraint(equalTo: coverCarouselContainer.trailingAnchor)
+        ])
+
         // Center Cover (Current Track)
         coverArtCard = UIView()
         coverArtCard.translatesAutoresizingMaskIntoConstraints = false
@@ -707,7 +715,7 @@ extension ViewController {
         coverArtCard.clipsToBounds = false
         coverArtCard.layer.zPosition = 2
         coverArtCard.isUserInteractionEnabled = true
-        coverCarouselContainer.addSubview(coverArtCard)
+        playerArtworkMotionView.addSubview(coverArtCard)
 
         coverImageView = GlassArtworkImageView()
         coverImageView.translatesAutoresizingMaskIntoConstraints = false
@@ -799,6 +807,7 @@ extension ViewController {
         controlsStack.alignment = .center
         controlsStack.distribution = .equalSpacing
         centerContentView.addSubview(controlsStack)
+        playerMainControls = controlsStack
 
         shuffleButton = UIButton(type: .system)
         shuffleButton.setImage(PlaybackIcon.shuffle.image(size: 20), for: .normal)
@@ -879,8 +888,8 @@ extension ViewController {
             // Center Card (Base size 264x264, centered in container)
             coverArtCard.widthAnchor.constraint(equalToConstant: 264),
             coverArtCard.heightAnchor.constraint(equalToConstant: 264),
-            coverArtCard.centerXAnchor.constraint(equalTo: coverCarouselContainer.centerXAnchor),
-            coverArtCard.centerYAnchor.constraint(equalTo: coverCarouselContainer.centerYAnchor),
+            coverArtCard.centerXAnchor.constraint(equalTo: playerArtworkMotionView.centerXAnchor),
+            coverArtCard.centerYAnchor.constraint(equalTo: playerArtworkMotionView.centerYAnchor),
 
             coverImageView.topAnchor.constraint(equalTo: coverArtCard.topAnchor),
             coverImageView.leadingAnchor.constraint(equalTo: coverArtCard.leadingAnchor),

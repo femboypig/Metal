@@ -89,23 +89,18 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
 
     var playerPresentation: CGFloat = 0
     var playerPresentationTarget: CGFloat = 0
-    var playerPresentationStart: CGFloat = 0
-    var playerPresentationDuration: CFTimeInterval = 0.34
-    var playerPresentationTime: CFTimeInterval = 0
-    var playerPresentationLink: CADisplayLink?
-    var playerScrim: UIView!
+    var playerPresentationAnimator: UIViewPropertyAnimator?
+    var pendingPlayerPresentation: Bool?
     var playerDismissPan: UIPanGestureRecognizer!
     var playerDismissCommitted = false
     var playerSlidingSurface: UIView!
-    var playerTransitionCard: UIView!
-    let playerTransitionGradient = CAGradientLayer()
-    var playerTransitionArtwork: GlassArtworkImageView!
-    var playerTransitionTitle: PlayerTransitionLabel!
-    var playerTransitionArtist: PlayerTransitionLabel!
+    var playerArtworkMotionView: UIView!
+    var playerMainControls: UIView!
     var playerTransitionHeader: UIView!
     var playerTransitionFooter: UIView!
-    var playerTransitionBody: UIView!
-    var playerTransitionMiniControls: [(UIImageView, UIButton)] = []
+    let playerViewportMask = UIView()
+    var isPreparingPlayerTransition = false
+    var playerMotionElements: [(view: UIView, collapsed: CGAffineTransform)] = []
     var coverPan: UIPanGestureRecognizer!
     var isCoverDragging = false
     var coverDragTransforms: [CGAffineTransform] = []
@@ -242,7 +237,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     deinit {
         dailyMixRefreshTimer?.invalidate()
-        playerPresentationLink?.invalidate()
+        playerPresentationAnimator?.stopAnimation(true)
         libraryDisplayLink?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }

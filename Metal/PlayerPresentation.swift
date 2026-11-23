@@ -3,19 +3,6 @@ import CoreGraphics
 
 /// Shared motion and release rules, independent of UIKit gesture delivery.
 enum PlayerPresentationMotion {
-    static func position(start: Double, target: Double, elapsed: Double, duration: Double) -> Double {
-        let t = min(1, max(0, elapsed / max(0.001, duration)))
-        // A critically damped response: one coherent motion without overshoot or a bounce.
-        let response = 1 - (1 + 8 * t) * exp(-8 * t)
-        let eased = response / (1 - 9 * exp(-8))
-        return start + (target - start) * eased
-    }
-
-    static func phase(_ progress: Double, from start: Double, to end: Double) -> Double {
-        let t = min(1, max(0, (progress - start) / max(0.001, end - start)))
-        return t * t * (3 - 2 * t)
-    }
-
     static func frame(source: CGRect, destination: CGRect, progress: Double) -> CGRect {
         let t = CGFloat(min(1, max(0, progress)))
         let x: CGFloat = source.origin.x + (destination.origin.x - source.origin.x) * t
@@ -23,6 +10,18 @@ enum PlayerPresentationMotion {
         let width: CGFloat = source.size.width + (destination.size.width - source.size.width) * t
         let height: CGFloat = source.size.height + (destination.size.height - source.size.height) * t
         return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    static func collapsedTransform(from destination: CGRect, to source: CGRect) -> CGAffineTransform {
+        let scale = min(source.width / max(1, destination.width), source.height / max(1, destination.height))
+        return CGAffineTransform(a: scale, b: 0, c: 0, d: scale,
+            tx: source.midX - destination.midX, ty: source.midY - destination.midY)
+    }
+
+    static func transform(_ collapsed: CGAffineTransform, progress: Double) -> CGAffineTransform {
+        let t = CGFloat(min(1, max(0, progress)))
+        return CGAffineTransform(a: collapsed.a + (1 - collapsed.a) * t, b: 0, c: 0,
+            d: collapsed.d + (1 - collapsed.d) * t, tx: collapsed.tx * (1 - t), ty: collapsed.ty * (1 - t))
     }
 
     static func pullOffset(translation: Double) -> Double {
