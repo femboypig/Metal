@@ -439,8 +439,8 @@ extension ViewController {
             // Mini Player Constraints
             miniPlayerView.leadingAnchor.constraint(equalTo: page1.leadingAnchor, constant: 16),
             miniPlayerView.trailingAnchor.constraint(equalTo: page1.trailingAnchor, constant: -16),
-            miniPlayerView.bottomAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.bottomAnchor, constant: -8),
-            miniPlayerView.heightAnchor.constraint(equalToConstant: 60),
+            miniPlayerView.bottomAnchor.constraint(equalTo: page1.safeAreaLayoutGuide.bottomAnchor, constant: -CGFloat(LibraryDrawerGeometry.miniPlayerBottomSpacing)),
+            miniPlayerView.heightAnchor.constraint(equalToConstant: CGFloat(LibraryDrawerGeometry.miniPlayerHeight)),
 
             miniCoverCard.leadingAnchor.constraint(equalTo: miniPlayerView.leadingAnchor, constant: 10),
             miniCoverCard.centerYAnchor.constraint(equalTo: miniPlayerView.centerYAnchor),

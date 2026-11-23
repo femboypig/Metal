@@ -18,6 +18,21 @@ enum PulseExperienceChecks {
                 precondition(drawer.destination(progress: 0.6, velocity: -2000) == 0)
             }
         }
+        // Restore collapsed geometry before any mini-player child frame exists.
+        for height in [568.0, 667, 844, 932, 1024] {
+            for safeBottom in [0.0, 21, 34] {
+                let drawer = LibraryDrawerGeometry(safeTop: 59, safeBottom: safeBottom, containerHeight: height)
+                let miniTop = height - safeBottom - LibraryDrawerGeometry.miniPlayerBottomSpacing
+                    - LibraryDrawerGeometry.miniPlayerHeight
+                precondition(drawer.miniPlayerTop == miniTop)
+                let searchBottom = drawer.top(progress: 1) + LibraryDrawerGeometry.searchOverscan + 44
+                precondition(searchBottom < miniTop - 10,
+                    "A restored collapsed search field must stay above the mini-player on the first layout")
+                let resolved = LibraryDrawerGeometry(safeTop: 59, miniPlayerTop: miniTop)
+                precondition(drawer.top(progress: 1) == resolved.top(progress: 1),
+                    "Initial and subsequent layouts must use the same collapsed position")
+            }
+        }
         let tiny = LibraryDrawerGeometry(safeTop: 59, miniPlayerTop: 140)
         precondition(tiny.travel == 0 && tiny.destination(progress: 1, velocity: 2000) == 0)
 

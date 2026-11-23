@@ -34,9 +34,11 @@ extension ViewController {
         guard target != playerPresentation else { return }
         page1.accessibilityElementsHidden = presented
         page2.accessibilityElementsHidden = !presented
+        page2.layer.removeAnimation(forKey: "miniPlayerArrival")
         page2.isHidden = false
         page1.isUserInteractionEnabled = false
-        miniPlayerView.isHidden = true
+        // Keep the real material rendering beneath the opaque player so it is ready on arrival.
+        miniPlayerView.isHidden = false
         if !animated || UIAccessibility.isReduceMotionEnabled {
             playerPresentation = target
             renderPlayerPresentation()
@@ -63,6 +65,20 @@ extension ViewController {
             let pending = self.pendingPlayerPresentation
             self.pendingPlayerPresentation = nil
             if let pending, pending != presented { self.setPlayerPresented(pending) }
+        }
+        if !presented {
+            // A discrete compositor handoff, not a fade. The final 10% of the easing covers
+            // only the last pixels of travel, but a delayed main-thread completion can linger here.
+            // Expose the already-rendered mini-player on the render server before that tail.
+            let arrival = CAKeyframeAnimation(keyPath: "opacity")
+            arrival.values = [1, 0, 0]
+            arrival.keyTimes = [0, 0.9, 1]
+            arrival.calculationMode = .discrete
+            arrival.timingFunction = CAMediaTimingFunction(name: .linear)
+            arrival.duration = duration
+            arrival.fillMode = .forwards
+            arrival.isRemovedOnCompletion = false
+            page2.layer.add(arrival, forKey: "miniPlayerArrival")
         }
         animator.startAnimation()
         updatePulseVisibility()
@@ -116,8 +132,9 @@ extension ViewController {
         applyPlayerPresentationGeometry()
         let closed = playerPresentation == 0
         page2.isHidden = closed
-        // These are endpoint handoffs, not alpha transitions.
-        miniPlayerView.isHidden = !closed
+        // The real mini-player remains live underneath the clipped, opaque player throughout.
+        miniPlayerView.isHidden = false
+        page2.layer.removeAnimation(forKey: "miniPlayerArrival")
         page1.isUserInteractionEnabled = closed
         if playerPresentation == 1 { page2.mask = nil }
         updatePulseVisibility()

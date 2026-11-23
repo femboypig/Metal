@@ -116,19 +116,24 @@ extension ViewController {
 
     var pulseDrawerGeometry: LibraryDrawerGeometry {
         LibraryDrawerGeometry(safeTop: Double(page1.safeAreaInsets.top),
-            miniPlayerTop: Double(miniPlayerView.frame.minY))
+            safeBottom: Double(page1.safeAreaInsets.bottom), containerHeight: Double(page1.bounds.height))
     }
 
     func updateLibraryPresentationForLayout() {
-        guard libraryViewport != nil, libraryTopConstraint != nil, miniPlayerView.frame.height > 0,
+        guard libraryViewport != nil, libraryTopConstraint != nil, page1.bounds.height > 0,
               !isLayingOutLibrary else { return }
         isLayingOutLibrary = true
         defer { isLayingOutLibrary = false }
-        if pulseDrawerGeometry.travel < 1 { libraryCollapse = 0 }
-        libraryTopConstraint.constant = pulseDrawerGeometry.top(progress: Double(libraryCollapse)) - Double(page1.safeAreaInsets.top)
-        let expandedSearchTop = CGFloat(pulseDrawerGeometry.expandedTop + LibraryDrawerGeometry.searchOverscan)
-        libraryTableHeightConstraint.constant = max(1, miniPlayerView.frame.minY - 10 - expandedSearchTop - 32)
-        let compact = pulseDrawerGeometry.travel < 200
+        // Resolve safe areas before capturing one coherent geometry for this pass.
+        // The mini-player's child frame may still belong to the previous layout at launch.
+        page1.layoutIfNeeded()
+        let geometry = pulseDrawerGeometry
+        guard geometry.miniPlayerTop > 0 else { return }
+        if geometry.travel < 1 { libraryCollapse = 0 }
+        libraryTopConstraint.constant = geometry.top(progress: Double(libraryCollapse)) - Double(page1.safeAreaInsets.top)
+        let expandedSearchTop = CGFloat(geometry.expandedTop + LibraryDrawerGeometry.searchOverscan)
+        libraryTableHeightConstraint.constant = max(1, CGFloat(geometry.miniPlayerTop) - 10 - expandedSearchTop - 32)
+        let compact = geometry.travel < 200
         if pulseTitleLabel.isHidden != compact {
             pulseTitleLabel.isHidden = compact
             page1.layoutIfNeeded()
@@ -137,7 +142,7 @@ extension ViewController {
         let expandedWaveHeight = expandedSearchTop + 94
         let compactCenter = expandedWaveHeight * 0.5 - min(page1.bounds.width, expandedWaveHeight) * 0.07
         let playOffset = pulsePlayButton.frame.midY - pulseHero.bounds.midY
-        let endStackCenter = (page1.safeAreaInsets.top + 92 + CGFloat(pulseDrawerGeometry.collapsedTop) + 10) * 0.5 - 8
+        let endStackCenter = (page1.safeAreaInsets.top + 92 + CGFloat(geometry.collapsedTop) + 10) * 0.5 - 8
         let endPulseCenter = endStackCenter + playOffset
         let center = compactCenter + (endPulseCenter - compactCenter) * progress
         pulseHeroCenterConstraint.constant = center - playOffset
