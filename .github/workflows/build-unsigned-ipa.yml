@@ -54,6 +54,11 @@ jobs:
           xcrun swiftc Metal/PlayerPresentation.swift Tests/PlayerPresentationChecks.swift -o "$RUNNER_TEMP/player-presentation-checks"
           "$RUNNER_TEMP/player-presentation-checks"
 
+      - name: Verify lyrics parsing and synchronization
+        run: |
+          xcrun swiftc Metal/LyricsCore.swift Tests/LyricsChecks.swift -o "$RUNNER_TEMP/lyrics-checks"
+          "$RUNNER_TEMP/lyrics-checks"
+
       - name: Verify Metal shader pipelines
         run: |
           set -euo pipefail

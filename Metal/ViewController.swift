@@ -88,6 +88,13 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var rightCoverDimOverlay: UIView!
     var isCarouselAnimating: Bool = false
 
+    var lyricsView: LyricsView!
+    var lyricsVisible = false
+    var lyricsTask: Task<Void, Never>?
+    var lyricsGeneration = 0
+    var lyricsTrackURL: URL?
+    var lyricsIdentity = ""
+    var lyricsImportTrack: Track?
     var playerPresentation: CGFloat = 0
     var playerPresentationTarget: CGFloat = 0
     var playerPresentationAnimator: UIViewPropertyAnimator?

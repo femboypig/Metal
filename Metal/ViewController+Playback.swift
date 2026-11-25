@@ -164,6 +164,7 @@ extension ViewController {
         guard !queue.isEmpty, let index = currentTrackIndex, index < queue.count else { return }
 
         let track = queue[index]
+        if lyricsVisible { lyricsTrackURL = nil; loadLyrics() }
         playerHeaderLabel?.text = currentPlaybackContext
         let savedPosition = persistedSettings.lastTrackFile == track.url.lastPathComponent
             ? persistedSettings.playbackPosition
@@ -436,6 +437,7 @@ extension ViewController {
                 : 1
             self.finishListeningTelemetry(completed: true, skipped: false, progress: completedProgress)
             self.audioPlayer = playerB
+            self.lyricsTrackURL = nil
             self.audioPlayer?.delegate = self
             self.currentTrackIndex = nextIndex
             self.playerHeaderLabel?.text = self.currentPlaybackContext
@@ -541,6 +543,7 @@ extension ViewController {
     }
 
     func updatePlaybackProgress() {
+        updateLyrics()
         if let deadline = sleepTimerEndDate, deadline <= Date() {
             stopPlaybackDueToSleepTimer()
         }
@@ -587,6 +590,7 @@ extension ViewController {
 
         let position = min(max(0, requestedTime), player.duration)
         player.currentTime = position
+        updateLyrics()
         telemetryLastPlaybackTime = position
         telemetryLastUptime = ProcessInfo.processInfo.systemUptime
         progressSlider.value = Float(position)

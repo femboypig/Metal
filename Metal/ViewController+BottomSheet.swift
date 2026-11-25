@@ -345,7 +345,8 @@ extension ViewController {
             return UIMenu(title: "Options", children: [])
         }
         let index = filteredTracks.firstIndex { $0.url == track.url } ?? 0
-        return makeTrackContextMenu(for: track, at: index, isPlayer: true)
+        let existing = makeTrackContextMenu(for: track, at: index, isPlayer: true)
+        return UIMenu(title: existing.title, children: [lyricsMenu()] + existing.children)
     }
     
     func updatePlayerOptionsMenu() {

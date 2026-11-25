@@ -508,6 +508,17 @@ extension ViewController {
     }
 
     func loadLocalTracks() {
+        if controller.view.tag == 9321 {
+            defer { lyricsImportTrack = nil }
+            guard let url = urls.first, let track = lyricsImportTrack else { return }
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url), data.count <= 2_000_000,
+               let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16) {
+                acceptLyrics(text, track: track)
+            } else { showToast(message: "Unable to read lyrics file", success: false) }
+            return
+        }
         let fileManager = FileManager.default
         let songsDir = songsDirectoryURL
         let audioExtensions = ["mp3", "m4a", "wav", "aac", "flac", "ogg", "wma", "aiff", "alac"]
@@ -727,6 +738,17 @@ extension ViewController {
     // MARK: - UIDocumentPickerDelegate
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        if controller.view.tag == 9321 {
+            defer { lyricsImportTrack = nil }
+            guard let url = urls.first, let track = lyricsImportTrack else { return }
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url), data.count <= 2_000_000,
+               let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16) {
+                acceptLyrics(text, track: track)
+            } else { showToast(message: "Unable to read lyrics file", success: false) }
+            return
+        }
         let fileManager = FileManager.default
         let songsDir = songsDirectoryURL
 

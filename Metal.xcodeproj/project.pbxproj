@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FA0000000000000000000004 /* ViewController+Lyrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000014; };
+		FA0000000000000000000003 /* LyricsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000013; };
+		FA0000000000000000000002 /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000012; };
+		FA0000000000000000000001 /* LyricsCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000011; };
 		F80000000000000000000002 /* ViewController+PlayerPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000012 /* ViewController+PlayerPresentation.swift */; };
 		F80000000000000000000001 /* PlayerPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F80000000000000000000011 /* PlayerPresentation.swift */; };
 		F70000000000000000000002 /* PulseFlowEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70000000000000000000012 /* PulseFlowEngine.swift */; };
@@ -76,6 +80,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		FA0000000000000000000014 /* ViewController+Lyrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Lyrics.swift"; sourceTree = "<group>"; };
+		FA0000000000000000000013 /* LyricsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsView.swift"; sourceTree = "<group>"; };
+		FA0000000000000000000012 /* LyricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsService.swift"; sourceTree = "<group>"; };
+		FA0000000000000000000011 /* LyricsCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsCore.swift"; sourceTree = "<group>"; };
 		F80000000000000000000012 /* ViewController+PlayerPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+PlayerPresentation.swift"; sourceTree = "<group>"; };
 		F80000000000000000000011 /* PlayerPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerPresentation.swift"; sourceTree = "<group>"; };
 		F70000000000000000000012 /* PulseFlowEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseFlowEngine.swift; sourceTree = "<group>"; };
@@ -171,6 +179,10 @@
 				F50000000000000000000011 /* ArtworkPlaceholder.swift */,
 				F60000000000000000000013 /* ViewController+Pulse.swift */,
 				F80000000000000000000012 /* ViewController+PlayerPresentation.swift */,
+				FA0000000000000000000014 /* ViewController+Lyrics.swift */,
+				FA0000000000000000000013 /* LyricsView.swift */,
+				FA0000000000000000000012 /* LyricsService.swift */,
+				FA0000000000000000000011 /* LyricsCore.swift */,
 				F80000000000000000000011 /* PlayerPresentation.swift */,
 				F60000000000000000000012 /* PulseAudioSampler.swift */,
 				F60000000000000000000011 /* PulseExperience.swift */,
@@ -338,6 +350,10 @@
 				F50000000000000000000001 /* ArtworkPlaceholder.swift in Sources */,
 				F60000000000000000000003 /* ViewController+Pulse.swift in Sources */,
 				F80000000000000000000002 /* ViewController+PlayerPresentation.swift in Sources */,
+				FA0000000000000000000004 /* ViewController+Lyrics.swift in Sources */,
+				FA0000000000000000000003 /* LyricsView.swift in Sources */,
+				FA0000000000000000000002 /* LyricsService.swift in Sources */,
+				FA0000000000000000000001 /* LyricsCore.swift in Sources */,
 				F80000000000000000000001 /* PlayerPresentation.swift in Sources */,
 				F60000000000000000000002 /* PulseAudioSampler.swift in Sources */,
 				F60000000000000000000001 /* PulseExperience.swift in Sources */,

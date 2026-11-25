@@ -112,6 +112,7 @@ extension ViewController {
             elements.append((element, CGAffineTransform(translationX: 0,
                 y: max(0, mini.maxY + 32 - frame.minY))))
         }
+        elements.append((lyricsView, CGAffineTransform(translationX: 0, y: mini.maxY + 32)))
         playerMotionElements = elements
         applyPlayerPresentationGeometry()
     }

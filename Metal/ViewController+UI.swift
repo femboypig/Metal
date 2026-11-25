@@ -113,6 +113,7 @@ extension ViewController {
         ])
         setupPage1Library()
         setupPage2NowPlaying()
+        setupLyrics()
         setupPlayerPresentation()
     }
 
