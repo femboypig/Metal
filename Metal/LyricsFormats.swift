@@ -67,10 +67,17 @@ private final class TTMLLyricsDelegate: NSObject, XMLParserDelegate {
     var stack: [(role: String, start: Double?, end: Double?, text: String)] = []
     func parser(_ parser: XMLParser, didStartElement element: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String]) {
         let name = element.split(separator: ":").last.map(String.init) ?? element
-        if name == "p" { current = LyricLine(time: attributes["begin"].flatMap(LyricsFormats.time), text: "", end: attributes["end"].flatMap(LyricsFormats.time)); stack = [] }
-        if name == "span", current != nil {
+        if name == "p" {
             let start = attributes["begin"].flatMap(LyricsFormats.time)
             let end = attributes["end"].flatMap(LyricsFormats.time) ?? attributes["dur"].flatMap(LyricsFormats.time).flatMap { duration in start.map { $0 + duration } }
+            current = LyricLine(time: start, text: "", end: end); stack = []
+        }
+        if name == "span", current != nil {
+            func spanTime(_ raw: String) -> Double? {
+                LyricsFormats.time(raw).map { value in raw.contains(":") ? value : value + (stack.last?.start ?? current?.time ?? 0) }
+            }
+            let start = attributes["begin"].flatMap(spanTime)
+            let end = attributes["end"].flatMap(spanTime) ?? attributes["dur"].flatMap(LyricsFormats.time).flatMap { duration in start.map { $0 + duration } }
             stack.append((attributes["ttm:role"] ?? "", start, end, ""))
         }
         if name == "br", current != nil { current?.text += "\n" }
@@ -92,6 +99,8 @@ private final class TTMLLyricsDelegate: NSObject, XMLParserDelegate {
             if !stack.isEmpty && span.role != "x-translation" && span.role != "x-roman" { stack[stack.count - 1].text += span.text }
         }
         if name == "p", var line = current {
+            if line.time == nil { line.time = line.words?.first?.start }
+            if line.end == nil { line.end = line.words?.last?.end }
             line.text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !line.text.isEmpty { lines.append(line) }; current = nil
         }

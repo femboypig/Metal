@@ -56,6 +56,7 @@ actor LyricsProviderManager: LyricsProvider {
         // Two providers maximum in flight, with provider-specific backoff and partial-failure tolerance.
         let available = providers.filter { Date() >= (blockedUntil[$0.0] ?? .distantPast) }
         var results: [LyricsCandidate] = []
+        var hadFailure = available.count < providers.count
         for batch in stride(from: 0, to: available.count, by: 2) {
             await withTaskGroup(of: (String, [LyricsCandidate], Double?).self) { group in
                 for (name, provider) in available[batch..<min(batch + 2, available.count)] {
@@ -66,10 +67,11 @@ actor LyricsProviderManager: LyricsProvider {
                 }
                 for await (name, found, retry) in group {
                     results += found
-                    if let retry { blockedUntil[name] = Date().addingTimeInterval(retry) }
+                    if let retry { hadFailure = true; blockedUntil[name] = Date().addingTimeInterval(retry) }
                 }
             }
         }
+        if results.isEmpty && hadFailure { throw URLError(.resourceUnavailable) }
         return results.sorted { lhs, rhs in
             let a = LyricsCandidateMatcher.score(lhs, query), b = LyricsCandidateMatcher.score(rhs, query)
             return a == b ? lhs.key < rhs.key : a > b

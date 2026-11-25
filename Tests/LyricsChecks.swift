@@ -24,7 +24,7 @@ import Foundation
   precondition(krc.lines[0].words == yrc.lines[0].words)
   let qrc = LyricsFormats.parse("[1000,1000]Hi(1000,500) there(1500,500)", format: "qrc", source: "Fixture")
   precondition(qrc.lines[0].words == yrc.lines[0].words)
-  let ttml = LyricsFormats.parse("<tt><body><p begin=\"1s\" end=\"2000ms\"><span begin=\"1s\" end=\"1.5s\">Hi</span><span begin=\"1.5s\" end=\"2s\"> there</span></p></body></tt>", format: "ttml", source: "Fixture")
+  let ttml = LyricsFormats.parse("<tt><body><p begin=\"1s\" end=\"2000ms\"><span begin=\"00:01.000\" end=\"00:01.500\">Hi</span><span begin=\"00:01.500\" end=\"00:02.000\"> there</span></p></body></tt>", format: "ttml", source: "Fixture")
   precondition(ttml.lines[0].words == yrc.lines[0].words && ttml.active(at: 2.1) == nil)
   precondition(LyricsFormats.parse("krc1protected", format: "krc", source: "Fixture").lines.isEmpty)
   let enhanced = LyricsFormats.parse("[00:01]<00:01.000>Hi<00:01.500> there\n[00:02]Next", format: "lrc", source: "Fixture")
