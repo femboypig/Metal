@@ -69,7 +69,7 @@ enum LyricsAlignment {
         // Phrase-level timestamps must not be advertised as individual word timestamps.
         let observed = recognized.filter {
             $0.start.isFinite && $0.end.isFinite && $0.start >= 0 && $0.start < duration && $0.end > $0.start &&
-            $0.end <= duration + 0.25 && words($0.text).count == 1 && !normalized($0.text).isEmpty
+            $0.end <= duration + 0.25 && !words($0.text).isEmpty && !normalized($0.text).isEmpty
         }.sorted { $0.start < $1.start }
         guard tokens.count >= 4, !observed.isEmpty else { throw LyricsAlignmentError.insufficientMatches }
         guard tokens.count <= 3_000, observed.count <= 6_000,
@@ -126,9 +126,11 @@ enum LyricsAlignment {
             // extrapolate an invented onset. Keep this distinction for review.
             if first != indices.first { anchoredStarts.append(index) }
             result.lines[index].time = start; result.lines[index].end = end
-            result.lines[index].words = matched.compactMap { token in
-                matches[token].map { LyricWord(start: observed[$0].start, end: observed[$0].end, text: tokens[token].text) }
+            let wordWindows = matched.compactMap { token -> LyricWord? in
+                guard let unit = matches[token], words(observed[unit].text).count == 1 else { return nil }
+                return LyricWord(start: observed[unit].start, end: observed[unit].end, text: tokens[token].text)
             }
+            result.lines[index].words = wordWindows.isEmpty ? nil : wordWindows
             alignedLines += 1
         }
         let nonemptyLines = lineTokens.filter { !$0.isEmpty }.count
@@ -188,6 +190,16 @@ enum LyricsAlignment {
             }
             guard compact else { continue }
             windows.append(Window(pairs: pairs, score: Double(pairs.count * 4) - Double(span - pairs.count) * 0.5))
+        }
+        // Some native results expose a whole phrase window. Its real boundaries
+        // can anchor a row, but must never be split into invented word timestamps.
+        for (unit, observation) in observed.enumerated() {
+            let phrase = words(observation.text).map(normalized)
+            guard phrase.count >= 2, phrase.count <= reference.count,
+                  phrase.contains(where: { $0.count >= 4 }), Set(phrase).count >= 2 else { continue }
+            for start in 0...(reference.count - phrase.count) where Array(reference[start..<(start + phrase.count)]) == phrase {
+                windows.append(Window(pairs: phrase.indices.map { (start + $0, unit) }, score: Double(phrase.count * 4)))
+            }
         }
         // Bound candidate-chain work even for pathological repetitions.
         return Array(windows.sorted { $0.score == $1.score ? $0.pairs[0].1 < $1.pairs[0].1 : $0.score > $1.score }.prefix(256))

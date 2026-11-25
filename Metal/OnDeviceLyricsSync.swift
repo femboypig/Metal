@@ -77,7 +77,7 @@ actor OnDeviceLyricsSync {
             record("Recognition failure: \(error.localizedDescription)")
             throw error
         }
-        record("Observed timing units: \(observed.count)")
+        record("Observed timing units: \(observed.count); word windows: \(observed.filter { LyricsAlignment.words($0.text).count == 1 }.count)")
         try Task.checkCancellation()
         progress("Matching existing lyrics…")
         do {
@@ -222,7 +222,10 @@ actor OnDeviceLyricsSync {
         } else { authorization = SFSpeechRecognizer.authorizationStatus() }
         guard authorization == .authorized else { throw OnDeviceLyricsSyncError.permission }
         try Task.checkCancellation()
-        guard recognizer.isAvailable else { throw OnDeviceLyricsSyncError.unavailable }
+        record("SFSpeechRecognizer.isAvailable: \(recognizer.isAvailable)")
+        guard recognizer.isAvailable else {
+            throw OnDeviceLyricsSyncError.unsupported("SFSpeechRecognizer: isAvailable is false for \(supported.identifier) on this device.")
+        }
         progress("Preparing audio…")
         let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
         let file = try Self.prepareAudio(source, directory: directory, format: format)

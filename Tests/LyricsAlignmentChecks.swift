@@ -59,6 +59,11 @@ import Foundation
         precondition(ruPartial.lines[0].time != nil && ruPartial.lines[1].time == nil && ruPartial.lines[2].time != nil)
         precondition(ruPartial.lines[0].time! < ruPartial.lines[2].time! && ruPartial.timingTrusted == false)
         precondition(ruPartial.lines.flatMap { $0.words ?? [] }.allSatisfy { word in noisy.contains { $0.start == word.start && $0.end == word.end } })
+        let phraseSync = try LyricsAlignment.align(document: russianDoc, recognized: [
+            LyricsRecognizedWord(text: russian[0], start: 2.125, end: 4.875),
+            LyricsRecognizedWord(text: russian[1], start: 6.25, end: 9.125)], duration: 30, language: "ru")
+        precondition(phraseSync.lines[0].time == 2.125 && phraseSync.lines[1].time == 6.25)
+        precondition(phraseSync.lines.allSatisfy { $0.words == nil }, "Phrase windows must not invent word timings")
         // A few unrelated common words at widely separated times must not form a row.
         do {
             _ = try LyricsAlignment.align(document: ruDoc, recognized: [
@@ -85,6 +90,10 @@ import Foundation
         let ruStarts = ruRepeated.lines.compactMap(\.time)
         precondition(ruStarts.count == 3 && zip(ruStarts, ruStarts.dropFirst()).allSatisfy { $0 < $1 })
 
+        let onlyLaterChorus = observation(ruChorus, omit: Set(0...3))
+        let locatedChorus = try LyricsAlignment.align(document: chorusRuDoc, recognized: onlyLaterChorus, duration: 60, language: "ru")
+        precondition(locatedChorus.lines[0].time == nil && locatedChorus.lines[1].time != nil && locatedChorus.lines[2].time != nil,
+            "Neighboring verse anchors must place the lone chorus at its later occurrence")
         let cancelled = Task {
             while !Task.isCancelled { await Task.yield() }
             return try LyricsAlignment.align(document: plain, recognized: observed, duration: 60, language: "en")
