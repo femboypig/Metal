@@ -21,8 +21,10 @@ actor LyricsService {
     func identifier(url: URL) -> String { (try? Self.identity(url)) ?? "" }
     func alternatives(_ query: LyricsQuery, id: String? = nil) async throws -> [LyricsCandidate] {
         var cached: [LyricsCandidate] = []
+        var selectedKey: String?
         if let id {
             let entry = await store.read(id)
+            selectedKey = entry.selected
             cached = (entry.results ?? [:]).values.compactMap { doc in
                 guard let p = doc.provenance, let sourceID = Int(p.identifier) else { return nil }
                 return LyricsCandidate(id: sourceID, trackName: p.title, artistName: p.artist, albumName: p.album,
@@ -34,7 +36,7 @@ actor LyricsService {
         do {
             let online = try await provider.search(query)
             let keys = Set(online.map(\.key))
-            return online + cached.filter { !keys.contains($0.key) }
+            return LyricsResultIdentity.deduplicate(online + cached.filter { !keys.contains($0.key) }, query: query, preferredKey: selectedKey)
         } catch {
             retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60)
             if !cached.isEmpty { return cached }; throw error

@@ -88,6 +88,63 @@ import Foundation
   let fallback = LyricsProviderManager(providers: [("Offline", OfflineLyricsProvider()), ("Fixture", TestLyricsProvider())])
   let fallbackResults = try await fallback.search(query)
   precondition(fallbackResults.count == 1)
+  let config = URLSessionConfiguration.ephemeral
+  config.protocolClasses = [LyricsFixtureProtocol.self]
+  let session = URLSession(configuration: config)
+  defer { session.invalidateAndCancel() }
+  let liriqo = try await LiriQoProvider(session: session).search(query)
+  precondition(liriqo.count == 1)
+  let native = liriqo[0].document(query)
+  precondition(native.synchronizationLevel == "Word synced")
+  precondition(native.lines[0].time == 1.25 && native.lines[0].end == 3.75)
+  precondition(native.lines[0].words?[1].start == 2.125 && native.lines[0].words?[1].end == 3.5)
+  precondition(native.active(at: 1.24) == nil && native.active(at: 2) == 0 && native.active(at: 4) == nil)
+  precondition(native.active(at: 9) == 1 && native.active(at: 1.3) == 0)
+  precondition(native.attribution?.contains("Fixture Source") == true)
+  precondition(!liriqo[0].document(q).synchronized, "Edited recordings cannot inherit original timing")
+  let better = try await BetterLyricsProvider(session: session).search(query)
+  precondition(better.count == 1 && better[0].duration == 0)
+  precondition(!better[0].document(query).synchronized, "Metadata-free TTML needs recording confirmation")
+  precondition(better[0].nativeDocument?.lines[0].words?.first?.start == 1.25)
+  let locked = LyricsQuery(title: "Locked", artist: "Artist", album: "", duration: 200)
+  let unavailable = try await BetterLyricsProvider(session: session).search(locked)
+  precondition(unavailable.isEmpty, "An unauthorized cache miss must not trigger private authentication")
+  do {
+   _ = try await LiriQoProvider(session: session).search(LyricsQuery(title: "Rate", artist: "Artist", album: "", duration: 200))
+   preconditionFailure("Rate limiting must propagate backoff")
+  } catch let error as LyricsHTTPError { precondition(error.retryAfter == 123) }
+  let malformed = Data(#"{"metadata":{},"error":"temporarily unavailable"}"#.utf8)
+  do { _ = try LiriQoProvider.candidates(malformed, query: query); preconditionFailure("API errors are not empty searches") }
+  catch { }
+  let unsynced = Data(#"{"tracks":[{"provider":"test","title":"Song","artist":"Artist","plain":"One\nTwo"}]}"#.utf8)
+  let plainResult = try LiriQoProvider.candidates(unsynced, query: query)
+  precondition(plainResult.count == 1 && !plainResult[0].document(query).synchronized)
+  var duplicate = liriqo[0]
+  duplicate.providerID = "Fixture Mirror"
+  duplicate.nativeDocument?.resultKey = "mirror:1:json"
+  duplicate.nativeDocument?.attribution = "https://mirror.example"
+  let merged = LyricsResultIdentity.deduplicate([liriqo[0], duplicate], query: query, preferredKey: duplicate.key)
+  precondition(merged.count == 1 && merged[0].key == duplicate.key)
+  precondition(merged[0].nativeDocument?.sourceAttributions?.count == 2)
+  var differentTiming = duplicate
+  differentTiming.nativeDocument?.lines[0].words?[0].start = 1.3
+  precondition(LyricsResultIdentity.deduplicate([liriqo[0], differentTiming], query: query).count == 2)
+  await service.choose(liriqo[0], query: query, id: id)
+  await service.adjust(0.125, id: id, key: liriqo[0].key)
+  await service.choose(better[0], query: query, id: id)
+  await service.adjust(-0.75, id: id, key: better[0].key)
+  await service.choose(liriqo[0], query: query, id: id)
+  let saved = await offline.load(url: renamed, query: query)
+  precondition(saved.1?.resultKey == liriqo[0].key && saved.1?.offset == 0.125)
+  let offlineChoices = try await offline.alternatives(query, id: id)
+  precondition(offlineChoices.contains { $0.key == better[0].key })
+  let sharedProvider = TestLyricsProvider()
+  let sharedManager = LyricsProviderManager(providers: [("Fixture", sharedProvider)])
+  async let sharedFirst = sharedManager.search(query)
+  async let sharedSecond = sharedManager.search(query)
+  _ = try await (sharedFirst, sharedSecond)
+  let sharedCalls = await sharedProvider.calls
+  precondition(sharedCalls == 1, "Provider searches for the same recording must be coalesced")
   precondition(!LyricsFollowPolicy.intentionallyMoved(5) && LyricsFollowPolicy.intentionallyMoved(40))
   precondition(!LyricsFollowPolicy.awayFromCurrent(distance: 10, viewport: 300))
   precondition(LyricsFollowPolicy.awayFromCurrent(distance: 100, viewport: 300))
@@ -106,4 +163,26 @@ actor TestLyricsProvider: LyricsProvider {
 }
 struct OfflineLyricsProvider: LyricsProvider {
  func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { throw URLError(.notConnectedToInternet) }
+}
+
+// Synthetic, original text only. No song lyrics or live service dependency in CI.
+final class LyricsFixtureProtocol: URLProtocol {
+ static let liriqo = #"{"metadata":{"title":"Song","artist":"Artist","album":"Album","duration":200},"tracks":[{"provider":"fixture","upstreamProvider":"Fixture Source","title":"Song","artist":"Artist","duration":200,"nativeWordTiming":true,"syncLevel":"word","plain":"One two\nNext","timed":[{"text":"One two","start":1250,"end":3750,"words":[{"text":"One ","start":1250,"end":2000},{"text":"two","start":2125,"end":3500}]},{"text":"Next","start":9000,"end":10000}]}]}"#
+ override class func canInit(with request: URLRequest) -> Bool { true }
+ override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+ override func startLoading() {
+  let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+  let title = items.first { $0.name == "title" || $0.name == "s" }?.value
+  let status = title == "Rate" ? 429 : title == "Locked" ? 401 : 200
+  let payload: Data
+  if request.url?.host == "api.betterlyrics.org" {
+   let xml = "<tt><body><p begin=\"1.25s\" end=\"3.75s\"><span begin=\"00:01.250\" end=\"00:02.000\">One</span></p></body></tt>"
+   payload = try! JSONSerialization.data(withJSONObject: ["ttml": xml])
+  } else { payload = Data(Self.liriqo.utf8) }
+  let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Retry-After": "123"])!
+  client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+  client?.urlProtocol(self, didLoad: payload)
+  client?.urlProtocolDidFinishLoading(self)
+ }
+ override func stopLoading() { }
 }

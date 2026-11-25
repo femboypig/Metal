@@ -1,10 +1,6 @@
 import Foundation
 
-enum LyricsProviderAvailability { case online, localOnly(String) }
-protocol NamedLyricsProvider: LyricsProvider { var name: String { get }; var availability: LyricsProviderAvailability { get } }
-struct AMLLProvider: NamedLyricsProvider {
-    let name = "AMLL"
-    var availability: LyricsProviderAvailability { .online }
+struct AMLLProvider: LyricsProvider {
     struct Item: Decodable { var id: Int; var musicNames: [String]; var artistNames: [String]; var albumNames: [String]; var lyrics: String? }
     struct Page: Decodable { struct DataPage: Decodable { var items: [Item] }; var data: DataPage }
     struct Result: Decodable { var data: Item }
@@ -31,33 +27,143 @@ struct AMLLProvider: NamedLyricsProvider {
         return candidates
     }
 }
-// These adapters intentionally perform no unofficial, authenticated or encrypted requests.
-// Their textual export formats are handled by LyricsFormats until a permitted API is configured.
-struct NetEaseProvider: NamedLyricsProvider {
-    let name = "NetEase"
-    var availability: LyricsProviderAvailability { .localOnly("No authorized public lyrics API configured; import LRC/YRC exports.") }
-    func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { throw URLError(.unsupportedURL) }
+// Public cache reads only. Fresh Better Lyrics fetches require a key reserved for
+// their extension; Metal never supplies that key or retries through a private proxy.
+struct BetterLyricsProvider: LyricsProvider {
+    var session: URLSession = .shared
+    struct Response: Decodable { var ttml: String }
+    func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        let exact = try await request(query)
+        guard exact.isEmpty, query.lookupTitle != query.searchTitle else { return exact }
+        var normalized = query; normalized.title = query.lookupTitle; normalized.artist = query.searchArtist
+        return try await request(normalized)
+    }
+    private func request(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        let data = try await LyricsProviderHTTP.get("https://api.betterlyrics.org/getLyrics", items: [
+            URLQueryItem(name: "s", value: query.searchTitle), URLQueryItem(name: "a", value: query.searchArtist),
+            URLQueryItem(name: "al", value: query.album), URLQueryItem(name: "d", value: String(Int(max(0, query.duration).rounded())))
+        ], session: session, unavailable: [401, 404])
+        guard let data else { return [] }
+        return try Self.candidates(data, query: query)
+    }
+    static func candidates(_ data: Data, query: LyricsQuery) throws -> [LyricsCandidate] {
+        let response = try JSONDecoder().decode(Response.self, from: data)
+        var doc = LyricsFormats.parse(response.ttml, format: "ttml", source: "Better Lyrics")
+        guard !doc.lines.isEmpty else { return [] }
+        // The public response contains no recording metadata. Do not present the
+        // request's duration as a verified source duration. Manual selection can confirm it.
+        doc.timingTrusted = false
+        doc.attribution = "https://betterlyrics.org"
+        doc.resultKey = "BetterLyrics:" + LyricsResultIdentity.digest(response.ttml) + ":ttml"
+        return [LyricsCandidate(id: 0, trackName: query.searchTitle, artistName: query.searchArtist,
+            albumName: query.album, duration: 0, instrumental: false, plainLyrics: nil, syncedLyrics: nil,
+            providerID: "Better Lyrics", nativeDocument: doc)]
+    }
 }
-struct KuGouProvider: NamedLyricsProvider {
-    let name = "KuGou"
-    var availability: LyricsProviderAvailability { .localOnly("No authorized public lyrics API configured; import plaintext LRC/KRC exports. Protected envelopes are unsupported.") }
-    func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { throw URLError(.unsupportedURL) }
+
+struct LiriQoProvider: LyricsProvider {
+    var session: URLSession = .shared
+    struct Metadata: Decodable { var title: String?; var artist: String?; var album: String?; var duration: Double? }
+    struct Word: Decodable { var text: String; var start: Double; var end: Double? }
+    struct Line: Decodable {
+        var text: String; var start: Double?; var end: Double?; var words: [Word]?
+        var isInstrumental: Bool?
+    }
+    struct Track: Decodable {
+        var provider: String; var title: String?; var artist: String?; var album: String?; var duration: Double?
+        var upstreamProvider: String?; var lyricsSource: String?; var plain: String?; var timed: [Line]?
+        var nativeWordTiming: Bool?; var syncLevel: String?
+    }
+    struct Response: Decodable { var metadata: Metadata?; var tracks: [Track]?; var error: String? }
+    func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        let exact = try await request(query)
+        guard exact.isEmpty, query.lookupTitle != query.searchTitle else { return exact }
+        var normalized = query; normalized.title = query.lookupTitle; normalized.artist = query.searchArtist
+        return try await request(normalized)
+    }
+    private func request(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        let data = try await LyricsProviderHTTP.get("https://api.liriqo-alfarrizi.my.id/v1/lyrics", items: [
+            URLQueryItem(name: "title", value: query.searchTitle), URLQueryItem(name: "artist", value: query.searchArtist),
+            URLQueryItem(name: "album", value: query.album), URLQueryItem(name: "duration", value: String(query.duration))
+        ], session: session, unavailable: [404])
+        guard let data else { return [] }
+        return try Self.candidates(data, query: query)
+    }
+    static func candidates(_ data: Data, query: LyricsQuery) throws -> [LyricsCandidate] {
+        let response = try JSONDecoder().decode(Response.self, from: data)
+        guard response.error == nil, let tracks = response.tracks else { throw URLError(.badServerResponse) }
+        return tracks.compactMap { track in
+            // Metadata belongs to the returned recording, never copied from the local query.
+            guard let title = track.title ?? response.metadata?.title,
+                  let artist = track.artist ?? response.metadata?.artist else { return nil }
+            var lines: [LyricLine] = []
+            for line in track.timed ?? [] {
+                guard !line.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                let start = line.start.flatMap { $0.isFinite && $0 >= 0 ? $0 / 1000 : nil }
+                let end = line.end.flatMap { value in start.flatMap { value.isFinite && value / 1000 >= $0 ? value / 1000 : nil } }
+                // Trust only native timing evidence; never synthesize word windows.
+                let words: [LyricWord]? = track.nativeWordTiming == true ? line.words?.compactMap { word in
+                    guard word.start.isFinite, word.start >= 0, !word.text.isEmpty else { return nil }
+                    let end = word.end.flatMap { $0.isFinite && $0 >= word.start ? $0 / 1000 : nil }
+                    return LyricWord(start: word.start / 1000, end: end, text: word.text)
+                } : nil
+                lines.append(LyricLine(time: start, text: line.text, end: end, words: words?.isEmpty == false ? words : nil))
+            }
+            if lines.isEmpty { lines = LyricsParser.parse(track.plain ?? "", source: "LiriQo").lines }
+            guard !lines.isEmpty else { return nil }
+            lines.sort { ($0.time ?? .greatestFiniteMagnitude) < ($1.time ?? .greatestFiniteMagnitude) }
+            let source = track.upstreamProvider ?? track.provider
+            var doc = LyricsDocument(lines: lines, source: "LiriQo · " + source, format: "liriqo-json")
+            doc.attribution = "https://github.com/AlFarrizi-Studio/LiriQo — " + source + (track.lyricsSource.map { " / " + $0 } ?? "")
+            let duration = track.duration ?? 0 // envelope duration may be only a metadata lookup, not this provider's recording
+            let identity = [track.provider, title, artist, track.album ?? "", String(duration), LyricsResultIdentity.content(doc)].joined(separator: "\n")
+            doc.resultKey = "LiriQo:" + LyricsResultIdentity.digest(identity) + ":json"
+            return LyricsCandidate(id: 0, trackName: title, artistName: artist, albumName: track.album ?? response.metadata?.album,
+                duration: duration, instrumental: false, plainLyrics: track.plain, syncedLyrics: nil,
+                providerID: "LiriQo", nativeDocument: doc)
+        }
+    }
 }
-struct QQMusicProvider: NamedLyricsProvider {
-    let name = "QQ Music"
-    var availability: LyricsProviderAvailability { .localOnly("No authorized public lyrics API configured; import plaintext LRC/QRC exports. Protected envelopes are unsupported.") }
-    func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { throw URLError(.unsupportedURL) }
+
+enum LyricsProviderHTTP {
+    static func get(_ base: String, items: [URLQueryItem], session: URLSession, unavailable: Set<Int>) async throws -> Data? {
+        try Task.checkCancellation()
+        var url = URLComponents(string: base)!; url.queryItems = items
+        var request = URLRequest(url: url.url!, timeoutInterval: 25)
+        request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await session.data(for: request)
+        try Task.checkCancellation()
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        if unavailable.contains(http.statusCode) { return nil }
+        guard http.statusCode == 200 else {
+            throw LyricsHTTPError(retryAfter: max(60, Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60))
+        }
+        guard data.count <= 8 * 1024 * 1024 else { throw URLError(.dataLengthExceedsMaximum) }
+        return data
+    }
 }
+
 actor LyricsProviderManager: LyricsProvider {
     let providers: [(String, any LyricsProvider)]
     var blockedUntil: [String: Date] = [:]
-    init(providers: [(String, any LyricsProvider)] = [("LRCLIB", LRCLIBProvider()), ("AMLL", AMLLProvider()), ("NetEase", NetEaseProvider()), ("KuGou", KuGouProvider()), ("QQ Music", QQMusicProvider())]) { self.providers = providers }
+    var requests: [String: Task<[LyricsCandidate], Error>] = [:]
+    init(providers: [(String, any LyricsProvider)] = [("LRCLIB", LRCLIBProvider()), ("AMLL", AMLLProvider()), ("Better Lyrics", BetterLyricsProvider()), ("LiriQo", LiriQoProvider())]) { self.providers = providers }
     func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
-        // Two providers maximum in flight, with provider-specific backoff and partial-failure tolerance.
-        let online = providers.filter { entry in
-            if let named = entry.1 as? any NamedLyricsProvider, case .localOnly = named.availability { return false }
-            return true
+        try Task.checkCancellation()
+        let key = [query.title, query.artist, query.album, String(query.duration)].joined(separator: "\n")
+        if let task = requests[key] {
+            let result = try await task.value; try Task.checkCancellation(); return result
         }
+        let task = Task { try await self.performSearch(query) }
+        requests[key] = task
+        defer { requests[key] = nil }
+        let result = try await task.value
+        try Task.checkCancellation()
+        return result
+    }
+    private func performSearch(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        // Two providers maximum in flight, with provider-specific backoff and partial-failure tolerance.
+        let online = providers
         let available = online.filter { Date() >= (blockedUntil[$0.0] ?? .distantPast) }
         var results: [LyricsCandidate] = []
         var hadFailure = available.count < online.count
@@ -76,10 +182,11 @@ actor LyricsProviderManager: LyricsProvider {
             }
         }
         if results.isEmpty && hadFailure { throw URLError(.resourceUnavailable) }
-        return results.sorted { lhs, rhs in
+        let sorted = results.sorted { lhs, rhs in
             let a = LyricsCandidateMatcher.score(lhs, query), b = LyricsCandidateMatcher.score(rhs, query)
             return a == b ? lhs.key < rhs.key : a > b
         }
+        return LyricsResultIdentity.deduplicate(sorted, query: query)
     }
 }
 enum LyricsCandidateMatcher {

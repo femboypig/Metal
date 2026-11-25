@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 struct LyricLine: Codable, Equatable { var time: Double?; var text: String; var end: Double?; var words: [LyricWord]?; var translation: String?; var background: Bool? }
 struct LyricsProvenance: Codable { var provider: String; var identifier: String; var title: String; var artist: String; var album: String?; var duration: Double }
@@ -13,6 +14,7 @@ struct LyricsDocument: Codable {
     var format: String?
     var resultKey: String?
     var attribution: String?
+    var sourceAttributions: [String]?
     var synchronizationLevel: String { !synchronized ? "Plain" : lines.contains { !($0.words?.isEmpty ?? true) } ? "Word synced" : "Line synced" }
     var synchronized: Bool { timingTrusted != false && !lines.isEmpty && lines.allSatisfy { $0.time != nil } }
     func active(at time: Double) -> Int? { LyricsSyncEngine(document: self)?.active(at: time) }
@@ -75,7 +77,7 @@ struct LyricsCandidate: Codable {
     var id: Int; var trackName: String; var artistName: String; var albumName: String?; var duration: Double
     var instrumental: Bool; var plainLyrics: String?; var syncedLyrics: String?
     var providerID: String?; var nativeDocument: LyricsDocument?
-    var key: String { "\(providerID ?? "LRCLIB"):\(id):\(nativeDocument?.format ?? "lrc")" }
+    var key: String { nativeDocument?.resultKey ?? "\(providerID ?? "LRCLIB"):\(id):\(nativeDocument?.format ?? "lrc")" }
     static func artists(_ text: String) -> Set<String> { Set(text.components(separatedBy: CharacterSet(charactersIn: ",&、")).map { LyricsQuery.normalized($0) }.filter { !$0.isEmpty }) }
     func score(_ q: LyricsQuery) -> Double {
         guard [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.searchTitle), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)), Self.artists(artistName) == Self.artists(q.searchArtist) else { return 0 }
@@ -86,7 +88,7 @@ struct LyricsCandidate: Codable {
         var doc = nativeDocument ?? LyricsFormats.parse(syncedLyrics ?? plainLyrics ?? "", format: "lrc", source: "\(providerID ?? "LRCLIB") #\(id)")
         doc.resultKey = key
         doc.provenance = LyricsProvenance(provider: providerID ?? "LRCLIB", identifier: String(id), title: trackName, artist: artistName, album: albumName, duration: duration)
-        doc.attribution = providerID == "AMLL" ? "https://github.com/amll-dev/amll-ttml-db" : "https://lrclib.net"
+        if doc.attribution == nil { doc.attribution = providerID == "AMLL" ? "https://github.com/amll-dev/amll-ttml-db" : "https://lrclib.net" }
         if !safe { doc.timingTrusted = false }
         doc.instrumental = instrumental
         return doc
@@ -169,5 +171,34 @@ struct LyricsSyncEngine {
         let index = low - 1
         if let end = ends[index], time > end + offset { return nil }
         return index
+    }
+}
+
+// Exact normalized payload identity includes native word windows and timing trust.
+// Different recordings or timing precision must never be collapsed into one result.
+enum LyricsResultIdentity {
+    static func digest(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }
+    static func content(_ doc: LyricsDocument) -> String {
+        let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+        let lines = (try? encoder.encode(doc.lines)) ?? Data()
+        return digest(String(decoding: lines, as: UTF8.self) + "|\(doc.offset)|\(doc.instrumental)|\(doc.timingTrusted != false)")
+    }
+    static func deduplicate(_ candidates: [LyricsCandidate], query: LyricsQuery, preferredKey: String? = nil) -> [LyricsCandidate] {
+        var results: [LyricsCandidate] = [], positions: [String: Int] = [:]
+        for candidate in candidates {
+            let doc = candidate.document(query)
+            let identity = [LyricsQuery.normalized(candidate.trackName), LyricsQuery.normalized(candidate.artistName), String(candidate.duration), content(doc)].joined(separator: "|")
+            if let index = positions[identity] {
+                let old = results[index]
+                var winner = candidate.key == preferredKey ? candidate : old
+                var merged = winner.document(query)
+                merged.sourceAttributions = Array(Set((old.document(query).sourceAttributions ?? [old.document(query).attribution ?? old.providerID ?? "LRCLIB"]) + (doc.sourceAttributions ?? [doc.attribution ?? candidate.providerID ?? "LRCLIB"]))).sorted()
+                merged.attribution = merged.sourceAttributions?.joined(separator: " · ")
+                winner.nativeDocument = merged; results[index] = winner
+            } else {
+                positions[identity] = results.count; results.append(candidate)
+            }
+        }
+        return results
     }
 }
