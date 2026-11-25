@@ -261,6 +261,9 @@ import Foundation
    let defaultCatalog = await defaultService.sourceCatalog(url: onlinePath, query: query)
    precondition(defaultCatalog.3.count == 4 && !defaultCatalog.2.isEmpty,
        "Default service must expose the same provider results as the injected manager")
+   let sharedLoad = await LyricsService.shared.load(url: onlinePath, query: query, force: true)
+   precondition(sharedLoad.2 == .ready && sharedLoad.1?.lines.isEmpty == false,
+       "Production shared loader must produce displayable lyrics before source selection")
    let sharedCatalog = await LyricsService.shared.sourceCatalog(url: onlinePath, query: query)
    precondition(sharedCatalog.3.count == 4 && !sharedCatalog.2.isEmpty,
        "Production shared service must show all provider states and actual source choices")

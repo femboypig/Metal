@@ -154,7 +154,7 @@ extension ViewController {
                         "title": query.title, "artist": query.artist, "searchTitle": query.searchTitle,
                         "searchArtist": query.searchArtist, "album": query.album, "duration": query.duration,
                         "failure": failure ?? "none", "providers": attempts.map {
-                            ["name": $0.name, "status": $0.summary, "results": $0.resultCount, "matches": $0.matchCount, "http": $0.statusCode ?? 200] as [String: Any]
+                            ["name": $0.name, "status": $0.summary, "results": $0.resultCount, "matches": $0.matchCount, "failed": $0.failed, "http": $0.statusCode.map { $0 as Any } ?? NSNull()] as [String: Any]
                         }
                     ]
                     if let data = try? JSONSerialization.data(withJSONObject: fields, options: [.prettyPrinted, .sortedKeys]) {
