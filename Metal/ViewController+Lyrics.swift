@@ -67,7 +67,7 @@ extension ViewController {
             UIAction(title: "Remove Imported Lyrics", attributes: .destructive) { [weak self] _ in
                 guard let self, !self.lyricsIdentity.isEmpty else { return }
                 let id = self.lyricsIdentity
-                Task { await LyricsService.shared.imported(nil, id: id); self.loadLyrics(force: true) }
+                Task { await LyricsService.shared.imported(nil, id: id); self.lyricsTrackURL = nil; self.loadLyrics() }
             }
         ])
         return UIMenu(title: "", options: .displayInline, children: [toggle, manage])
@@ -131,7 +131,7 @@ extension ViewController {
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
             guard let value = Double(alert?.textFields?.first?.text ?? ""), value.isFinite, abs(value) <= 600 else { return }
-            Task { await LyricsService.shared.adjust(value, id: id); self?.loadLyrics(force: true) }
+            Task { await LyricsService.shared.adjust(value, id: id); self?.lyricsTrackURL = nil; self?.loadLyrics() }
         })
         present(alert, animated: true)
     }
