@@ -26,7 +26,7 @@ struct AMLLProvider: NamedLyricsProvider {
             guard let text = record.data.lyrics else { continue }
             var doc = LyricsFormats.parse(text, format: "ttml", source: "AMLL #\(item.id)")
             doc.attribution = "https://github.com/amll-dev/amll-ttml-db"
-            candidates.append(LyricsCandidate(id: item.id, trackName: item.musicNames.first ?? q.title, artistName: item.artistNames.joined(separator: ","), albumName: item.albumNames.first, duration: 0, instrumental: false, plainLyrics: doc.lines.map(\.text).joined(separator: "\n"), syncedLyrics: nil, providerID: "AMLL", nativeDocument: doc))
+            candidates.append(LyricsCandidate(id: item.id, trackName: item.musicNames.first(where: { LyricsQuery.normalized($0) == LyricsQuery.normalized(q.lookupTitle) }) ?? q.title, artistName: item.artistNames.joined(separator: ","), albumName: item.albumNames.first, duration: 0, instrumental: false, plainLyrics: doc.lines.map(\.text).joined(separator: "\n"), syncedLyrics: nil, providerID: "AMLL", nativeDocument: doc))
         }
         return candidates
     }
@@ -51,12 +51,16 @@ struct QQMusicProvider: NamedLyricsProvider {
 actor LyricsProviderManager: LyricsProvider {
     let providers: [(String, any LyricsProvider)]
     var blockedUntil: [String: Date] = [:]
-    init(providers: [(String, any LyricsProvider)] = [("LRCLIB", LRCLIBProvider()), ("AMLL", AMLLProvider())]) { self.providers = providers }
+    init(providers: [(String, any LyricsProvider)] = [("LRCLIB", LRCLIBProvider()), ("AMLL", AMLLProvider()), ("NetEase", NetEaseProvider()), ("KuGou", KuGouProvider()), ("QQ Music", QQMusicProvider())]) { self.providers = providers }
     func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         // Two providers maximum in flight, with provider-specific backoff and partial-failure tolerance.
-        let available = providers.filter { Date() >= (blockedUntil[$0.0] ?? .distantPast) }
+        let online = providers.filter { entry in
+            if let named = entry.1 as? any NamedLyricsProvider, case .localOnly = named.availability { return false }
+            return true
+        }
+        let available = online.filter { Date() >= (blockedUntil[$0.0] ?? .distantPast) }
         var results: [LyricsCandidate] = []
-        var hadFailure = available.count < providers.count
+        var hadFailure = available.count < online.count
         for batch in stride(from: 0, to: available.count, by: 2) {
             await withTaskGroup(of: (String, [LyricsCandidate], Double?).self) { group in
                 for (name, provider) in available[batch..<min(batch + 2, available.count)] {
