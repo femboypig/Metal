@@ -68,7 +68,8 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         if changed && !manual && !table.isDragging && !table.isDecelerating { center(animated: false) }
     }
     func display(_ doc: LyricsDocument?, loading: Bool = false) {
-        document = doc; active = nil; manual = false; resume.isHidden = true; resumeMaterial.isHidden = true
+        table.setContentOffset(table.contentOffset, animated: false)
+        document = doc; active = nil; manual = false; restoring = false; resume.isHidden = true; resumeMaterial.isHidden = true
         let empty = doc?.lines.isEmpty ?? true
         table.isHidden = empty; message.isHidden = !empty; actions.isHidden = !empty || loading
         message.text = loading ? "Finding lyrics…" : (doc?.instrumental == true ? "Instrumental" : "No lyrics found.")
@@ -79,7 +80,10 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         guard next != active else {
             // Height estimation and interrupted scroll animations can move the target after it was selected.
             if !manual && !table.isDragging && !table.isDecelerating && !restoring, let active,
-               !(table.indexPathsForVisibleRows ?? []).contains(IndexPath(row: active, section: 0)) { center(animated: false) }
+               active < table.numberOfRows(inSection: 0) {
+                let row = table.rectForRow(at: IndexPath(row: active, section: 0))
+                if LyricsFollowPolicy.awayFromCurrent(distance: Double(row.midY - table.contentOffset.y - table.bounds.midY), viewport: Double(table.bounds.height)) { center(animated: false) }
+            }
             return
         }
         active = next
@@ -93,8 +97,13 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         guard let active else { return }
         guard active < table.numberOfRows(inSection: 0), table.bounds.height > 0 else { return }
         table.layoutIfNeeded()
+        let row = table.rectForRow(at: IndexPath(row: active, section: 0))
+        let top = -table.adjustedContentInset.top
+        let bottom = max(top, table.contentSize.height - table.bounds.height + table.adjustedContentInset.bottom)
+        let target = min(bottom, max(top, row.midY - table.bounds.height * 0.5))
+        guard abs(table.contentOffset.y - target) > 1 else { restoring = false; return }
         restoring = animated
-        table.scrollToRow(at: IndexPath(row: active, section: 0), at: .middle, animated: animated)
+        table.setContentOffset(CGPoint(x: table.contentOffset.x, y: target), animated: animated)
         if !animated { restoring = false }
     }
     @objc func resumeTapped() { manual = false; center(animated: !UIAccessibility.isReduceMotionEnabled); updateResume() }
@@ -148,7 +157,8 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     }
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         guard let doc = document, doc.synchronized, let time = doc.lines[indexPath.row].time else { return }
-        seek?(max(0, time + doc.offset)); manual = false; resume.isHidden = true; resumeMaterial.isHidden = true
+        seek?(max(0, time + doc.offset)); manual = false
+        center(animated: !UIAccessibility.isReduceMotionEnabled); updateResume()
     }
 }
 
