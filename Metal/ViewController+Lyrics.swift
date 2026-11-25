@@ -110,7 +110,7 @@ extension ViewController {
                 let id = await LyricsService.shared.identifier(url: track.url)
                 guard currentPlaybackTrack()?.url == track.url else { return }
                 let alert = UIAlertController(title: "Choose Lyrics", message: "Different recordings may need Adjust Sync. Imported lyrics take precedence.", preferredStyle: .actionSheet)
-                for candidate in results.prefix(12) {
+                for candidate in results.prefix(20) {
                     alert.addAction(UIAlertAction(title: "\(candidate.trackName) · \(candidate.artistName) · \(Int(candidate.duration))s", style: .default) { [weak self] _ in
                         Task { await LyricsService.shared.choose(candidate, query: query, id: id)
                             if self?.currentPlaybackTrack()?.url == track.url { self?.lyricsTrackURL = nil; self?.loadLyrics() }

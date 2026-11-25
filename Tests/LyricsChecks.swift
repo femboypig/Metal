@@ -4,6 +4,7 @@ import Foundation
   let doc = LyricsParser.parse("[ar:Artist]\n[offset:500]\n[00:01.20][00:03.456]First\ncontinuation\n[00:05]Next\n[00:05]Translation\n[00:99]bad", source: "Test")
   precondition(doc.lines.count == 3)
   precondition(doc.lines[0].time == 1.2 && doc.lines[1].time == 3.456)
+  precondition(doc.lines[0].text == "First\ncontinuation" && doc.lines[1].text == "First\ncontinuation")
   precondition(doc.lines[2].text == "Next\nTranslation")
   precondition(doc.active(at: 0) == nil && doc.active(at: 1) == 0 && doc.active(at: 4.6) == 2)
   precondition(doc.active(at: 2) == 0 && doc.active(at: 0) == nil)

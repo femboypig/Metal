@@ -22,11 +22,13 @@ enum LyricsParser {
         let regex = try! NSRegularExpression(pattern: #"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]"#)
         let offsetRE = try! NSRegularExpression(pattern: #"(?i)\[offset:([+-]?\d+)\]"#)
         var timed: [LyricLine] = [], plain: [LyricLine] = [], offset = 0.0
+        var lastBatchStart = 0
         for raw in input.replacingOccurrences(of: "\r", with: "").components(separatedBy: "\n") {
             let ns = raw as NSString, range = NSRange(location: 0, length: ns.length)
             if let m = offsetRE.firstMatch(in: raw, range: range) { offset = (Double(ns.substring(with: m.range(at: 1))) ?? 0) / 1000; continue }
             let matches = regex.matches(in: raw, range: range)
             if let last = matches.last {
+                lastBatchStart = timed.count
                 let text = ns.substring(from: NSMaxRange(last.range)).trimmingCharacters(in: .whitespaces)
                 for m in matches {
                     let seconds = Double(ns.substring(with: m.range(at: 2))) ?? 60
@@ -37,7 +39,7 @@ enum LyricsParser {
                 }
             } else if !raw.trimmingCharacters(in: .whitespaces).isEmpty && !raw.hasPrefix("[") {
                 plain.append(LyricLine(time: nil, text: raw))
-                if !timed.isEmpty { timed[timed.count - 1].text += "\n" + raw }
+                if !timed.isEmpty { for index in lastBatchStart..<timed.count { timed[index].text += "\n" + raw } }
             }
         }
         timed.sort { $0.time! < $1.time! }
@@ -68,7 +70,7 @@ struct LyricsCandidate: Codable {
         return 100 - (q.altered ? 0 : min(90, abs(duration - q.duration) * 4)) + (LyricsQuery.normalized(albumName ?? "") == LyricsQuery.normalized(q.album) && !q.album.isEmpty ? 10 : 0)
     }
     func document(_ q: LyricsQuery) -> LyricsDocument {
-        let safe = !q.altered && abs(duration - q.duration) <= 2
+        let safe = !q.altered && score(q) > 0 && abs(duration - q.duration) <= 2
         var doc = LyricsParser.parse(safe ? (syncedLyrics ?? plainLyrics ?? "") : (plainLyrics ?? syncedLyrics ?? ""), source: "LRCLIB #\(id)")
         if !safe { doc.lines = doc.lines.map { LyricLine(time: nil, text: $0.text) }; doc.offset = 0 }
         doc.instrumental = instrumental
