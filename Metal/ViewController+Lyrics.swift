@@ -94,6 +94,9 @@ extension ViewController {
         let alert = UIAlertController(title: "Paste Lyrics", message: "Paste plain text or LRC timestamps.", preferredStyle: .alert)
         alert.addTextField { $0.placeholder = "Lyrics" }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Import Clipboard", style: .default) { [weak self] _ in
+            if let text = UIPasteboard.general.string { self?.acceptLyrics(text, track: track) }
+        })
         alert.addAction(UIAlertAction(title: "Import", style: .default) { [weak self, weak alert] _ in self?.acceptLyrics(alert?.textFields?.first?.text ?? "", track: track) })
         present(alert, animated: true)
     }

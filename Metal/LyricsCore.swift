@@ -81,6 +81,7 @@ struct LRCLIBProvider: LyricsProvider {
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
         var components = URLComponents(string: "https://lrclib.net/api/search")!
         components.queryItems = [URLQueryItem(name: "track_name", value: q.lookupTitle), URLQueryItem(name: "artist_name", value: q.artist)]
+        if !q.album.isEmpty { components.queryItems?.append(URLQueryItem(name: "album_name", value: q.album)) }
         var request = URLRequest(url: components.url!, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
