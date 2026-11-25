@@ -2,6 +2,8 @@ import Foundation
 import AVFoundation
 import CryptoKit
 
+enum LyricsLookupState: Equatable { case ready, missing, unavailable, unreadable }
+
 actor LyricsService {
     static let shared = LyricsService()
     let store: LyricsStore
@@ -9,8 +11,7 @@ actor LyricsService {
     init(provider: any LyricsProvider = LyricsProviderManager(), directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MetalLyrics")) {
         self.provider = provider; self.store = LyricsStore(directory: directory)
     }
-    var requests: [String: Task<LyricsDocument?, Never>] = [:]
-    var retryAfter = Date.distantPast
+    var requests: [String: Task<(LyricsDocument?, LyricsLookupState), Never>] = [:]
     static func identity(_ url: URL) throws -> String {
         // Streaming content fingerprint survives a rename and does not load the audio file into RAM.
         let handle = try FileHandle(forReadingFrom: url); defer { try? handle.close() }
@@ -32,13 +33,11 @@ actor LyricsService {
                     syncedLyrics: nil, providerID: p.provider, nativeDocument: doc)
             }
         }
-        guard Date() >= retryAfter else { if !cached.isEmpty { return cached }; throw URLError(.resourceUnavailable) }
         do {
             let online = try await provider.search(query)
             let keys = Set(online.map(\.key))
             return LyricsResultIdentity.deduplicate(online + cached.filter { !keys.contains($0.key) }, query: query, preferredKey: selectedKey)
         } catch {
-            retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60)
             if !cached.isEmpty { return cached }; throw error
         }
     }
@@ -48,13 +47,16 @@ actor LyricsService {
         if !query.altered && candidate.score(query) > 0 { document.timingTrusted = true }
         try? await store.select(document, id: id)
     }
-    func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?) {
-        guard let id = try? Self.identity(url) else { return ("", nil) }
+    func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?, LyricsLookupState) {
+        guard let id = try? Self.identity(url) else { return ("", nil, .unreadable) }
+        let signature = "lyrics-search-v2:" + [query.title, query.artist, query.album, String(query.duration)].joined(separator: "|")
         let entry = await store.read(id)
-        if let doc = await store.resolved(id), !force || entry.imported != nil { return (id, doc) }
-        if !force, let date = entry.checked, Date().timeIntervalSince(date) < 86400 { return (id, nil) }
-        if let task = requests[id] { return (id, await task.value) }
-        let task = Task<LyricsDocument?, Never> {
+        if let doc = await store.resolved(id), (!doc.lines.isEmpty || doc.instrumental), !force || entry.imported != nil { return (id, doc, .ready) }
+        // Ignore legacy negative entries and metadata changes. Never cache transport
+        // failures as missing lyrics; only a completed lookup can create a negative entry.
+        if !force, entry.lookupSignature == signature, let date = entry.checked, Date().timeIntervalSince(date) < 1800 { return (id, nil, .missing) }
+        if let task = requests[id] { let result = await task.value; return (id, result.0, result.1) }
+        let task = Task<(LyricsDocument?, LyricsLookupState), Never> {
             let asset = AVURLAsset(url: url)
             let metadata = asset.metadata + asset.availableMetadataFormats.flatMap { asset.metadata(forFormat: $0) }
             var q = query
@@ -64,25 +66,28 @@ actor LyricsService {
                 if ["lyrics", "uslt", "©lyr"].contains(where: { identifier.contains($0) }),
                    let value = item.stringValue, !value.isEmpty {
                     var doc = LyricsParser.parse(value, source: "Embedded")
+                    guard !doc.lines.isEmpty else { continue }
                     try? await self.store.cache(doc, id: id)
-                    doc.offset += entry.adjustment; return doc
+                    doc.offset += entry.adjustment; return (doc, .ready)
                 }
             }
-            guard Date() >= self.retryAfter else { return nil }
             do {
                 let results = try await self.provider.search(q)
                 for candidate in results.prefix(8) { try? await self.store.cache(candidate.document(q), id: id) }
                 let selected = results.first.flatMap { LyricsCandidateMatcher.score($0, q) >= 75 ? $0.document(q) : nil }
-                try? await self.store.cache(selected, id: id)
-                return await self.store.resolved(id)
+                try? await self.store.cache(selected, id: id, lookupSignature: signature)
+                let resolved = await self.store.resolved(id)
+                return (resolved, resolved == nil ? .missing : .ready)
             } catch {
-                self.retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60)
-                return await self.store.resolved(id)
+                // The manager already backs off individual failing providers. A
+                // global service cooldown would suppress healthy providers on other songs.
+                let resolved = await self.store.resolved(id)
+                return (resolved, resolved == nil ? .unavailable : .ready)
             }
         }
         requests[id] = task
         let result = await task.value; requests[id] = nil
-        return (id, result)
+        return (id, result.0, result.1)
     }
     func automatic(id: String) async { try? await store.select(nil, id: id) }
     func imported(_ doc: LyricsDocument?, id: String) async { try? await store.install(doc, id: id) }

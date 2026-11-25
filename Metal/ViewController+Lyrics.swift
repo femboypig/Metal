@@ -50,7 +50,7 @@ extension ViewController {
             let result = await LyricsService.shared.load(url: track.url, query: query, force: force)
             guard !Task.isCancelled, let self, self.lyricsGeneration == generation else { return }
             self.lyricsIdentity = result.0
-            self.lyricsView.display(result.1)
+            self.lyricsView.display(result.1, state: result.2)
             self.lyricsView.update(time: self.audioPlayer?.currentTime ?? 0)
         }
     }

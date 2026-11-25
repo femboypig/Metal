@@ -88,10 +88,36 @@ import Foundation
   let fallback = LyricsProviderManager(providers: [("Offline", OfflineLyricsProvider()), ("Fixture", TestLyricsProvider())])
   let fallbackResults = try await fallback.search(query)
   precondition(fallbackResults.count == 1)
+  let nullable = Data(#"[{"id":101,"trackName":"Song","artistName":"Artist","duration":null,"instrumental":false,"plainLyrics":"One","syncedLyrics":"[00:01]One"},{"id":102,"trackName":"Song","artistName":"Artist","duration":200,"instrumental":false,"plainLyrics":"Two","syncedLyrics":"[00:02]Two"},{"id":"broken","trackName":"Song"}]"#.utf8)
+  let tolerant = try LRCLIBProvider.candidates(nullable)
+  precondition(tolerant.count == 2 && tolerant[0].duration == 0 && tolerant[1].duration == 200,
+      "A nullable duration or one malformed record must not discard the whole search response")
+  precondition(!tolerant[0].document(query).synchronized && tolerant[1].document(query).synchronized)
+  let emptySync = Data(#"[{"id":103,"trackName":"Song","artistName":"Artist","duration":200,"plainLyrics":"Plain words","syncedLyrics":""}]"#.utf8)
+  let plainOnly = try LRCLIBProvider.candidates(emptySync)
+  precondition(plainOnly.first?.document(query).lines.first?.text == "Plain words")
+  let recoveryProvider = RecoveringLyricsProvider()
+  let recoveryDirectory = directory.appendingPathComponent("recovery")
+  let recovery = LyricsService(provider: recoveryProvider, directory: recoveryDirectory)
+  let failure = await recovery.load(url: renamed, query: query)
+  precondition(failure.1 == nil && failure.2 == .unavailable)
+  let failedEntry = await recovery.store.read(id)
+  precondition(failedEntry.checked == nil, "Network failures must never be stored as missing lyrics")
+  let recovered = await recovery.load(url: renamed, query: query, force: true)
+  precondition(recovered.1 != nil && recovered.2 == .ready, "Service-level cooldown must not suppress a healthy retry")
+  let legacyDirectory = directory.appendingPathComponent("legacy-negative")
+  let legacyStore = LyricsStore(directory: legacyDirectory)
+  try await legacyStore.cache(nil, id: id)
+  let legacyService = LyricsService(provider: TestLyricsProvider(), directory: legacyDirectory)
+  let retriedLegacy = await legacyService.load(url: renamed, query: query)
+  precondition(retriedLegacy.1 != nil, "Legacy negative cache must not hide newly available results")
   let config = URLSessionConfiguration.ephemeral
   config.protocolClasses = [LyricsFixtureProtocol.self]
   let session = URLSession(configuration: config)
   defer { session.invalidateAndCancel() }
+  let lrclibHTTP = try await LRCLIBProvider(session: session).search(query)
+  precondition(lrclibHTTP.count == 2 && lrclibHTTP[0].duration == 200,
+      "Nullable LRCLIB responses must survive the real provider request/decode/ranking path")
   let liriqo = try await LiriQoProvider(session: session).search(query)
   precondition(liriqo.count == 1)
   let native = liriqo[0].document(query)
@@ -182,7 +208,9 @@ final class LyricsFixtureProtocol: URLProtocol {
   let title = items.first { $0.name == "title" || $0.name == "s" }?.value
   let status = title == "Rate" ? 429 : title == "Locked" ? 401 : 200
   let payload: Data
-  if request.url?.host == "api.betterlyrics.org" {
+  if request.url?.host == "lrclib.net" {
+   payload = Data(#"[{"id":1,"trackName":"Song","artistName":"Artist","duration":null,"plainLyrics":"One","syncedLyrics":"[00:01]One"},{"id":2,"trackName":"Song","artistName":"Artist","duration":200,"plainLyrics":"Two","syncedLyrics":"[00:02]Two"}]"#.utf8)
+  } else if request.url?.host == "api.betterlyrics.org" {
    let xml = "<tt><body><p begin=\"1.25s\" end=\"3.75s\"><span begin=\"00:01.250\" end=\"00:02.000\">One</span></p></body></tt>"
    payload = try! JSONSerialization.data(withJSONObject: ["ttml": xml])
   } else { payload = Data(Self.liriqo.utf8) }
@@ -192,4 +220,13 @@ final class LyricsFixtureProtocol: URLProtocol {
   client?.urlProtocolDidFinishLoading(self)
  }
  override func stopLoading() { }
+}
+
+actor RecoveringLyricsProvider: LyricsProvider {
+ private var failed = false
+ func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+  if !failed { failed = true; throw URLError(.notConnectedToInternet) }
+  return [LyricsCandidate(id: 1, trackName: query.title, artistName: query.artist, duration: query.duration,
+      instrumental: false, plainLyrics: "One", syncedLyrics: "[00:01]One")]
+ }
 }

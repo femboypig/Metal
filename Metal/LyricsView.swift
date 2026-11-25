@@ -2,8 +2,8 @@ import UIKit
 
 final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     let table = UITableView(frame: .zero, style: .plain)
-    private let resume = LyricsFollowButton(type: .system)
-    let resumeMaterial = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
+    private let resume = LyricsFollowButton(type: .custom)
+    private var resumeVisible = false
     let message = UILabel()
     let actions = UIStackView()
     var document: LyricsDocument?
@@ -33,24 +33,22 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
             button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
             button.addTarget(self, action: action, for: .touchUpInside); actions.addArrangedSubview(button)
         }
-        var configuration = UIButton.Configuration.filled()
+        var configuration = UIButton.Configuration.plain()
         configuration.title = "Current line"
-        configuration.image = UIImage(systemName: "location.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
-        configuration.imagePadding = 7
-        configuration.baseForegroundColor = .label
-        configuration.baseBackgroundColor = .clear
-        configuration.cornerStyle = .capsule
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 9, leading: 15, bottom: 9, trailing: 15)
+        configuration.baseForegroundColor = .systemBackground
+        configuration.background.backgroundColor = .label
+        configuration.background.cornerRadius = 16
+        configuration.cornerStyle = .fixed
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 9, leading: 16, bottom: 9, trailing: 16)
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
-            var updated = attributes; updated.font = UIFont.systemFont(ofSize: 13, weight: .semibold); return updated
+            var updated = attributes
+            updated.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(for:
+                UIFont(name: "DrukWide-Bold", size: 10.5) ?? UIFont.systemFont(ofSize: 12, weight: .heavy), maximumPointSize: 16)
+            return updated
         }
         resume.configuration = configuration
-        resume.layer.shadowOpacity = 0.1; resume.layer.shadowRadius = 8
         resume.accessibilityLabel = "Return to current lyric line"
         resume.addTarget(self, action: #selector(resumeTapped), for: .touchUpInside)
-        resumeMaterial.isUserInteractionEnabled = false; resumeMaterial.clipsToBounds = true
-        resumeMaterial.layer.cornerRadius = 19; resumeMaterial.isHidden = true
-        addSubview(resumeMaterial)
         resume.isHidden = true; addSubview(resume)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -64,16 +62,21 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         message.frame = CGRect(x: 20, y: bounds.midY - 110, width: bounds.width - 40, height: 80)
         actions.frame = CGRect(x: 30, y: bounds.midY - 20, width: bounds.width - 60, height: 144)
         let width = min(bounds.width - 32, resume.sizeThatFits(CGSize(width: bounds.width, height: 40)).width)
-        resume.frame = CGRect(x: (bounds.width - width) / 2, y: bounds.height - 48, width: width, height: 38)
-        resumeMaterial.frame = resume.frame
+        let height = max(36, resume.sizeThatFits(CGSize(width: width, height: 60)).height)
+        resume.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        resume.center = CGPoint(x: bounds.midX, y: bounds.height - 10 - height / 2)
         if changed && !manual && !table.isDragging && !table.isDecelerating { center(animated: false) }
     }
-    func display(_ doc: LyricsDocument?, loading: Bool = false) {
+    func display(_ doc: LyricsDocument?, loading: Bool = false, state: LyricsLookupState = .missing) {
         table.setContentOffset(table.contentOffset, animated: false)
-        document = doc; syncEngine = doc.flatMap(LyricsSyncEngine.init); active = nil; manual = false; restoring = false; resume.isHidden = true; resumeMaterial.isHidden = true
+        document = doc; syncEngine = doc.flatMap(LyricsSyncEngine.init); active = nil; manual = false; restoring = false; resumeVisible = false; resume.layer.removeAllAnimations(); resume.alpha = 1; resume.transform = .identity; resume.isHidden = true
         let empty = doc?.lines.isEmpty ?? true
         table.isHidden = empty; message.isHidden = !empty; actions.isHidden = !empty || loading
-        message.text = loading ? "Finding lyrics…" : (doc?.instrumental == true ? "Instrumental" : "No lyrics found.")
+        if loading { message.text = "Finding lyrics…" }
+        else if doc?.instrumental == true { message.text = "Instrumental" }
+        else if state == .unavailable { message.text = "Lyrics unavailable.\nTry again shortly." }
+        else if state == .unreadable { message.text = "Audio file unavailable." }
+        else { message.text = "No lyrics found." }
         table.reloadData(); table.setContentOffset(CGPoint(x: 0, y: -table.adjustedContentInset.top), animated: false)
     }
     func update(time: Double) {
@@ -115,8 +118,25 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
             let row = table.rectForRow(at: IndexPath(row: active, section: 0))
             away = LyricsFollowPolicy.awayFromCurrent(distance: Double(row.midY - (table.contentOffset.y + table.bounds.midY)), viewport: Double(table.bounds.height))
         } else { away = false }
-        resume.isHidden = !(manual && away && document?.synchronized == true)
-        resumeMaterial.isHidden = resume.isHidden
+        setResumeVisible(manual && away && document?.synchronized == true)
+    }
+    private func setResumeVisible(_ visible: Bool) {
+        guard visible != resumeVisible else { return }
+        resumeVisible = visible
+        if visible {
+            resume.isHidden = false
+            resume.alpha = 0
+            resume.transform = UIAccessibility.isReduceMotionEnabled ? .identity : CGAffineTransform(translationX: 0, y: 4)
+        }
+        let changes = {
+            self.resume.alpha = visible ? 1 : 0
+            self.resume.transform = visible || UIAccessibility.isReduceMotionEnabled ? .identity : CGAffineTransform(translationX: 0, y: 4)
+        }
+        let completion: (Bool) -> Void = { _ in
+            if !self.resumeVisible { self.resume.isHidden = true }
+        }
+        if UIAccessibility.isReduceMotionEnabled { changes(); completion(true) }
+        else { UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction], animations: changes, completion: completion) }
     }
     func scrollViewDidScroll(_ scrollView: UIScrollView) { if manual { updateResume() } }
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate: Bool) {
@@ -125,7 +145,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { finishBrowsingGesture() }
     func finishBrowsingGesture() {
         updateResume()
-        if !LyricsFollowPolicy.intentionallyMoved(Double(table.contentOffset.y - dragStartY)) || (active != nil && resume.isHidden) { manual = false }
+        if !LyricsFollowPolicy.intentionallyMoved(Double(table.contentOffset.y - dragStartY)) || (active != nil && !resumeVisible) { manual = false }
         if !manual { center(animated: !UIAccessibility.isReduceMotionEnabled) }
         updateResume()
     }

@@ -97,6 +97,29 @@ struct LyricsCandidate: Codable {
 struct LyricsHTTPError: Error { var retryAfter: Double }
 protocol LyricsProvider { func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] }
 struct LRCLIBProvider: LyricsProvider {
+    var session: URLSession = .shared
+    // Missing durations occur in real LRCLIB search results. A single incomplete
+    // record must not invalidate every other lyric in the response.
+    private struct Record: Decodable {
+        var id: Int; var trackName: String; var artistName: String; var albumName: String?
+        var duration: Double?; var instrumental: Bool?; var plainLyrics: String?; var syncedLyrics: String?
+    }
+    private struct SearchRecord: Decodable {
+        var value: Record?
+        init(from decoder: Decoder) throws { value = try? Record(from: decoder) }
+    }
+    static func candidates(_ data: Data) throws -> [LyricsCandidate] {
+        let records = try JSONDecoder().decode([SearchRecord].self, from: data)
+        guard records.isEmpty || records.contains(where: { $0.value != nil }) else { throw URLError(.cannotParseResponse) }
+        return records.compactMap { item in
+            guard let record = item.value, !record.trackName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  record.instrumental == true || !(record.syncedLyrics ?? "").isEmpty || !(record.plainLyrics ?? "").isEmpty else { return nil }
+            return LyricsCandidate(id: record.id, trackName: record.trackName, artistName: record.artistName,
+                albumName: record.albumName, duration: record.duration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 0,
+                instrumental: record.instrumental ?? false, plainLyrics: record.plainLyrics,
+                syncedLyrics: record.syncedLyrics?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? record.syncedLyrics : nil)
+        }
+    }
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
         let exact = try await request(q, title: q.title, album: q.album)
         if !exact.isEmpty { return exact }
@@ -113,14 +136,14 @@ struct LRCLIBProvider: LyricsProvider {
         if !album.isEmpty { components.queryItems?.append(URLQueryItem(name: "album_name", value: album)) }
         var request = URLRequest(url: components.url!, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         guard http.statusCode == 200 else { throw LyricsHTTPError(retryAfter: max(60, Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60)) }
-        return try JSONDecoder().decode([LyricsCandidate].self, from: data).sorted { $0.score(q) > $1.score(q) }
+        return try Self.candidates(data).sorted { $0.score(q) > $1.score(q) }
     }
 }
 actor LyricsStore {
-    struct Entry: Codable { var cached: LyricsDocument?; var imported: LyricsDocument?; var checked: Date?; var adjustment: Double = 0; var results: [String: LyricsDocument]?; var selected: String?; var offsets: [String: Double]? }
+    struct Entry: Codable { var cached: LyricsDocument?; var imported: LyricsDocument?; var checked: Date?; var adjustment: Double = 0; var results: [String: LyricsDocument]?; var selected: String?; var offsets: [String: Double]?; var lookupSignature: String? }
     let directory: URL
     init(directory: URL) { self.directory = directory; try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
     func read(_ id: String) -> Entry {
@@ -132,7 +155,7 @@ actor LyricsStore {
         }
         return entry
     }
-    func cache(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.cached = doc; if let doc, let key = doc.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = doc }; entry.checked = Date(); try write(entry, id: id) }
+    func cache(_ doc: LyricsDocument?, id: String, lookupSignature: String? = nil) throws { var entry = read(id); entry.cached = doc; if let doc, let key = doc.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = doc }; entry.checked = Date(); entry.lookupSignature = lookupSignature; try write(entry, id: id) }
     func install(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.imported = doc; try write(entry, id: id) }
     func adjust(_ value: Double, id: String, sourceKey: String? = nil) throws { var entry = read(id); let key = sourceKey ?? entry.imported?.resultKey ?? entry.imported.map { _ in "imported" } ?? entry.selected ?? entry.cached?.resultKey ?? "legacy"
         if entry.offsets == nil { entry.offsets = [:] }; entry.offsets?[key] = value
