@@ -4,8 +4,11 @@ import CryptoKit
 
 actor LyricsService {
     static let shared = LyricsService()
-    let store = LyricsStore(directory: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MetalLyrics"))
-    let provider: any LyricsProvider = LRCLIBProvider()
+    let store: LyricsStore
+    let provider: any LyricsProvider
+    init(provider: any LyricsProvider = LRCLIBProvider(), directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MetalLyrics")) {
+        self.provider = provider; self.store = LyricsStore(directory: directory)
+    }
     var requests: [String: Task<LyricsDocument?, Never>] = [:]
     var retryAfter = Date.distantPast
     static func identity(_ url: URL) throws -> String {
@@ -31,11 +34,12 @@ actor LyricsService {
         if let task = requests[id] { return (id, await task.value) }
         let task = Task<LyricsDocument?, Never> {
             let asset = AVURLAsset(url: url)
-            let metadata = asset.metadata
+            let metadata = asset.metadata + asset.availableMetadataFormats.flatMap { asset.metadata(forFormat: $0) }
             var q = query
             for item in metadata {
                 if item.commonKey == .commonKeyAlbumName, let value = item.stringValue { q.album = value }
-                if item.identifier?.rawValue.lowercased().contains("lyrics") == true,
+                let identifier = item.identifier?.rawValue.lowercased() ?? ""
+                if ["lyrics", "uslt", "©lyr"].contains(where: { identifier.contains($0) }),
                    let value = item.stringValue, !value.isEmpty {
                     var doc = LyricsParser.parse(value, source: "Embedded")
                     try? await self.store.cache(doc, id: id)

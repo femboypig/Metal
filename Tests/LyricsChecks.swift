@@ -29,6 +29,43 @@ import Foundation
   try await reopened.install(nil, id: "track")
   let removed = await reopened.read("track")
   precondition(removed.imported == nil && removed.cached != nil)
+  let audio = directory.appendingPathComponent("original.dat")
+  try Data("fingerprint fixture".utf8).write(to: audio)
+  let provider = TestLyricsProvider()
+  let service = LyricsService(provider: provider, directory: directory.appendingPathComponent("cache"))
+  let query = LyricsQuery(title: "Song", artist: "Artist", album: "", duration: 200)
+  async let first = service.load(url: audio, query: query)
+  async let second = service.load(url: audio, query: query)
+  let id = await service.identifier(url: audio)
+  try await Task.sleep(nanoseconds: 30_000_000)
+  await service.imported(plain, id: id)
+  let responses = await (first, second)
+  precondition(responses.0.1?.source == "Imported" && responses.1.1?.source == "Imported")
+  let count = await provider.calls
+  precondition(count == 1, "Concurrent requests must be coalesced; late results cannot replace an import")
+  let renamed = directory.appendingPathComponent("renamed.dat")
+  try FileManager.default.moveItem(at: audio, to: renamed)
+  let renamedID = await service.identifier(url: renamed)
+  precondition(id == renamedID, "Renaming must preserve imported lyrics")
+  let offline = LyricsService(provider: OfflineLyricsProvider(), directory: directory.appendingPathComponent("cache"))
+  let cached = await offline.load(url: renamed, query: query)
+  precondition(cached.1?.source == "Imported")
+  await offline.imported(nil, id: id)
+  let cachedOnline = await offline.load(url: renamed, query: query)
+  precondition(cachedOnline.1?.synchronized == true, "Removing an import must retain the offline provider cache")
   print("Lyrics parser, offsets, seeking, malformed input, plain text, version safety and serialization passed")
  }
+}
+
+actor TestLyricsProvider: LyricsProvider {
+ var calls = 0
+ func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+  calls += 1
+  try await Task.sleep(nanoseconds: 150_000_000)
+  return [LyricsCandidate(id: 1, trackName: query.title, artistName: query.artist, duration: query.duration,
+      instrumental: false, plainLyrics: "Text", syncedLyrics: "[00:01]Text")]
+ }
+}
+struct OfflineLyricsProvider: LyricsProvider {
+ func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { throw URLError(.notConnectedToInternet) }
 }
