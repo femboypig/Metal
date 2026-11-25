@@ -107,29 +107,70 @@ extension ViewController {
     }
     func chooseLyricsVersion() {
         guard let track = currentPlaybackTrack() else { return }
-        setLyricsVisible(true)
+        if !lyricsVisible { setLyricsVisible(true) }
         Task {
-            let query = lyricsQuery(for: track)
-            do {
-                let id = await LyricsService.shared.identifier(url: track.url)
-                let results = try await LyricsService.shared.alternatives(query, id: id)
-                guard currentPlaybackTrack()?.url == track.url else { return }
-                let alert = UIAlertController(title: "Lyrics Source", message: "Current: \(lyricsView.document?.source ?? "Automatic"). Confirm the recording before enabling timing. Imports take precedence. Texts are saved offline.", preferredStyle: .actionSheet)
+            let catalog = await LyricsService.shared.sourceCatalog(url: track.url, query: lyricsQuery(for: track))
+            guard currentPlaybackTrack()?.url == track.url else { return }
+            let (id, query, results, attempts) = catalog
+            let entry = await LyricsService.shared.store.read(id)
+            var details = ["\(query.searchTitle) — \(query.searchArtist)"]
+            details += attempts.map { "\($0.name): \($0.summary)" }
+            if results.isEmpty { details.append("No versions available. Retry or correct the search below.") }
+            let alert = UIAlertController(title: "Lyrics Source", message: details.joined(separator: "\n"), preferredStyle: .actionSheet)
+            if !results.isEmpty || entry.selected != nil {
                 alert.addAction(UIAlertAction(title: "Automatic", style: .default) { [weak self] _ in
-                    Task { await LyricsService.shared.automatic(id: id); self?.lyricsTrackURL = nil; self?.loadLyrics() }
+                    Task {
+                        await LyricsService.shared.automatic(id: id)
+                        guard self?.currentPlaybackTrack()?.url == track.url else { return }
+                        self?.lyricsTrackURL = nil; self?.loadLyrics(force: true)
+                    }
                 })
-                for candidate in results.prefix(20) {
-                    alert.addAction(UIAlertAction(title: "\(candidate.providerID ?? "LRCLIB") — \(candidate.nativeDocument?.synchronizationLevel ?? candidate.document(query).synchronizationLevel) · \(candidate.trackName)", style: .default) { [weak self] _ in
-                        Task { await LyricsService.shared.choose(candidate, query: query, id: id)
-                            if self?.currentPlaybackTrack()?.url == track.url { self?.lyricsTrackURL = nil; self?.loadLyrics() }
-                        }
-                    })
-                }
-                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-                alert.popoverPresentationController?.sourceView = playerOptionsButton
-                present(alert, animated: true)
-            } catch { showToast(message: "Lyrics search is unavailable. Try again later.", success: false) }
+            }
+            for candidate in results.prefix(20) {
+                let document = candidate.document(query)
+                let title = "\(candidate.providerID ?? "LRCLIB") · \(document.synchronizationLevel) — \(candidate.trackName), \(candidate.artistName)"
+                alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+                    Task {
+                        await LyricsService.shared.choose(candidate, query: query, id: id)
+                        if self?.currentPlaybackTrack()?.url == track.url { self?.lyricsTrackURL = nil; self?.loadLyrics() }
+                    }
+                })
+            }
+            alert.addAction(UIAlertAction(title: "Search Again", style: .default) { [weak self] _ in
+                guard self?.currentPlaybackTrack()?.url == track.url else { return }
+                self?.loadLyrics(force: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.chooseLyricsVersion() }
+            })
+            alert.addAction(UIAlertAction(title: "Edit Search", style: .default) { [weak self] _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.editLyricsSearch(track: track, id: id, query: query) }
+            })
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            alert.popoverPresentationController?.sourceView = playerOptionsButton
+            present(alert, animated: true)
         }
+    }
+    func editLyricsSearch(track: Track, id: String, query: LyricsQuery) {
+        guard currentPlaybackTrack()?.url == track.url else { return }
+        let alert = UIAlertController(title: "Search Lyrics", message: "Song title and artist. Your audio file stays unchanged.", preferredStyle: .alert)
+        alert.addTextField { $0.placeholder = "Song title"; $0.text = query.searchTitle; $0.autocorrectionType = .no }
+        alert.addTextField { $0.placeholder = "Artist"; $0.text = query.hasArtist ? query.artist : ""; $0.autocorrectionType = .no }
+        let apply: (LyricsSearchMetadata?) -> Void = { [weak self] metadata in
+            Task {
+                await LyricsService.shared.updateSearch(metadata, id: id)
+                await LyricsService.shared.automatic(id: id)
+                guard self?.currentPlaybackTrack()?.url == track.url else { return }
+                self?.lyricsTrackURL = nil; self?.loadLyrics(force: true)
+            }
+        }
+        alert.addAction(UIAlertAction(title: "Search", style: .default) { [weak alert] _ in
+            let title = alert?.textFields?[0].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let artist = alert?.textFields?[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !title.isEmpty, !artist.isEmpty else { return }
+            apply(LyricsSearchMetadata(title: title, artist: artist))
+        })
+        alert.addAction(UIAlertAction(title: "Use File Metadata", style: .default) { _ in apply(nil) })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
     }
     func adjustLyrics() {
         guard !lyricsIdentity.isEmpty else { return }

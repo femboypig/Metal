@@ -56,6 +56,8 @@ enum LyricsParser {
 }
 struct LyricsQuery: Sendable {
     var title: String; var artist: String; var album: String; var duration: Double
+    var cacheKey: String { [title, artist, album, String(duration)].joined(separator: "\n") }
+    var hasArtist: Bool { !Self.normalized(artist).isEmpty && Self.normalized(artist) != "unknown artist" }
     var searchArtist: String {
         if Self.normalized(artist) == "unknown artist", title.contains(" - ") { return title.components(separatedBy: " - ")[0] }
         return artist
@@ -88,7 +90,14 @@ struct LyricsCandidate: Codable {
     var key: String { nativeDocument?.resultKey ?? "\(providerID ?? "LRCLIB"):\(id):\(nativeDocument?.format ?? "lrc")" }
     static func artists(_ text: String) -> Set<String> { Set(text.components(separatedBy: CharacterSet(charactersIn: ",&、")).map { LyricsQuery.normalized($0) }.filter { !$0.isEmpty }) }
     func matchesMetadata(_ q: LyricsQuery) -> Bool {
-        [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.searchTitle), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)) && Self.artists(artistName) == Self.artists(q.searchArtist)
+        if !q.hasArtist {
+            // Untagged filenames occur in both orders. Require the full artist/title
+            // pair rather than assuming the first component is always the artist.
+            let filenames = Set([LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.searchArtist + " " + q.lookupTitle)])
+            return !trackName.isEmpty && !artistName.isEmpty &&
+                (filenames.contains(LyricsQuery.normalized(trackName + " " + artistName)) || filenames.contains(LyricsQuery.normalized(artistName + " " + trackName)))
+        }
+        return [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.searchTitle), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)) && Self.artists(artistName) == Self.artists(q.searchArtist)
     }
     func score(_ q: LyricsQuery) -> Double {
         guard matchesMetadata(q) else { return 0 }
@@ -106,7 +115,7 @@ struct LyricsCandidate: Codable {
         return doc
     }
 }
-struct LyricsHTTPError: Error { var retryAfter: Double }
+struct LyricsHTTPError: Error { var retryAfter: Double; var statusCode: Int? = nil }
 protocol LyricsProvider { func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] }
 struct LRCLIBProvider: LyricsProvider {
     var session: URLSession = .shared
@@ -133,6 +142,7 @@ struct LRCLIBProvider: LyricsProvider {
         }
     }
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
+        if !q.hasArtist { return try await request(q, title: q.searchArtist + " " + q.lookupTitle, album: "", freeform: true) }
         var results: [LyricsCandidate] = [], searched: Set<String> = []
         for (title, album) in [(q.title, q.album), (q.searchTitle, ""), (q.lookupTitle, "")] {
             guard searched.insert(title + "\n" + album).inserted else { continue }
@@ -141,22 +151,28 @@ struct LRCLIBProvider: LyricsProvider {
             results += found.filter { !existing.contains($0.key) }
             if found.contains(where: { $0.matchesMetadata(q) }) { break }
         }
+        if !results.contains(where: { $0.matchesMetadata(q) }) {
+            let found = try await request(q, title: q.searchTitle + " " + q.searchArtist, album: "", freeform: true)
+            let existing = Set(results.map(\.key)); results += found.filter { !existing.contains($0.key) }
+        }
         return results.sorted { LyricsCandidateMatcher.score($0, q) > LyricsCandidateMatcher.score($1, q) }
     }
-    private func request(_ q: LyricsQuery, title: String, album: String) async throws -> [LyricsCandidate] {
+    private func request(_ q: LyricsQuery, title: String, album: String, freeform: Bool = false) async throws -> [LyricsCandidate] {
         var components = URLComponents(string: "https://lrclib.net/api/search")!
-        components.queryItems = [URLQueryItem(name: "track_name", value: title), URLQueryItem(name: "artist_name", value: q.searchArtist)]
+        components.queryItems = freeform ? [URLQueryItem(name: "q", value: title)] : [URLQueryItem(name: "track_name", value: title), URLQueryItem(name: "artist_name", value: q.searchArtist)]
         if !album.isEmpty { components.queryItems?.append(URLQueryItem(name: "album_name", value: album)) }
         var request = URLRequest(url: components.url!, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        guard http.statusCode == 200 else { throw LyricsHTTPError(retryAfter: max(60, Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60)) }
+        guard http.statusCode == 200 else { throw LyricsHTTPError(retryAfter: max(60, Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60), statusCode: http.statusCode) }
         return try Self.candidates(data).sorted { $0.score(q) > $1.score(q) }
     }
 }
+struct LyricsSearchMetadata: Codable { var title: String; var artist: String }
+
 actor LyricsStore {
-    struct Entry: Codable { var cached: LyricsDocument?; var imported: LyricsDocument?; var checked: Date?; var adjustment: Double = 0; var results: [String: LyricsDocument]?; var selected: String?; var offsets: [String: Double]?; var lookupSignature: String? }
+    struct Entry: Codable { var cached: LyricsDocument?; var imported: LyricsDocument?; var checked: Date?; var adjustment: Double = 0; var results: [String: LyricsDocument]?; var selected: String?; var offsets: [String: Double]?; var lookupSignature: String?; var searchOverride: LyricsSearchMetadata? }
     let directory: URL
     init(directory: URL) { self.directory = directory; try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
     func read(_ id: String) -> Entry {
@@ -169,6 +185,10 @@ actor LyricsStore {
         return entry
     }
     func cache(_ doc: LyricsDocument?, id: String, lookupSignature: String? = nil) throws { var entry = read(id); entry.cached = doc; if let doc, let key = doc.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = doc }; entry.checked = Date(); entry.lookupSignature = lookupSignature; try write(entry, id: id) }
+    func searchMetadata(_ metadata: LyricsSearchMetadata?, id: String) throws {
+        var entry = read(id); entry.searchOverride = metadata; entry.checked = nil; entry.lookupSignature = nil
+        try write(entry, id: id)
+    }
     func install(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.imported = doc; try write(entry, id: id) }
     func adjust(_ value: Double, id: String, sourceKey: String? = nil) throws { var entry = read(id); let key = sourceKey ?? entry.imported?.resultKey ?? entry.imported.map { _ in "imported" } ?? entry.selected ?? entry.cached?.resultKey ?? "legacy"
         if entry.offsets == nil { entry.offsets = [:] }; entry.offsets?[key] = value

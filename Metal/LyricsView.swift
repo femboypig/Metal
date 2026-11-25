@@ -6,7 +6,6 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     private var resumeVisible = false
     let message = UILabel()
     let actions = UIStackView()
-    private let secondaryActions = UIStackView()
     var document: LyricsDocument?
     var syncEngine: LyricsSyncEngine?
     var active: Int?
@@ -31,10 +30,6 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         actions.axis = .vertical; actions.alignment = .center; actions.spacing = 10
         addSubview(actions)
         actions.addArrangedSubview(emptyStateButton("Search Again", action: #selector(searchTapped), primary: true))
-        secondaryActions.axis = .horizontal; secondaryActions.spacing = 8; secondaryActions.alignment = .center
-        secondaryActions.addArrangedSubview(emptyStateButton("Import Lyrics", action: #selector(importTapped)))
-        secondaryActions.addArrangedSubview(emptyStateButton("Paste Lyrics", action: #selector(pasteTapped)))
-        actions.addArrangedSubview(secondaryActions)
         var configuration = UIButton.Configuration.plain()
         configuration.title = "Current line"
         configuration.baseForegroundColor = .systemBackground
@@ -81,8 +76,6 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
             table.contentInset = UIEdgeInsets(top: bounds.height * 0.5, left: 0, bottom: bounds.height * 0.5, right: 0)
         }
         let available = max(1, bounds.width - 40)
-        let secondaryWidth = secondaryActions.arrangedSubviews.reduce(CGFloat(8)) { $0 + $1.intrinsicContentSize.width }
-        secondaryActions.axis = secondaryWidth > available ? .vertical : .horizontal
         let messageHeight = message.sizeThatFits(CGSize(width: available, height: .greatestFiniteMagnitude)).height
         let actionHeight = actions.isHidden ? 0 : actions.systemLayoutSizeFitting(CGSize(width: available, height: 0), withHorizontalFittingPriority: .fittingSizeLevel, verticalFittingPriority: .fittingSizeLevel).height
         let gap: CGFloat = actions.isHidden ? 0 : 20

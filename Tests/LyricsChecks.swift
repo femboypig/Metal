@@ -155,8 +155,10 @@ import Foundation
   precondition(!better[0].document(query).synchronized, "Metadata-free TTML needs recording confirmation")
   precondition(better[0].nativeDocument?.lines[0].words?.first?.start == 1.25)
   let locked = LyricsQuery(title: "Locked", artist: "Artist", album: "", duration: 200)
-  let unavailable = try await BetterLyricsProvider(session: session).search(locked)
-  precondition(unavailable.isEmpty, "An unauthorized cache miss must not trigger private authentication")
+  do {
+   _ = try await BetterLyricsProvider(session: session).search(locked)
+   preconditionFailure("A cache miss must remain distinguishable from a catalog with no lyrics")
+  } catch let error as LyricsHTTPError { precondition(error.statusCode == 401) }
   do {
    _ = try await LiriQoProvider(session: session).search(LyricsQuery(title: "Rate", artist: "Artist", album: "", duration: 200))
    preconditionFailure("Rate limiting must propagate backoff")
@@ -200,6 +202,32 @@ import Foundation
   _ = try await (sharedFirst, sharedSecond)
   let sharedCalls = await sharedProvider.calls
   precondition(sharedCalls == 1, "Provider searches for the same recording must be coalesced")
+  let thirdProvider = TestLyricsProvider()
+  let fourthProvider = TestLyricsProvider()
+  let allSources = LyricsProviderManager(providers: [("Rejected", OfflineLyricsProvider()), ("Empty", EmptyLyricsProvider()), ("Third", thirdProvider), ("Fourth", fourthProvider)])
+  _ = try await allSources.search(query)
+  let allAttempts = await allSources.report(query)
+  precondition(allAttempts.map(\.name) == ["Rejected", "Empty", "Third", "Fourth"])
+  precondition(allAttempts[0].failed && allAttempts[2].matchCount > 0 && allAttempts[3].matchCount > 0,
+      "An empty or rejected provider must never prevent later providers from running")
+  let cacheOnly = PublicCacheFixtureProvider()
+  let cacheFallback = LyricsProviderManager(providers: [("Better Lyrics", cacheOnly), ("Fallback", TestLyricsProvider())])
+  _ = try await cacheFallback.search(LyricsQuery(title: "Missing", artist: "Artist", album: "", duration: 200))
+  _ = try await cacheFallback.search(query)
+  let cacheCalls = await cacheOnly.calls
+  precondition(cacheCalls == 2, "One public cache miss must not suppress another song")
+  for title in ["Artist - Song", "Song - Artist"] {
+   let filename = LyricsQuery(title: title, artist: "Unknown Artist", album: "", duration: 200)
+   let untitledService = LyricsService(provider: LRCLIBProvider(session: session), directory: directory.appendingPathComponent(UUID().uuidString))
+   let result = await untitledService.load(url: renamed, query: filename)
+   precondition(result.2 == .ready && result.1?.lines.isEmpty == false, "Both filename orders must reach displayable lyrics")
+  }
+  let searchDirectory = directory.appendingPathComponent("search-override")
+  let editable = LyricsService(provider: TestLyricsProvider(), directory: searchDirectory)
+  await editable.updateSearch(LyricsSearchMetadata(title: "Song", artist: "Artist"), id: id)
+  let reopenedSearch = LyricsService(provider: TestLyricsProvider(), directory: searchDirectory)
+  let repaired = await reopenedSearch.load(url: renamed, query: LyricsQuery(title: "wrong filename", artist: "Unknown Artist", album: "", duration: 200))
+  precondition(repaired.1?.provenance?.title == "Song" && repaired.2 == .ready)
   precondition(!LyricsFollowPolicy.intentionallyMoved(5) && LyricsFollowPolicy.intentionallyMoved(40))
   precondition(!LyricsFollowPolicy.awayFromCurrent(distance: 10, viewport: 300))
   precondition(LyricsFollowPolicy.awayFromCurrent(distance: 100, viewport: 300))
@@ -211,6 +239,20 @@ import Foundation
    let query = LyricsQuery(title: title, artist: artist, album: "", duration: duration)
    let candidates = try await LRCLIBProvider().search(query)
    precondition(candidates.contains { $0.matchesMetadata(query) }, "Live LRCLIB metadata match missing")
+   let onlineManager = LyricsProviderManager()
+   let onlinePath = directory.appendingPathComponent("all-providers-" + title)
+   try Data(("provider file " + title).utf8).write(to: onlinePath)
+   let onlineService = LyricsService(provider: onlineManager, directory: directory.appendingPathComponent(UUID().uuidString))
+   let live = await onlineService.load(url: onlinePath, query: query)
+   precondition(live.2 == .ready && live.1?.lines.isEmpty == false, "All-provider pipeline failed despite available lyrics")
+   let catalog = await onlineService.sourceCatalog(url: onlinePath, query: query)
+   precondition(!catalog.2.isEmpty && catalog.3.count == 4, "Source selection must contain real choices and all provider attempts")
+   for attempt in catalog.3 { print("Live provider: \(title), \(attempt.name), \(attempt.summary), HTTP \(attempt.statusCode ?? 200)") }
+   for filename in [artist + " - " + title, title + " - " + artist] {
+    let fileQuery = LyricsQuery(title: filename, artist: "Unknown Artist", album: "", duration: duration)
+    let fileResults = try await LRCLIBProvider().search(fileQuery)
+    precondition(LyricsCandidateMatcher.best(fileResults, query: fileQuery)?.lines.isEmpty == false, "Live filename search failed")
+   }
    for localDuration in [0.0, duration, duration + 10000] {
     let path = directory.appendingPathComponent("live-\(title)-\(localDuration)")
     try Data("local fixture \(title) \(localDuration)".utf8).write(to: path)
@@ -257,7 +299,10 @@ final class LyricsFixtureProtocol: URLProtocol {
   } else if request.url?.host == "api.betterlyrics.org" {
    let xml = "<tt><body><p begin=\"1.25s\" end=\"3.75s\"><span begin=\"00:01.250\" end=\"00:02.000\">One</span></p></body></tt>"
    payload = try! JSONSerialization.data(withJSONObject: ["ttml": xml])
-  } else { payload = Data(Self.liriqo.utf8) }
+  } else {
+   precondition(!items.contains { $0.name == "album" && ($0.value ?? "").isEmpty }, "Unknown album must be omitted from LiriQo requests")
+   payload = Data(Self.liriqo.utf8)
+  }
   let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Retry-After": "123"])!
   client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
   client?.urlProtocol(self, didLoad: payload)
@@ -279,3 +324,14 @@ struct FixedLyricsProvider: LyricsProvider {
  var candidates: [LyricsCandidate]
  func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { candidates }
 }
+
+struct EmptyLyricsProvider: LyricsProvider {
+ func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { [] }
+}
+actor PublicCacheFixtureProvider: LyricsProvider {
+ var calls = 0
+ func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+  calls += 1
+  if query.title == "Missing" { throw LyricsHTTPError(retryAfter: 60, statusCode: 401) }
+  return [LyricsCandidate(id: 9, trackName: query.title, artistName: query.artist, duration: query.duration, instrumental: false, plainLyrics: "One", syncedLyrics: "[00:01]One")]
+ }

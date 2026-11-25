@@ -10,7 +10,7 @@ struct AMLLProvider: LyricsProvider {
         var request = URLRequest(url: url.url!, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw LyricsHTTPError(retryAfter: 60) }
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw LyricsHTTPError(retryAfter: 60, statusCode: (response as? HTTPURLResponse)?.statusCode) }
         return data
     }
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
@@ -42,7 +42,7 @@ struct BetterLyricsProvider: LyricsProvider {
         let data = try await LyricsProviderHTTP.get("https://api.betterlyrics.org/getLyrics", items: [
             URLQueryItem(name: "s", value: query.searchTitle), URLQueryItem(name: "a", value: query.searchArtist),
             URLQueryItem(name: "al", value: query.album), URLQueryItem(name: "d", value: String(Int(max(0, query.duration).rounded())))
-        ], session: session, unavailable: [401, 404])
+        ], session: session, unavailable: [404])
         guard let data else { return [] }
         return try Self.candidates(data, query: query)
     }
@@ -63,18 +63,30 @@ struct BetterLyricsProvider: LyricsProvider {
 
 struct LiriQoProvider: LyricsProvider {
     var session: URLSession = .shared
-    struct Metadata: Decodable { var title: String?; var artist: String?; var album: String?; var duration: Double? }
+    struct Duration: Decodable {
+        var seconds: Double?
+        init(from decoder: Decoder) throws {
+            let value = try decoder.singleValueContainer()
+            if let number = try? value.decode(Double.self) { seconds = number.isFinite && number > 0 ? number : nil }
+            else if let text = try? value.decode(String.self) { seconds = LyricsFormats.time(text) }
+        }
+    }
+    struct Metadata: Decodable { var title: String?; var artist: String?; var album: String?; var duration: Duration? }
     struct Word: Decodable { var text: String; var start: Double; var end: Double? }
     struct Line: Decodable {
         var text: String; var start: Double?; var end: Double?; var words: [Word]?
         var isInstrumental: Bool?
     }
     struct Track: Decodable {
-        var provider: String; var title: String?; var artist: String?; var album: String?; var duration: Double?
+        var provider: String; var title: String?; var artist: String?; var album: String?; var duration: Duration?
         var upstreamProvider: String?; var lyricsSource: String?; var plain: String?; var timed: [Line]?
         var nativeWordTiming: Bool?; var syncLevel: String?
     }
-    struct Response: Decodable { var metadata: Metadata?; var tracks: [Track]?; var error: String? }
+    struct TrackEntry: Decodable {
+        var track: Track?
+        init(from decoder: Decoder) throws { track = try? Track(from: decoder) }
+    }
+    struct Response: Decodable { var metadata: Metadata?; var tracks: [TrackEntry]?; var error: String? }
     func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         let exact = try await request(query)
         guard exact.isEmpty, query.lookupTitle != query.searchTitle else { return exact }
@@ -82,17 +94,19 @@ struct LiriQoProvider: LyricsProvider {
         return try await request(normalized)
     }
     private func request(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
-        let data = try await LyricsProviderHTTP.get("https://api.liriqo-alfarrizi.my.id/v1/lyrics", items: [
-            URLQueryItem(name: "title", value: query.searchTitle), URLQueryItem(name: "artist", value: query.searchArtist),
-            URLQueryItem(name: "album", value: query.album), URLQueryItem(name: "duration", value: String(query.duration))
-        ], session: session, unavailable: [404])
+        var items = [URLQueryItem(name: "title", value: query.searchTitle), URLQueryItem(name: "artist", value: query.searchArtist)]
+        if !query.album.isEmpty { items.append(URLQueryItem(name: "album", value: query.album)) }
+        if query.duration > 0 { items.append(URLQueryItem(name: "duration", value: String(query.duration))) }
+        let data = try await LyricsProviderHTTP.get("https://api.liriqo-alfarrizi.my.id/v1/lyrics", items: items, session: session, unavailable: [404])
         guard let data else { return [] }
         return try Self.candidates(data, query: query)
     }
     static func candidates(_ data: Data, query: LyricsQuery) throws -> [LyricsCandidate] {
         let response = try JSONDecoder().decode(Response.self, from: data)
         guard response.error == nil, let tracks = response.tracks else { throw URLError(.badServerResponse) }
-        return tracks.compactMap { track in
+        guard tracks.isEmpty || tracks.contains(where: { $0.track != nil }) else { throw URLError(.cannotParseResponse) }
+        return tracks.compactMap { entry in
+            guard let track = entry.track else { return nil }
             // Metadata belongs to the returned recording, never copied from the local query.
             guard let title = track.title ?? response.metadata?.title,
                   let artist = track.artist ?? response.metadata?.artist else { return nil }
@@ -115,7 +129,7 @@ struct LiriQoProvider: LyricsProvider {
             let source = track.upstreamProvider ?? track.provider
             var doc = LyricsDocument(lines: lines, source: "LiriQo · " + source, format: "liriqo-json")
             doc.attribution = "https://github.com/AlFarrizi-Studio/LiriQo — " + source + (track.lyricsSource.map { " / " + $0 } ?? "")
-            let duration = track.duration ?? 0 // envelope duration may be only a metadata lookup, not this provider's recording
+            let duration = track.duration?.seconds ?? 0 // envelope duration may be only a metadata lookup, not this provider's recording
             let identity = [track.provider, title, artist, track.album ?? "", String(duration), LyricsResultIdentity.content(doc)].joined(separator: "\n")
             doc.resultKey = "LiriQo:" + LyricsResultIdentity.digest(identity) + ":json"
             return LyricsCandidate(id: 0, trackName: title, artistName: artist, albumName: track.album ?? response.metadata?.album,
@@ -136,21 +150,37 @@ enum LyricsProviderHTTP {
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if unavailable.contains(http.statusCode) { return nil }
         guard http.statusCode == 200 else {
-            throw LyricsHTTPError(retryAfter: max(60, Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60))
+            throw LyricsHTTPError(retryAfter: max(60, Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60), statusCode: http.statusCode)
         }
         guard data.count <= 8 * 1024 * 1024 else { throw URLError(.dataLengthExceedsMaximum) }
         return data
     }
 }
 
+struct LyricsProviderAttempt {
+    var name: String; var resultCount: Int; var matchCount: Int
+    var failed = false; var statusCode: Int?
+    var summary: String {
+        if failed {
+            if statusCode == 401 && name == "Better Lyrics" { return "Not in public cache" }
+            return statusCode == 429 ? "Try again later" : "Unavailable"
+        }
+        if matchCount > 0 { return "\(matchCount) matching versions" }
+        return resultCount > 0 ? "No matching recording" : "No results"
+    }
+}
+
 actor LyricsProviderManager: LyricsProvider {
     let providers: [(String, any LyricsProvider)]
     var blockedUntil: [String: Date] = [:]
+    var blockedStatus: [String: Int] = [:]
+    var reports: [String: [LyricsProviderAttempt]] = [:]
+    func report(_ query: LyricsQuery) -> [LyricsProviderAttempt] { reports[query.cacheKey] ?? [] }
     var requests: [String: Task<[LyricsCandidate], Error>] = [:]
     init(providers: [(String, any LyricsProvider)] = [("LRCLIB", LRCLIBProvider()), ("AMLL", AMLLProvider()), ("Better Lyrics", BetterLyricsProvider()), ("LiriQo", LiriQoProvider())]) { self.providers = providers }
     func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         try Task.checkCancellation()
-        let key = [query.title, query.artist, query.album, String(query.duration)].joined(separator: "\n")
+        let key = query.cacheKey
         if let task = requests[key] {
             let result = try await task.value; try Task.checkCancellation(); return result
         }
@@ -166,21 +196,37 @@ actor LyricsProviderManager: LyricsProvider {
         let online = providers
         let available = online.filter { Date() >= (blockedUntil[$0.0] ?? .distantPast) }
         var results: [LyricsCandidate] = []
+        var attempts = online.filter { Date() < (blockedUntil[$0.0] ?? .distantPast) }.map {
+            LyricsProviderAttempt(name: $0.0, resultCount: 0, matchCount: 0, failed: true, statusCode: blockedStatus[$0.0])
+        }
         var hadFailure = available.count < online.count
         for batch in stride(from: 0, to: available.count, by: 2) {
-            await withTaskGroup(of: (String, [LyricsCandidate], Double?).self) { group in
+            await withTaskGroup(of: (String, [LyricsCandidate], Double?, Int?).self) { group in
                 for (name, provider) in available[batch..<min(batch + 2, available.count)] {
                     group.addTask {
-                        do { return (name, try await provider.search(query), nil) }
-                        catch { return (name, [], (error as? LyricsHTTPError)?.retryAfter ?? 60) }
+                        do { return (name, try await provider.search(query), nil, nil) }
+                        catch { return (name, [], (error as? LyricsHTTPError)?.retryAfter ?? 60, (error as? LyricsHTTPError)?.statusCode) }
                     }
                 }
-                for await (name, found, retry) in group {
+                for await (name, found, retry, statusCode) in group {
                     results += found
-                    if let retry { hadFailure = true; blockedUntil[name] = Date().addingTimeInterval(retry) }
+                    attempts.append(LyricsProviderAttempt(name: name, resultCount: found.count,
+                        matchCount: found.filter { $0.matchesMetadata(query) && (!$0.document(query).lines.isEmpty || $0.instrumental) }.count,
+                        failed: retry != nil, statusCode: statusCode))
+                    if let retry {
+                        hadFailure = true
+                        // Better Lyrics 401 is a per-song public-cache miss, not a
+                        // provider-wide outage. The next song may already be cached.
+                        if !(name == "Better Lyrics" && statusCode == 401) {
+                            blockedUntil[name] = Date().addingTimeInterval(retry)
+                            blockedStatus[name] = statusCode
+                        }
+                    }
                 }
             }
         }
+        if reports.count >= 16 { reports.removeValue(forKey: reports.keys.sorted().first!) }
+        reports[query.cacheKey] = online.compactMap { entry in attempts.first { $0.name == entry.0 } }
         if results.isEmpty && hadFailure { throw URLError(.resourceUnavailable) }
         let sorted = results.sorted { lhs, rhs in
             let a = LyricsCandidateMatcher.score(lhs, query), b = LyricsCandidateMatcher.score(rhs, query)

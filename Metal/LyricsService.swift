@@ -11,6 +11,7 @@ actor LyricsService {
     init(provider: any LyricsProvider = LyricsProviderManager(), directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MetalLyrics")) {
         self.provider = provider; self.store = LyricsStore(directory: directory)
     }
+    var revisions: [String: Int] = [:]
     var requests: [String: Task<(LyricsDocument?, LyricsLookupState), Never>] = [:]
     static func identity(_ url: URL) throws -> String {
         // Streaming content fingerprint survives a rename and does not load the audio file into RAM.
@@ -20,6 +21,35 @@ actor LyricsService {
         return hash.finalize().map { String(format: "%02x", $0) }.joined()
     }
     func identifier(url: URL) -> String { (try? Self.identity(url)) ?? "" }
+    func effectiveQuery(url: URL, fallback: LyricsQuery, id: String) async -> LyricsQuery {
+        var query = fallback
+        let asset = AVURLAsset(url: url)
+        for item in asset.commonMetadata {
+            guard let value = item.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { continue }
+            if item.commonKey == .commonKeyTitle { query.title = value }
+            if item.commonKey == .commonKeyArtist { query.artist = value }
+            if item.commonKey == .commonKeyAlbumName { query.album = value }
+        }
+        if query.duration <= 0 {
+            let duration = CMTimeGetSeconds(asset.duration)
+            if duration.isFinite && duration > 0 { query.duration = duration }
+        }
+        let entry = await store.read(id)
+        if let override = entry.searchOverride { query.title = override.title; query.artist = override.artist; query.album = "" }
+        return query
+    }
+    func updateSearch(_ metadata: LyricsSearchMetadata?, id: String) async {
+        revisions[id, default: 0] += 1
+        requests[id]?.cancel(); requests[id] = nil
+        try? await store.searchMetadata(metadata, id: id)
+    }
+    func sourceCatalog(url: URL, query: LyricsQuery) async -> (String, LyricsQuery, [LyricsCandidate], [LyricsProviderAttempt]) {
+        let id = identifier(url: url)
+        let effective = await effectiveQuery(url: url, fallback: query, id: id)
+        let candidates = (try? await alternatives(effective, id: id)) ?? []
+        let attempts = await (provider as? LyricsProviderManager)?.report(effective) ?? []
+        return (id, effective, candidates, attempts)
+    }
     func alternatives(_ query: LyricsQuery, id: String? = nil) async throws -> [LyricsCandidate] {
         var cached: [LyricsCandidate] = []
         var selectedKey: String?
@@ -49,7 +79,9 @@ actor LyricsService {
     }
     func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?, LyricsLookupState) {
         guard let id = try? Self.identity(url) else { return ("", nil, .unreadable) }
-        let signature = "lyrics-search-v3:" + [query.title, query.artist, query.album, String(query.duration)].joined(separator: "|")
+        let q = await effectiveQuery(url: url, fallback: query, id: id)
+        let signature = "lyrics-search-v4:" + q.cacheKey
+        let revision = revisions[id, default: 0]
         let entry = await store.read(id)
         if let doc = await store.resolved(id), (!doc.lines.isEmpty || doc.instrumental), !force || entry.imported != nil { return (id, doc, .ready) }
         // Ignore legacy negative entries and metadata changes. Never cache transport
@@ -59,9 +91,7 @@ actor LyricsService {
         let task = Task<(LyricsDocument?, LyricsLookupState), Never> {
             let asset = AVURLAsset(url: url)
             let metadata = asset.metadata + asset.availableMetadataFormats.flatMap { asset.metadata(forFormat: $0) }
-            var q = query
             for item in metadata {
-                if item.commonKey == .commonKeyAlbumName, let value = item.stringValue { q.album = value }
                 let identifier = item.identifier?.rawValue.lowercased() ?? ""
                 if ["lyrics", "uslt", "©lyr"].contains(where: { identifier.contains($0) }),
                    let value = item.stringValue, !value.isEmpty {
@@ -73,6 +103,7 @@ actor LyricsService {
             }
             do {
                 let results = try await self.provider.search(q)
+                guard !Task.isCancelled else { return (await self.store.resolved(id), .unavailable) }
                 for candidate in results.prefix(8) { try? await self.store.cache(candidate.document(q), id: id) }
                 let selected = LyricsCandidateMatcher.best(results, query: q)
                 try? await self.store.cache(selected, id: id, lookupSignature: signature)
@@ -86,7 +117,8 @@ actor LyricsService {
             }
         }
         requests[id] = task
-        let result = await task.value; requests[id] = nil
+        let result = await task.value
+        if revisions[id, default: 0] == revision { requests[id] = nil }
         return (id, result.0, result.1)
     }
     func automatic(id: String) async { try? await store.select(nil, id: id) }
