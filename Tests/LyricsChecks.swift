@@ -1,6 +1,8 @@
 import Foundation
 @main struct LyricsChecks {
+ static func trace(_ message: String) { FileHandle.standardError.write(Data(("Lyrics check: " + message + "\n").utf8)) }
  static func main() async throws {
+  trace("parser and persistence")
   let doc = LyricsParser.parse("[ar:Artist]\n[offset:500]\n[00:01.20][00:03.456]First\ncontinuation\n[00:05]Next\n[00:05]Translation\n[00:99]bad", source: "Test")
   precondition(doc.lines.count == 3)
   precondition(doc.lines[0].time == 1.2 && doc.lines[1].time == 3.456)
@@ -99,7 +101,14 @@ import Foundation
   let sourceRestored = await store.resolved("sources")
   precondition(sourceRestored?.offset == doc.offset + 0.5)
   let fallback = LyricsProviderManager(providers: [("Offline", OfflineLyricsProvider()), ("Fixture", TestLyricsProvider())])
-  let fallbackResults = try await fallback.search(query)
+  trace("mixed-provider fallback")
+  let fallbackResults: [LyricsCandidate]
+  do { fallbackResults = try await fallback.search(query) }
+  catch {
+   let attempts = await fallback.report(query)
+   trace("fallback failure: " + attempts.map { "\($0.name) results=\($0.resultCount) matches=\($0.matchCount) failed=\($0.failed)" }.joined(separator: "; "))
+   throw error
+  }
   precondition(fallbackResults.count == 1)
   let nullable = Data(#"[{"id":101,"trackName":"Song","artistName":"Artist","duration":null,"instrumental":false,"plainLyrics":"One","syncedLyrics":"[00:01]One"},{"id":102,"trackName":"Song","artistName":"Artist","duration":200,"instrumental":false,"plainLyrics":"Two","syncedLyrics":"[00:02]Two"},{"id":"broken","trackName":"Song"}]"#.utf8)
   let tolerant = try LRCLIBProvider.candidates(nullable)
@@ -133,6 +142,7 @@ import Foundation
   let legacyService = LyricsService(provider: TestLyricsProvider(), directory: legacyDirectory)
   let retriedLegacy = await legacyService.load(url: renamed, query: query)
   precondition(retriedLegacy.1 != nil, "Legacy negative cache must not hide newly available results")
+  trace("HTTP decoding fixtures")
   let config = URLSessionConfiguration.ephemeral
   config.protocolClasses = [LyricsFixtureProtocol.self]
   let session = URLSession(configuration: config)
@@ -193,8 +203,10 @@ import Foundation
   await service.choose(liriqo[0], query: query, id: id)
   let saved = await offline.load(url: renamed, query: query)
   precondition(saved.1?.resultKey == liriqo[0].key && saved.1?.offset == 0.125)
+  trace("offline source cache")
   let offlineChoices = try await offline.alternatives(query, id: id)
   precondition(offlineChoices.contains { $0.key == better[0].key })
+  trace("shared manager requests")
   let sharedProvider = TestLyricsProvider()
   let sharedManager = LyricsProviderManager(providers: [("Fixture", sharedProvider)])
   async let sharedFirst = sharedManager.search(query)
@@ -206,6 +218,7 @@ import Foundation
    _ = try await LyricsProviderManager(providers: []).searchDetailed(query)
    preconditionFailure("An empty registry must never look like a successful search with no lyrics")
   } catch LyricsProviderConfigurationError.noProviders { }
+  trace("four-provider fallback")
   let thirdProvider = TestLyricsProvider()
   let fourthProvider = TestLyricsProvider()
   let allSources = LyricsProviderManager(providers: [("Rejected", OfflineLyricsProvider()), ("Empty", EmptyLyricsProvider()), ("Third", thirdProvider), ("Fourth", fourthProvider)])
@@ -248,6 +261,7 @@ import Foundation
   print("Lyrics parser, offsets, seeking, malformed input, plain text, version safety and serialization passed")
  }
  static func verifyLiveLyrics(directory: URL) async throws {
+  trace("live production queries")
   for (title, artist, album, duration) in [("Lovefool", "The Cardigans", "", 197.0), ("Espresso", "Sabrina Carpenter", "", 175.0), ("Loose Cannon", "Puzzle", "X Hail", 177.02893424036282), ("Oh Klahoma", "Jack Stauber", "Pop food", 185.33875)] {
    let query = LyricsQuery(title: title, artist: artist, album: album, duration: duration)
    let candidates = try await LRCLIBProvider().search(query)
