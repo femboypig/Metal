@@ -244,7 +244,17 @@ enum LyricsCandidateMatcher {
             let document = candidate.document(query)
             return document.instrumental || document.lines.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         }
-        return valid.max { score($0, query) < score($1, query) }?.document(query)
+        if let matched = valid.max(by: { score($0, query) < score($1, query) }) { return matched.document(query) }
+        // Untagged title-only files: a unique artist at the actual recording duration
+        // can supply readable text, but not verified timing until the user confirms it.
+        guard !query.hasArtist, query.duration > 0 else { return nil }
+        let plausible = candidates.filter {
+            LyricsQuery.normalized($0.trackName) == LyricsQuery.normalized(query.searchTitle) && $0.duration > 0 && abs($0.duration - query.duration) <= 2 && !$0.document(query).lines.isEmpty
+        }
+        guard Set(plausible.map { LyricsCandidate.artists($0.artistName) }).count == 1,
+              let candidate = plausible.min(by: { abs($0.duration - query.duration) < abs($1.duration - query.duration) }) else { return nil }
+        var document = candidate.document(query); document.timingTrusted = false
+        return document
     }
     static func score(_ candidate: LyricsCandidate, _ query: LyricsQuery) -> Double {
         let base = candidate.score(query)

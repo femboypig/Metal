@@ -74,7 +74,8 @@ actor LyricsService {
     func choose(_ candidate: LyricsCandidate, query: LyricsQuery, id: String) async {
         var document = candidate.document(query)
         // Manual selection is an explicit recording confirmation for metadata-matched, unmodified audio.
-        if !query.altered && candidate.score(query) > 0 { document.timingTrusted = true }
+        let titleConfirmed = !query.hasArtist && LyricsQuery.normalized(candidate.trackName) == LyricsQuery.normalized(query.searchTitle)
+        if !query.altered && (candidate.score(query) > 0 || titleConfirmed) { document.timingTrusted = true }
         try? await store.select(document, id: id)
     }
     func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?, LyricsLookupState) {

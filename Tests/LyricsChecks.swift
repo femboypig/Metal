@@ -222,6 +222,12 @@ import Foundation
    let result = await untitledService.load(url: renamed, query: filename)
    precondition(result.2 == .ready && result.1?.lines.isEmpty == false, "Both filename orders must reach displayable lyrics")
   }
+  let titleOnly = LyricsQuery(title: "Song", artist: "Unknown Artist", album: "", duration: 200)
+  let titleCandidates = try await LRCLIBProvider(session: session).search(titleOnly)
+  let titleText = LyricsCandidateMatcher.best(titleCandidates, query: titleOnly)
+  precondition(titleText?.lines.isEmpty == false && titleText?.synchronized == false)
+  precondition(LyricsCandidateMatcher.best([good, wrong], query: titleOnly) == nil,
+      "Ambiguous title-only recordings must not silently pick an artist")
   let searchDirectory = directory.appendingPathComponent("search-override")
   let editable = LyricsService(provider: TestLyricsProvider(), directory: searchDirectory)
   await editable.updateSearch(LyricsSearchMetadata(title: "Song", artist: "Artist"), id: id)
@@ -291,6 +297,7 @@ final class LyricsFixtureProtocol: URLProtocol {
  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
  override func startLoading() {
   let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+  precondition(!items.contains { $0.name == "q" && ($0.value ?? "").contains("Unknown Artist") }, "Placeholder artists must never be sent as search keywords")
   let title = items.first { $0.name == "title" || $0.name == "s" }?.value
   let status = title == "Rate" ? 429 : title == "Locked" ? 401 : 200
   let payload: Data

@@ -142,7 +142,10 @@ struct LRCLIBProvider: LyricsProvider {
         }
     }
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
-        if !q.hasArtist { return try await request(q, title: q.searchArtist + " " + q.lookupTitle, album: "", freeform: true) }
+        if !q.hasArtist {
+            let term = LyricsQuery.normalized(q.searchArtist) == "unknown artist" || q.searchArtist.isEmpty ? q.lookupTitle : q.searchArtist + " " + q.lookupTitle
+            return try await request(q, title: term, album: "", freeform: true)
+        }
         var results: [LyricsCandidate] = [], searched: Set<String> = []
         for (title, album) in [(q.title, q.album), (q.searchTitle, ""), (q.lookupTitle, "")] {
             guard searched.insert(title + "\n" + album).inserted else { continue }
