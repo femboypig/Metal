@@ -21,7 +21,8 @@ actor LyricsService {
     func identifier(url: URL) -> String { (try? Self.identity(url)) ?? "" }
     func alternatives(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
         guard Date() >= retryAfter else { throw URLError(.resourceUnavailable) }
-        return try await provider.search(query)
+        do { return try await provider.search(query) }
+        catch { retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60); throw error }
     }
     func choose(_ candidate: LyricsCandidate, query: LyricsQuery, id: String) async {
         try? await store.cache(candidate.document(query), id: id)
@@ -53,7 +54,12 @@ actor LyricsService {
                 try? await self.store.cache(selected, id: id)
                 let latest = await self.store.read(id)
                 var doc = latest.imported ?? latest.cached; doc?.offset += latest.adjustment; return doc
-            } catch { self.retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60); return entry.cached }
+            } catch {
+                self.retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60)
+                let latest = await self.store.read(id)
+                var doc = latest.imported ?? latest.cached; doc?.offset += latest.adjustment
+                return doc
+            }
         }
         requests[id] = task
         let result = await task.value; requests[id] = nil
