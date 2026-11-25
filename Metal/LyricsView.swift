@@ -84,7 +84,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         let secondaryWidth = secondaryActions.arrangedSubviews.reduce(CGFloat(8)) { $0 + $1.intrinsicContentSize.width }
         secondaryActions.axis = secondaryWidth > available ? .vertical : .horizontal
         let messageHeight = message.sizeThatFits(CGSize(width: available, height: .greatestFiniteMagnitude)).height
-        let actionHeight = actions.isHidden ? 0 : actions.systemLayoutSizeFitting(CGSize(width: available, height: 0), horizontalFittingPriority: .fittingSizeLevel, verticalFittingPriority: .fittingSizeLevel).height
+        let actionHeight = actions.isHidden ? 0 : actions.systemLayoutSizeFitting(CGSize(width: available, height: 0), withHorizontalFittingPriority: .fittingSizeLevel, verticalFittingPriority: .fittingSizeLevel).height
         let gap: CGFloat = actions.isHidden ? 0 : 20
         let top = max(0, bounds.midY - (messageHeight + gap + actionHeight) / 2)
         message.frame = CGRect(x: 20, y: top, width: available, height: messageHeight)
