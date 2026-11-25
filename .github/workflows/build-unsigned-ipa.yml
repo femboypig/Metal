@@ -6,6 +6,11 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      verify_lyrics_network:
+        description: Verify live LRCLIB retrieval and offline storage for reported tracks
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -57,7 +62,7 @@ jobs:
       - name: Verify lyrics parsing and synchronization
         run: |
           xcrun swiftc Metal/LyricsCore.swift Metal/LyricsFormats.swift Metal/LyricsProviders.swift Metal/LyricsService.swift Tests/LyricsChecks.swift -o "$RUNNER_TEMP/lyrics-checks"
-          "$RUNNER_TEMP/lyrics-checks"
+          "$RUNNER_TEMP/lyrics-checks" ${{ inputs.verify_lyrics_network && '--live-lyrics' || '' }}
 
       - name: Verify Metal shader pipelines
         run: |

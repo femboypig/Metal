@@ -61,7 +61,15 @@ struct LyricsQuery: Sendable {
         return artist
     }
     var searchTitle: String {
-        let value = Self.normalized(artist) == "unknown artist" && title.contains(" - ") ? title.components(separatedBy: " - ").dropFirst().joined(separator: " - ") : title
+        var value = Self.normalized(artist) == "unknown artist" && title.contains(" - ") ? title.components(separatedBy: " - ").dropFirst().joined(separator: " - ") : title
+        if Self.normalized(artist) != "unknown artist" {
+            for separator in [" - ", " – ", " — "] {
+                let parts = value.components(separatedBy: separator)
+                guard parts.count > 1 else { continue }
+                if Self.normalized(parts[0]) == Self.normalized(artist) { value = parts.dropFirst().joined(separator: separator); break }
+                if Self.normalized(parts.last!) == Self.normalized(artist) { value = parts.dropLast().joined(separator: separator); break }
+            }
+        }
         return value.replacingOccurrences(of: #"(?i)\s*[\[(](?:official audio|official video|lyric video|lyrics|hd|hq)[\])]\s*$"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
     }
     var altered: Bool { searchTitle.range(of: #"(?i)\b(?:slowed|sped[ -]+up|remix|instrumental|edit|nightcore|reverb|speed[ -]+up|unofficial)\b"#, options: .regularExpression) != nil }
@@ -79,12 +87,16 @@ struct LyricsCandidate: Codable {
     var providerID: String?; var nativeDocument: LyricsDocument?
     var key: String { nativeDocument?.resultKey ?? "\(providerID ?? "LRCLIB"):\(id):\(nativeDocument?.format ?? "lrc")" }
     static func artists(_ text: String) -> Set<String> { Set(text.components(separatedBy: CharacterSet(charactersIn: ",&、")).map { LyricsQuery.normalized($0) }.filter { !$0.isEmpty }) }
+    func matchesMetadata(_ q: LyricsQuery) -> Bool {
+        [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.searchTitle), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)) && Self.artists(artistName) == Self.artists(q.searchArtist)
+    }
     func score(_ q: LyricsQuery) -> Double {
-        guard [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.searchTitle), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)), Self.artists(artistName) == Self.artists(q.searchArtist) else { return 0 }
-        return 100 - (q.altered ? 0 : min(90, abs(duration - q.duration) * 4)) + (LyricsQuery.normalized(albumName ?? "") == LyricsQuery.normalized(q.album) && !q.album.isEmpty ? 10 : 0)
+        guard matchesMetadata(q) else { return 0 }
+        let knownDuration = duration.isFinite && q.duration.isFinite && duration > 0 && q.duration > 0
+        return 100 - (q.altered || !knownDuration ? 0 : min(90, abs(duration - q.duration) * 4)) + (LyricsQuery.normalized(albumName ?? "") == LyricsQuery.normalized(q.album) && !q.album.isEmpty ? 10 : 0)
     }
     func document(_ q: LyricsQuery) -> LyricsDocument {
-        let safe = !q.altered && score(q) > 0 && abs(duration - q.duration) <= 2
+        let safe = !q.altered && matchesMetadata(q) && duration > 0 && q.duration > 0 && abs(duration - q.duration) <= 2
         var doc = nativeDocument ?? LyricsFormats.parse(syncedLyrics ?? plainLyrics ?? "", format: "lrc", source: "\(providerID ?? "LRCLIB") #\(id)")
         doc.resultKey = key
         doc.provenance = LyricsProvenance(provider: providerID ?? "LRCLIB", identifier: String(id), title: trackName, artist: artistName, album: albumName, duration: duration)
@@ -121,14 +133,15 @@ struct LRCLIBProvider: LyricsProvider {
         }
     }
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
-        let exact = try await request(q, title: q.title, album: q.album)
-        if !exact.isEmpty { return exact }
-        if q.searchTitle != q.title {
-            let normalized = try await request(q, title: q.searchTitle, album: "")
-            if !normalized.isEmpty { return normalized }
+        var results: [LyricsCandidate] = [], searched: Set<String> = []
+        for (title, album) in [(q.title, q.album), (q.searchTitle, ""), (q.lookupTitle, "")] {
+            guard searched.insert(title + "\n" + album).inserted else { continue }
+            let found = try await request(q, title: title, album: album)
+            let existing = Set(results.map(\.key))
+            results += found.filter { !existing.contains($0.key) }
+            if found.contains(where: { $0.matchesMetadata(q) }) { break }
         }
-        if q.lookupTitle != q.searchTitle || !q.album.isEmpty { return try await request(q, title: q.lookupTitle, album: "") }
-        return exact
+        return results.sorted { LyricsCandidateMatcher.score($0, q) > LyricsCandidateMatcher.score($1, q) }
     }
     private func request(_ q: LyricsQuery, title: String, album: String) async throws -> [LyricsCandidate] {
         var components = URLComponents(string: "https://lrclib.net/api/search")!

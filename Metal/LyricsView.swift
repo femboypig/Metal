@@ -6,6 +6,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     private var resumeVisible = false
     let message = UILabel()
     let actions = UIStackView()
+    private let secondaryActions = UIStackView()
     var document: LyricsDocument?
     var syncEngine: LyricsSyncEngine?
     var active: Int?
@@ -27,12 +28,13 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         message.textAlignment = .center; message.numberOfLines = 0; message.textColor = .label
         message.font = UIFont(name: "Fraunces72pt-Bold", size: 24)
         addSubview(message)
-        actions.axis = .vertical; actions.spacing = 4; addSubview(actions)
-        for (title, action) in [("Search Again", #selector(searchTapped)), ("Import Lyrics", #selector(importTapped)), ("Paste Lyrics", #selector(pasteTapped))] {
-            let button = UIButton(type: .system); button.setTitle(title, for: .normal)
-            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-            button.addTarget(self, action: action, for: .touchUpInside); actions.addArrangedSubview(button)
-        }
+        actions.axis = .vertical; actions.alignment = .center; actions.spacing = 10
+        addSubview(actions)
+        actions.addArrangedSubview(emptyStateButton("Search Again", action: #selector(searchTapped), primary: true))
+        secondaryActions.axis = .horizontal; secondaryActions.spacing = 8; secondaryActions.alignment = .center
+        secondaryActions.addArrangedSubview(emptyStateButton("Import Lyrics", action: #selector(importTapped)))
+        secondaryActions.addArrangedSubview(emptyStateButton("Paste Lyrics", action: #selector(pasteTapped)))
+        actions.addArrangedSubview(secondaryActions)
         var configuration = UIButton.Configuration.plain()
         configuration.title = "Current line"
         configuration.baseForegroundColor = .systemBackground
@@ -51,6 +53,25 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         resume.addTarget(self, action: #selector(resumeTapped), for: .touchUpInside)
         resume.isHidden = true; addSubview(resume)
     }
+    private func emptyStateButton(_ title: String, action: Selector, primary: Bool = false) -> UIButton {
+        let button = UIButton(type: .custom)
+        var config = UIButton.Configuration.plain()
+        config.title = title
+        config.baseForegroundColor = primary ? .systemBackground : .label
+        config.background.backgroundColor = primary ? .label : UIColor { $0.userInterfaceStyle == .dark ? UIColor.white.withAlphaComponent(0.09) : UIColor.black.withAlphaComponent(0.06) }
+        config.background.cornerRadius = 16; config.cornerStyle = .fixed
+        config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: primary ? 20 : 12, bottom: 12, trailing: primary ? 20 : 12)
+        config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var updated = attributes
+            updated.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(for:
+                UIFont(name: "DrukWide-Bold", size: primary ? 11 : 9) ?? UIFont.systemFont(ofSize: primary ? 13 : 11, weight: .bold), maximumPointSize: primary ? 17 : 14)
+            return updated
+        }
+        button.configuration = config
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return button
+    }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layoutSubviews() {
         super.layoutSubviews(); table.frame = bounds.insetBy(dx: 12, dy: 0)
@@ -59,8 +80,15 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
             lastViewportSize = bounds.size
             table.contentInset = UIEdgeInsets(top: bounds.height * 0.5, left: 0, bottom: bounds.height * 0.5, right: 0)
         }
-        message.frame = CGRect(x: 20, y: bounds.midY - 110, width: bounds.width - 40, height: 80)
-        actions.frame = CGRect(x: 30, y: bounds.midY - 20, width: bounds.width - 60, height: 144)
+        let available = max(1, bounds.width - 40)
+        let secondaryWidth = secondaryActions.arrangedSubviews.reduce(CGFloat(8)) { $0 + $1.intrinsicContentSize.width }
+        secondaryActions.axis = secondaryWidth > available ? .vertical : .horizontal
+        let messageHeight = message.sizeThatFits(CGSize(width: available, height: .greatestFiniteMagnitude)).height
+        let actionHeight = actions.isHidden ? 0 : actions.systemLayoutSizeFitting(CGSize(width: available, height: 0), horizontalFittingPriority: .fittingSizeLevel, verticalFittingPriority: .fittingSizeLevel).height
+        let gap: CGFloat = actions.isHidden ? 0 : 20
+        let top = max(0, bounds.midY - (messageHeight + gap + actionHeight) / 2)
+        message.frame = CGRect(x: 20, y: top, width: available, height: messageHeight)
+        actions.frame = CGRect(x: 20, y: top + messageHeight + gap, width: available, height: actionHeight)
         let width = min(bounds.width - 32, resume.sizeThatFits(CGSize(width: bounds.width, height: 40)).width)
         let height = max(36, resume.sizeThatFits(CGSize(width: width, height: 60)).height)
         resume.bounds = CGRect(x: 0, y: 0, width: width, height: height)
@@ -77,6 +105,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         else if state == .unavailable { message.text = "Lyrics unavailable.\nTry again shortly." }
         else if state == .unreadable { message.text = "Audio file unavailable." }
         else { message.text = "No lyrics found." }
+        setNeedsLayout()
         table.reloadData(); table.setContentOffset(CGPoint(x: 0, y: -table.adjustedContentInset.top), animated: false)
     }
     func update(time: Double) {

@@ -190,11 +190,21 @@ actor LyricsProviderManager: LyricsProvider {
     }
 }
 enum LyricsCandidateMatcher {
+    static func best(_ candidates: [LyricsCandidate], query: LyricsQuery) -> LyricsDocument? {
+        // Recording confidence controls timing, not whether matched text is visible.
+        // Provider completion order and an empty first result must not hide good lyrics.
+        let valid = candidates.filter { candidate in
+            guard candidate.matchesMetadata(query) else { return false }
+            let document = candidate.document(query)
+            return document.instrumental || document.lines.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
+        return valid.max { score($0, query) < score($1, query) }?.document(query)
+    }
     static func score(_ candidate: LyricsCandidate, _ query: LyricsQuery) -> Double {
         let base = candidate.score(query)
         guard base > 0 else { return 0 }
         // Unknown recording duration cannot beat a verified recording on word timing alone.
-        if candidate.duration <= 0 { return 75 + (query.album.isEmpty ? 0 : (LyricsQuery.normalized(query.album) == LyricsQuery.normalized(candidate.albumName ?? "") ? 4 : 0)) }
+        if candidate.duration <= 0 || query.duration <= 0 { return 75 + (query.album.isEmpty ? 0 : (LyricsQuery.normalized(query.album) == LyricsQuery.normalized(candidate.albumName ?? "") ? 4 : 0)) }
         return base + (candidate.document(query).synchronized ? 2 : 0)
     }
 }

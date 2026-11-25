@@ -2,6 +2,11 @@ import UIKit
 import UniformTypeIdentifiers
 
 extension ViewController {
+    func lyricsQuery(for track: Track) -> LyricsQuery {
+        let engineDuration = audioPlayer?.url == track.url ? audioPlayer?.duration : nil
+        let duration = engineDuration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? track.duration
+        return LyricsQuery(title: track.title, artist: track.artist, album: "", duration: duration)
+    }
     func setupLyrics() {
         lyricsView = LyricsView()
         lyricsView.translatesAutoresizingMaskIntoConstraints = false
@@ -46,7 +51,7 @@ extension ViewController {
         lyricsTrackURL = track.url; lyricsIdentity = ""
         lyricsView.display(nil, loading: true)
         lyricsTask = Task { [weak self] in
-            let query = LyricsQuery(title: track.title, artist: track.artist, album: "", duration: track.duration)
+            let query = self?.lyricsQuery(for: track) ?? LyricsQuery(title: track.title, artist: track.artist, album: "", duration: track.duration)
             let result = await LyricsService.shared.load(url: track.url, query: query, force: force)
             guard !Task.isCancelled, let self, self.lyricsGeneration == generation else { return }
             self.lyricsIdentity = result.0
@@ -104,7 +109,7 @@ extension ViewController {
         guard let track = currentPlaybackTrack() else { return }
         setLyricsVisible(true)
         Task {
-            let query = LyricsQuery(title: track.title, artist: track.artist, album: "", duration: track.duration)
+            let query = lyricsQuery(for: track)
             do {
                 let id = await LyricsService.shared.identifier(url: track.url)
                 let results = try await LyricsService.shared.alternatives(query, id: id)

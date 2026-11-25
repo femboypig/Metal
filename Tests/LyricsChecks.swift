@@ -22,6 +22,19 @@ import Foundation
   let good = LyricsCandidate(id: 2, trackName: "Song", artistName: "Artist, Artist", duration: 200, instrumental: false, plainLyrics: nil, syncedLyrics: "[00:01]Text")
   let wrong = LyricsCandidate(id: 3, trackName: "Song", artistName: "Other", duration: 200, instrumental: false, plainLyrics: nil, syncedLyrics: "[00:01]Text")
   precondition(LyricsCandidateMatcher.score(good, recording) > LyricsCandidateMatcher.score(wrong, recording))
+  let noDuration = LyricsQuery(title: "Song", artist: "Artist", album: "", duration: 0)
+  precondition(LyricsCandidateMatcher.best([good], query: noDuration)?.lines.isEmpty == false)
+  precondition(LyricsCandidateMatcher.best([good], query: noDuration)?.synchronized == false)
+  let differentRecording = LyricsQuery(title: "Song", artist: "Artist", album: "", duration: 300)
+  precondition(LyricsCandidateMatcher.best([good], query: differentRecording)?.lines.isEmpty == false,
+      "A duration mismatch must downgrade timing, not hide matched text")
+  precondition(LyricsCandidateMatcher.best([good], query: differentRecording)?.synchronized == false)
+  precondition(LyricsCandidateMatcher.best([wrong], query: recording) == nil)
+  let emptyCandidate = LyricsCandidate(id: 0, trackName: "Song", artistName: "Artist", duration: 200,
+      instrumental: false, plainLyrics: nil, syncedLyrics: nil)
+  precondition(LyricsCandidateMatcher.best([emptyCandidate, good], query: recording)?.lines.isEmpty == false)
+  precondition(LyricsQuery(title: "Puzzle - Loose Cannon", artist: "Puzzle", album: "", duration: 0).searchTitle == "Loose Cannon")
+  precondition(LyricsQuery(title: "Loose Cannon — Puzzle", artist: "Puzzle", album: "", duration: 0).searchTitle == "Loose Cannon")
   let data = try JSONEncoder().encode(doc)
   let restored = try JSONDecoder().decode(LyricsDocument.self, from: data)
   precondition(restored.lines == doc.lines)
@@ -96,6 +109,15 @@ import Foundation
   let emptySync = Data(#"[{"id":103,"trackName":"Song","artistName":"Artist","duration":200,"plainLyrics":"Plain words","syncedLyrics":""}]"#.utf8)
   let plainOnly = try LRCLIBProvider.candidates(emptySync)
   precondition(plainOnly.first?.document(query).lines.first?.text == "Plain words")
+  for duration in [0.0, 177.0, 400.0] {
+   let fallbackService = LyricsService(provider: FixedLyricsProvider(candidates: [good]),
+       directory: directory.appendingPathComponent("duration-\(duration)"))
+   let variant = LyricsQuery(title: "Song", artist: "Artist", album: "", duration: duration)
+   let result = await fallbackService.load(url: renamed, query: variant)
+   precondition(result.2 == .ready && result.1?.lines.isEmpty == false,
+       "The complete fetch/select/cache path must keep exact-metadata lyrics visible")
+   precondition(result.1?.synchronized == false)
+  }
   let recoveryProvider = RecoveringLyricsProvider()
   let recoveryDirectory = directory.appendingPathComponent("recovery")
   let recovery = LyricsService(provider: recoveryProvider, directory: recoveryDirectory)
@@ -181,7 +203,29 @@ import Foundation
   precondition(!LyricsFollowPolicy.intentionallyMoved(5) && LyricsFollowPolicy.intentionallyMoved(40))
   precondition(!LyricsFollowPolicy.awayFromCurrent(distance: 10, viewport: 300))
   precondition(LyricsFollowPolicy.awayFromCurrent(distance: 100, viewport: 300))
+  if ProcessInfo.processInfo.arguments.contains("--live-lyrics") { try await verifyLiveLyrics(directory: directory) }
   print("Lyrics parser, offsets, seeking, malformed input, plain text, version safety and serialization passed")
+ }
+ static func verifyLiveLyrics(directory: URL) async throws {
+  for (title, artist, duration) in [("Lovefool", "The Cardigans", 197.0), ("Espresso", "Sabrina Carpenter", 175.0), ("Loose Cannon", "Puzzle", 177.0)] {
+   let query = LyricsQuery(title: title, artist: artist, album: "", duration: duration)
+   let candidates = try await LRCLIBProvider().search(query)
+   precondition(candidates.contains { $0.matchesMetadata(query) }, "Live LRCLIB metadata match missing")
+   for localDuration in [0.0, duration, duration + 10000] {
+    let path = directory.appendingPathComponent("live-\(title)-\(localDuration)")
+    try Data("local fixture \(title) \(localDuration)".utf8).write(to: path)
+    let cacheDirectory = directory.appendingPathComponent(UUID().uuidString)
+    let service = LyricsService(provider: FixedLyricsProvider(candidates: candidates), directory: cacheDirectory)
+    var localQuery = query; localQuery.duration = localDuration
+    let result = await service.load(url: path, query: localQuery)
+    precondition(result.2 == .ready && result.1?.lines.isEmpty == false, "Live lyrics were lost after retrieval")
+    if localDuration != duration { precondition(result.1?.synchronized == false) }
+    let offline = LyricsService(provider: OfflineLyricsProvider(), directory: cacheDirectory)
+    let saved = await offline.load(url: path, query: localQuery)
+    precondition(saved.2 == .ready && saved.1?.lines.isEmpty == false, "Live lyrics did not survive offline storage")
+    print("Live lyrics: \(title), local duration \(localDuration), candidates \(candidates.count), saved lines \(result.1!.lines.count), sync \(result.1!.synchronized)")
+   }
+  }
  }
 }
 
@@ -198,7 +242,7 @@ struct OfflineLyricsProvider: LyricsProvider {
  func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { throw URLError(.notConnectedToInternet) }
 }
 
-// Synthetic, original text only. No song lyrics or live service dependency in CI.
+// Synthetic, original text only. Default CI checks do not depend on live services.
 final class LyricsFixtureProtocol: URLProtocol {
  static let liriqo = #"{"metadata":{"title":"Song","artist":"Artist","album":"Album","duration":200},"tracks":[{"provider":"fixture","upstreamProvider":"Fixture Source","title":"Song","artist":"Artist","duration":200,"nativeWordTiming":true,"syncLevel":"word","plain":"One two\nNext","timed":[{"text":"One two","start":1250,"end":3750,"words":[{"text":"One ","start":1250,"end":2000},{"text":"two","start":2125,"end":3500}]},{"text":"Next","start":9000,"end":10000}]}]}"#
  override class func canInit(with request: URLRequest) -> Bool { true }
@@ -229,4 +273,9 @@ actor RecoveringLyricsProvider: LyricsProvider {
   return [LyricsCandidate(id: 1, trackName: query.title, artistName: query.artist, duration: query.duration,
       instrumental: false, plainLyrics: "One", syncedLyrics: "[00:01]One")]
  }
+}
+
+struct FixedLyricsProvider: LyricsProvider {
+ var candidates: [LyricsCandidate]
+ func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] { candidates }
 }

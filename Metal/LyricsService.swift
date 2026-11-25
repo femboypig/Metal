@@ -49,7 +49,7 @@ actor LyricsService {
     }
     func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?, LyricsLookupState) {
         guard let id = try? Self.identity(url) else { return ("", nil, .unreadable) }
-        let signature = "lyrics-search-v2:" + [query.title, query.artist, query.album, String(query.duration)].joined(separator: "|")
+        let signature = "lyrics-search-v3:" + [query.title, query.artist, query.album, String(query.duration)].joined(separator: "|")
         let entry = await store.read(id)
         if let doc = await store.resolved(id), (!doc.lines.isEmpty || doc.instrumental), !force || entry.imported != nil { return (id, doc, .ready) }
         // Ignore legacy negative entries and metadata changes. Never cache transport
@@ -74,7 +74,7 @@ actor LyricsService {
             do {
                 let results = try await self.provider.search(q)
                 for candidate in results.prefix(8) { try? await self.store.cache(candidate.document(q), id: id) }
-                let selected = results.first.flatMap { LyricsCandidateMatcher.score($0, q) >= 75 ? $0.document(q) : nil }
+                let selected = LyricsCandidateMatcher.best(results, query: q)
                 try? await self.store.cache(selected, id: id, lookupSignature: signature)
                 let resolved = await self.store.resolved(id)
                 return (resolved, resolved == nil ? .missing : .ready)
