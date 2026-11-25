@@ -129,13 +129,25 @@ extension ViewController {
     func adjustLyrics() {
         guard !lyricsIdentity.isEmpty else { return }
         let id = lyricsIdentity
-        let alert = UIAlertController(title: "Adjust Sync", message: "Seconds: positive delays lyrics; negative advances them.", preferredStyle: .alert)
-        alert.addTextField { $0.placeholder = "0.0"; $0.keyboardType = .numbersAndPunctuation }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
-            guard let value = Double(alert?.textFields?.first?.text ?? ""), value.isFinite, abs(value) <= 600 else { return }
-            Task { await LyricsService.shared.adjust(value, id: id); self?.lyricsTrackURL = nil; self?.loadLyrics() }
-        })
-        present(alert, animated: true)
+        let key = lyricsView.document?.source == "Imported" ? "imported" : lyricsView.document?.resultKey ?? "legacy"
+        Task {
+            let current = await LyricsService.shared.adjustment(id: id, key: key)
+            guard lyricsIdentity == id else { return }
+            let alert = UIAlertController(title: "Lyrics Sync", message: String(format: "Current offset: %+.2fs\nPositive delays lyrics; negative advances them.", current), preferredStyle: .alert)
+            alert.addTextField { $0.text = String(format: "%.2f", current); $0.keyboardType = .numbersAndPunctuation }
+            let apply: (Double) -> Void = { [weak self] value in
+                Task { await LyricsService.shared.adjust(value, id: id, key: key)
+                    if self?.lyricsIdentity == id { self?.lyricsTrackURL = nil; self?.loadLyrics() }
+                }
+            }
+            alert.addAction(UIAlertAction(title: "−0.5s", style: .default) { _ in apply(current - 0.5) })
+            alert.addAction(UIAlertAction(title: "+0.5s", style: .default) { _ in apply(current + 0.5) })
+            alert.addAction(UIAlertAction(title: "Reset", style: .default) { _ in apply(0) })
+            alert.addAction(UIAlertAction(title: "Save Precise Offset", style: .default) { [weak alert] _ in
+                guard let value = Double(alert?.textFields?.first?.text ?? ""), value.isFinite, abs(value) <= 600 else { return }; apply(value)
+            })
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            present(alert, animated: true)
+        }
     }
 }

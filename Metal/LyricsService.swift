@@ -72,11 +72,9 @@ actor LyricsService {
                 for candidate in results.prefix(8) { try? await self.store.cache(candidate.document(q), id: id) }
                 let selected = results.first.flatMap { LyricsCandidateMatcher.score($0, q) >= 75 ? $0.document(q) : nil }
                 try? await self.store.cache(selected, id: id)
-                let latest = await self.store.read(id)
                 return await self.store.resolved(id)
             } catch {
                 self.retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60)
-                let latest = await self.store.read(id)
                 return await self.store.resolved(id)
             }
         }
@@ -86,5 +84,6 @@ actor LyricsService {
     }
     func automatic(id: String) async { try? await store.select(nil, id: id) }
     func imported(_ doc: LyricsDocument?, id: String) async { try? await store.install(doc, id: id) }
-    func adjust(_ seconds: Double, id: String) async { try? await store.adjust(seconds, id: id) }
+    func adjustment(id: String, key: String) async -> Double { let entry = await store.read(id); return entry.offsets?[key] ?? entry.adjustment }
+    func adjust(_ seconds: Double, id: String, key: String? = nil) async { try? await store.adjust(seconds, id: id, sourceKey: key) }
 }
