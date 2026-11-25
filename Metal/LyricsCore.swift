@@ -235,6 +235,7 @@ actor LyricsStore {
         try write(entry, id: id)
     }
     func saveOnDeviceTiming(_ proposed: LyricsDocument, id: String, sourceKey: String, fingerprint: String) throws -> Bool {
+        try Task.checkCancellation()
         var entry = read(id)
         guard let base = entry.imported ?? entry.selected.flatMap({ entry.results?[$0] }) ?? entry.cached else { return false }
         let currentKey = entry.imported != nil ? "imported" : base.resultKey ?? "legacy"

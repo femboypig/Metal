@@ -229,7 +229,8 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         let distance = active.map { abs(index - $0) } ?? 1
         let opacity: CGFloat = document?.synchronized != true ? 1 : (distance == 0 ? 1 : (distance < 3 ? 0.42 : 0.30))
         cell.textLabel?.textColor = UIColor.label.withAlphaComponent(opacity)
-        cell.accessibilityTraits = document?.synchronized == true && document?.lines[index].time != nil ? (index == active ? [.selected, .button] : [.button]) : [.staticText]
+        let canSeek = document?.synchronized == true && document?.lines.indices.contains(index) == true && document?.lines[index].time != nil
+        cell.accessibilityTraits = canSeek ? (index == active ? [.selected, .button] : [.button]) : [.staticText]
     }
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         guard let doc = document, doc.synchronized, let time = doc.lines[indexPath.row].time else { return }

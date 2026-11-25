@@ -29,6 +29,7 @@ import Foundation
         precondition(partial.active(at: thirdStart - 1) == nil, "An unrecognized passage must not inherit an earlier highlight")
         precondition(partial.lines.map(\.text) == texts)
 
+        precondition(LyricsAlignment.normalized("мой") != LyricsAlignment.normalized("мои"), "Cyrillic letters must retain phonetic distinctions")
         let russian = ["Ёлки тихо смотрят в небо", "Мы идём туда где свет"]
         let russianDoc = LyricsParser.parse(russian.joined(separator: "\n"), source: "Fixture")
         let russianAligned = try LyricsAlignment.align(document: russianDoc, recognized: observation(russian), duration: 60, language: "ru")
@@ -70,6 +71,13 @@ import Foundation
         let restored = await reopened.resolved("import")
         precondition(restored?.lines == plain.lines && restored?.offset == 1.75 && restored?.onDeviceTiming == nil)
 
+        let cancelledSave = Task {
+            while !Task.isCancelled { await Task.yield() }
+            return try await store.saveOnDeviceTiming(aligned, id: "import", sourceKey: "imported", fingerprint: LyricsAlignment.fingerprint(plain))
+        }
+        cancelledSave.cancel()
+        do { _ = try await cancelledSave.value; preconditionFailure("Cancelled alignment must not persist") }
+        catch is CancellationError { }
         try await store.install(LyricsParser.parse("Replacement text", source: "Imported"), id: "import")
         let rejected = try await store.saveOnDeviceTiming(aligned, id: "import", sourceKey: "imported", fingerprint: LyricsAlignment.fingerprint(plain))
         precondition(!rejected, "A late recognition result must not overwrite an imported replacement")
