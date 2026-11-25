@@ -59,7 +59,7 @@ extension ViewController {
             guard let self else { return }; self.setLyricsVisible(!self.lyricsVisible)
         }
         let manage = UIMenu(title: "Lyrics Options", children: [
-            UIAction(title: "Search Another Version", image: UIImage(systemName: "list.bullet")) { [weak self] _ in self?.chooseLyricsVersion() },
+            UIAction(title: "Lyrics Source", image: UIImage(systemName: "list.bullet")) { [weak self] _ in self?.chooseLyricsVersion() },
             UIAction(title: "Search Again", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in self?.setLyricsVisible(true); self?.loadLyrics(force: true) },
             UIAction(title: "Import Lyrics", image: UIImage(systemName: "doc")) { [weak self] _ in self?.importLyrics() },
             UIAction(title: "Paste Lyrics", image: UIImage(systemName: "doc.on.clipboard")) { [weak self] _ in self?.pasteLyrics() },
@@ -75,15 +75,15 @@ extension ViewController {
     func importLyrics() {
         guard let track = currentPlaybackTrack() else { return }
         lyricsImportTrack = track
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType(filenameExtension: "lrc") ?? .plainText, .plainText], asCopy: false)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: ["lrc", "ttml", "yrc", "krc", "qrc", "txt"].map { UTType(filenameExtension: $0) ?? .plainText }, asCopy: false)
         picker.delegate = self; picker.view.tag = 9321
         present(picker, animated: true)
     }
-    func acceptLyrics(_ text: String, track: Track) {
+    func acceptLyrics(_ text: String, track: Track, format: String = "lrc") {
         Task {
             let id = await LyricsService.shared.identifier(url: track.url)
             guard !id.isEmpty else { return }
-            let doc = LyricsParser.parse(text, source: "Imported")
+            let doc = LyricsFormats.parse(text, format: format, source: "Imported")
             guard !doc.lines.isEmpty else { showToast(message: "This file contains no lyrics", success: false); return }
             await LyricsService.shared.imported(doc, id: id)
             if currentPlaybackTrack()?.url == track.url { setLyricsVisible(true); loadLyrics(force: true) }
@@ -109,9 +109,12 @@ extension ViewController {
                 let results = try await LyricsService.shared.alternatives(query)
                 let id = await LyricsService.shared.identifier(url: track.url)
                 guard currentPlaybackTrack()?.url == track.url else { return }
-                let alert = UIAlertController(title: "Choose Lyrics", message: "Different recordings may need Adjust Sync. Imported lyrics take precedence.", preferredStyle: .actionSheet)
+                let alert = UIAlertController(title: "Lyrics Source", message: "Current: \(lyricsView.document?.source ?? "Automatic"). Confirm the recording before enabling timing. Imports take precedence. Texts are saved offline.", preferredStyle: .actionSheet)
+                alert.addAction(UIAlertAction(title: "Automatic", style: .default) { [weak self] _ in
+                    Task { await LyricsService.shared.automatic(id: id); self?.lyricsTrackURL = nil; self?.loadLyrics(force: true) }
+                })
                 for candidate in results.prefix(20) {
-                    alert.addAction(UIAlertAction(title: "\(candidate.trackName) · \(candidate.artistName) · \(Int(candidate.duration))s", style: .default) { [weak self] _ in
+                    alert.addAction(UIAlertAction(title: "\(candidate.providerID ?? "LRCLIB") — \(candidate.nativeDocument?.synchronizationLevel ?? candidate.document(query).synchronizationLevel) · \(candidate.trackName)", style: .default) { [weak self] _ in
                         Task { await LyricsService.shared.choose(candidate, query: query, id: id)
                             if self?.currentPlaybackTrack()?.url == track.url { self?.lyricsTrackURL = nil; self?.loadLyrics() }
                         }

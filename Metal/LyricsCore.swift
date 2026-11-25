@@ -1,20 +1,28 @@
 import Foundation
 
-struct LyricLine: Codable, Equatable { var time: Double?; var text: String }
+struct LyricLine: Codable, Equatable { var time: Double?; var text: String; var end: Double?; var words: [LyricWord]?; var translation: String?; var background: Bool? }
 struct LyricsDocument: Codable {
     var version = 1
     var lines: [LyricLine]
     var instrumental = false
     var source: String
     var offset: Double = 0
-    var synchronized: Bool { !lines.isEmpty && lines.allSatisfy { $0.time != nil } }
+    var timingTrusted: Bool?
+    var format: String?
+    var resultKey: String?
+    var attribution: String?
+    var synchronizationLevel: String { !synchronized ? "Plain" : lines.contains { !($0.words?.isEmpty ?? true) } ? "Word synced" : "Line synced" }
+    var synchronized: Bool { timingTrusted != false && !lines.isEmpty && lines.allSatisfy { $0.time != nil } }
     func active(at time: Double) -> Int? {
         guard synchronized else { return nil }
         var low = 0, high = lines.count
         while low < high { let mid = (low + high) / 2
             if lines[mid].time! + offset <= time { low = mid + 1 } else { high = mid }
         }
-        return low == 0 ? nil : low - 1
+        guard low > 0 else { return nil }
+        let index = low - 1
+        if let end = lines[index].end, time > end + offset { return nil }
+        return index
     }
 }
 enum LyricsParser {
@@ -65,14 +73,19 @@ struct LyricsQuery: Sendable {
 struct LyricsCandidate: Codable {
     var id: Int; var trackName: String; var artistName: String; var albumName: String?; var duration: Double
     var instrumental: Bool; var plainLyrics: String?; var syncedLyrics: String?
+    var providerID: String?; var nativeDocument: LyricsDocument?
+    var key: String { "\(providerID ?? "LRCLIB"):\(id):\(nativeDocument?.format ?? "lrc")" }
+    static func artists(_ text: String) -> Set<String> { Set(text.components(separatedBy: CharacterSet(charactersIn: ",&、")).map { LyricsQuery.normalized($0) }.filter { !$0.isEmpty }) }
     func score(_ q: LyricsQuery) -> Double {
-        guard [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)), LyricsQuery.normalized(artistName) == LyricsQuery.normalized(q.artist) else { return 0 }
+        guard [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)), Self.artists(artistName) == Self.artists(q.artist) else { return 0 }
         return 100 - (q.altered ? 0 : min(90, abs(duration - q.duration) * 4)) + (LyricsQuery.normalized(albumName ?? "") == LyricsQuery.normalized(q.album) && !q.album.isEmpty ? 10 : 0)
     }
     func document(_ q: LyricsQuery) -> LyricsDocument {
         let safe = !q.altered && score(q) > 0 && abs(duration - q.duration) <= 2
-        var doc = LyricsParser.parse(safe ? (syncedLyrics ?? plainLyrics ?? "") : (plainLyrics ?? syncedLyrics ?? ""), source: "LRCLIB #\(id)")
-        if !safe { doc.lines = doc.lines.map { LyricLine(time: nil, text: $0.text) }; doc.offset = 0 }
+        var doc = nativeDocument ?? LyricsFormats.parse(safe ? (syncedLyrics ?? plainLyrics ?? "") : (plainLyrics ?? syncedLyrics ?? ""), format: "lrc", source: "\(providerID ?? "LRCLIB") #\(id)")
+        doc.resultKey = key
+        doc.attribution = providerID == "AMLL" ? "https://github.com/amll-dev/amll-ttml-db" : "https://lrclib.net"
+        if !safe { doc.timingTrusted = false }
         doc.instrumental = instrumental
         return doc
     }
@@ -93,12 +106,22 @@ struct LRCLIBProvider: LyricsProvider {
     }
 }
 actor LyricsStore {
-    struct Entry: Codable { var cached: LyricsDocument?; var imported: LyricsDocument?; var checked: Date?; var adjustment: Double = 0 }
+    struct Entry: Codable { var cached: LyricsDocument?; var imported: LyricsDocument?; var checked: Date?; var adjustment: Double = 0; var results: [String: LyricsDocument]?; var selected: String?; var offsets: [String: Double]? }
     let directory: URL
     init(directory: URL) { self.directory = directory; try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
     func read(_ id: String) -> Entry { guard let data = try? Data(contentsOf: directory.appendingPathComponent(id + ".json")), let entry = try? JSONDecoder().decode(Entry.self, from: data) else { return Entry() }; return entry }
-    func cache(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.cached = doc; entry.checked = Date(); try write(entry, id: id) }
+    func cache(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.cached = doc; if let doc, let key = doc.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = doc }; entry.checked = Date(); try write(entry, id: id) }
     func install(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.imported = doc; try write(entry, id: id) }
-    func adjust(_ value: Double, id: String) throws { var entry = read(id); entry.adjustment = value; try write(entry, id: id) }
+    func adjust(_ value: Double, id: String) throws { var entry = read(id); let key = entry.imported?.resultKey ?? entry.imported.map { _ in "imported" } ?? entry.selected ?? entry.cached?.resultKey ?? "legacy"
+        if entry.offsets == nil { entry.offsets = [:] }; entry.offsets?[key] = value
+        entry.adjustment = 0; try write(entry, id: id) }
+    func select(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.selected = doc?.resultKey; if let doc, let key = doc.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = doc }; try write(entry, id: id) }
+    func resolved(_ id: String) -> LyricsDocument? {
+        let entry = read(id)
+        var doc = entry.imported ?? entry.selected.flatMap { entry.results?[$0] } ?? entry.cached
+        let key = entry.imported != nil ? "imported" : doc?.resultKey ?? "legacy"
+        doc?.offset += entry.offsets?[key] ?? entry.adjustment
+        return doc
+    }
     func write(_ entry: Entry, id: String) throws { try JSONEncoder().encode(entry).write(to: directory.appendingPathComponent(id + ".json"), options: .atomic) }
 }

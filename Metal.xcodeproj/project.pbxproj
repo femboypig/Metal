@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FA0000000000000000000006 /* LyricsProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000016; };
+		FA0000000000000000000005 /* LyricsFormats.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000015; };
 		FA0000000000000000000004 /* ViewController+Lyrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000014; };
 		FA0000000000000000000003 /* LyricsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000013; };
 		FA0000000000000000000002 /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000012; };
@@ -80,6 +82,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		FA0000000000000000000016 /* LyricsProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsProviders.swift"; sourceTree = "<group>"; };
+		FA0000000000000000000015 /* LyricsFormats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsFormats.swift"; sourceTree = "<group>"; };
 		FA0000000000000000000014 /* ViewController+Lyrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Lyrics.swift"; sourceTree = "<group>"; };
 		FA0000000000000000000013 /* LyricsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsView.swift"; sourceTree = "<group>"; };
 		FA0000000000000000000012 /* LyricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsService.swift"; sourceTree = "<group>"; };
@@ -179,6 +183,8 @@
 				F50000000000000000000011 /* ArtworkPlaceholder.swift */,
 				F60000000000000000000013 /* ViewController+Pulse.swift */,
 				F80000000000000000000012 /* ViewController+PlayerPresentation.swift */,
+				FA0000000000000000000016 /* LyricsProviders.swift */,
+				FA0000000000000000000015 /* LyricsFormats.swift */,
 				FA0000000000000000000014 /* ViewController+Lyrics.swift */,
 				FA0000000000000000000013 /* LyricsView.swift */,
 				FA0000000000000000000012 /* LyricsService.swift */,
@@ -350,6 +356,8 @@
 				F50000000000000000000001 /* ArtworkPlaceholder.swift in Sources */,
 				F60000000000000000000003 /* ViewController+Pulse.swift in Sources */,
 				F80000000000000000000002 /* ViewController+PlayerPresentation.swift in Sources */,
+				FA0000000000000000000006 /* LyricsProviders.swift in Sources */,
+				FA0000000000000000000005 /* LyricsFormats.swift in Sources */,
 				FA0000000000000000000004 /* ViewController+Lyrics.swift in Sources */,
 				FA0000000000000000000003 /* LyricsView.swift in Sources */,
 				FA0000000000000000000002 /* LyricsService.swift in Sources */,

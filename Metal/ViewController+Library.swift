@@ -734,7 +734,7 @@ extension ViewController {
             defer { if access { url.stopAccessingSecurityScopedResource() } }
             if let data = try? Data(contentsOf: url), data.count <= 2_000_000,
                let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16) {
-                acceptLyrics(text, track: track)
+                acceptLyrics(text, track: track, format: url.pathExtension.lowercased())
             } else { showToast(message: "Unable to read lyrics file", success: false) }
             return
         }

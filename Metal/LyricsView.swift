@@ -8,6 +8,9 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     var document: LyricsDocument?
     var active: Int?
     var manual = false
+    var lastViewportSize = CGSize.zero
+    var restoring = false
+    var dragStartY: CGFloat = 0
     var seek: ((Double) -> Void)?
     var search: (() -> Void)?
     var imported: (() -> Void)?
@@ -28,17 +31,36 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
             button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
             button.addTarget(self, action: action, for: .touchUpInside); actions.addArrangedSubview(button)
         }
-        resume.setTitle("Back to current line", for: .normal)
+        var configuration = UIButton.Configuration.filled()
+        configuration.title = "Current line"
+        configuration.image = UIImage(systemName: "location.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
+        configuration.imagePadding = 7
+        configuration.baseForegroundColor = .label
+        configuration.baseBackgroundColor = .secondarySystemBackground.withAlphaComponent(0.9)
+        configuration.cornerStyle = .capsule
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 9, leading: 15, bottom: 9, trailing: 15)
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var updated = attributes; updated.font = UIFont.systemFont(ofSize: 13, weight: .semibold); return updated
+        }
+        resume.configuration = configuration
+        resume.layer.shadowOpacity = 0.1; resume.layer.shadowRadius = 8
+        resume.accessibilityLabel = "Return to current lyric line"
         resume.addTarget(self, action: #selector(resumeTapped), for: .touchUpInside)
         resume.isHidden = true; addSubview(resume)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layoutSubviews() {
         super.layoutSubviews(); table.frame = bounds.insetBy(dx: 12, dy: 0)
-        table.contentInset = UIEdgeInsets(top: bounds.height * 0.38, left: 0, bottom: bounds.height * 0.38, right: 0)
+        let changed = lastViewportSize != bounds.size
+        if changed {
+            lastViewportSize = bounds.size
+            table.contentInset = UIEdgeInsets(top: bounds.height * 0.5, left: 0, bottom: bounds.height * 0.5, right: 0)
+        }
         message.frame = CGRect(x: 20, y: bounds.midY - 110, width: bounds.width - 40, height: 80)
         actions.frame = CGRect(x: 30, y: bounds.midY - 20, width: bounds.width - 60, height: 144)
-        resume.frame = CGRect(x: 30, y: bounds.height - 44, width: bounds.width - 60, height: 44)
+        let width = min(bounds.width - 32, resume.sizeThatFits(CGSize(width: bounds.width, height: 40)).width)
+        resume.frame = CGRect(x: (bounds.width - width) / 2, y: bounds.height - 48, width: width, height: 38)
+        if changed && !manual && !table.isDragging && !table.isDecelerating { center(animated: false) }
     }
     func display(_ doc: LyricsDocument?, loading: Bool = false) {
         document = doc; active = nil; manual = false; resume.isHidden = true
@@ -49,22 +71,57 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     }
     func update(time: Double) {
         let next = document?.active(at: time)
-        guard next != active else { return }
+        guard next != active else {
+            // Height estimation and interrupted scroll animations can move the target after it was selected.
+            if !manual && !table.isDragging && !table.isDecelerating && !restoring, let active,
+               !(table.indexPathsForVisibleRows ?? []).contains(IndexPath(row: active, section: 0)) { center(animated: false) }
+            return
+        }
         active = next
         let changes = { for cell in self.table.visibleCells { if let index = self.table.indexPath(for: cell) { self.style(cell, index: index.row) } } }
         if UIAccessibility.isReduceMotionEnabled { changes() }
         else { UIView.animate(withDuration: 0.18, animations: changes) }
-        if !manual { center(animated: !UIAccessibility.isReduceMotionEnabled) }
+        if !manual && !table.isDragging && !table.isDecelerating { center(animated: !UIAccessibility.isReduceMotionEnabled) }
+        updateResume()
     }
     func center(animated: Bool) {
         guard let active else { return }
+        guard active < table.numberOfRows(inSection: 0), table.bounds.height > 0 else { return }
+        table.layoutIfNeeded()
+        restoring = animated
         table.scrollToRow(at: IndexPath(row: active, section: 0), at: .middle, animated: animated)
+        if !animated { restoring = false }
     }
-    @objc func resumeTapped() { manual = false; resume.isHidden = true; center(animated: !UIAccessibility.isReduceMotionEnabled) }
+    @objc func resumeTapped() { manual = false; center(animated: !UIAccessibility.isReduceMotionEnabled); updateResume() }
+    func updateResume() {
+        if restoring { return }
+        let away: Bool
+        if let active, active < table.numberOfRows(inSection: 0) {
+            let row = table.rectForRow(at: IndexPath(row: active, section: 0))
+            away = abs(row.midY - (table.contentOffset.y + table.bounds.midY)) > table.bounds.height * 0.25
+        } else { away = false }
+        resume.isHidden = !(manual && away && document?.synchronized == true)
+    }
+    func scrollViewDidScroll(_ scrollView: UIScrollView) { if manual { updateResume() } }
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate: Bool) {
+        if !willDecelerate { finishBrowsingGesture() }
+    }
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { finishBrowsingGesture() }
+    func finishBrowsingGesture() {
+        updateResume()
+        if abs(table.contentOffset.y - dragStartY) < 12 || (active != nil && resume.isHidden) { manual = false }
+        if !manual { center(animated: !UIAccessibility.isReduceMotionEnabled) }
+        updateResume()
+    }
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        restoring = false
+        if !manual { center(animated: false) }
+        updateResume()
+    }
     @objc func searchTapped() { search?() }
     @objc func importTapped() { imported?() }
     @objc func pasteTapped() { paste?() }
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { manual = true; resume.isHidden = document?.synchronized != true }
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { dragStartY = table.contentOffset.y; manual = true; restoring = false }
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { document?.lines.count ?? 0 }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "line", for: indexPath)
@@ -84,7 +141,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         cell.accessibilityTraits = document?.synchronized == true ? (index == active ? [.selected, .button] : [.button]) : [.staticText]
     }
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        guard let doc = document, let time = doc.lines[indexPath.row].time else { return }
+        guard let doc = document, doc.synchronized, let time = doc.lines[indexPath.row].time else { return }
         seek?(max(0, time + doc.offset)); manual = false; resume.isHidden = true
     }
 }

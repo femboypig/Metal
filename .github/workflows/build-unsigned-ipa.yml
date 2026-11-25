@@ -56,7 +56,7 @@ jobs:
 
       - name: Verify lyrics parsing and synchronization
         run: |
-          xcrun swiftc Metal/LyricsCore.swift Metal/LyricsService.swift Tests/LyricsChecks.swift -o "$RUNNER_TEMP/lyrics-checks"
+          xcrun swiftc Metal/LyricsCore.swift Metal/LyricsFormats.swift Metal/LyricsProviders.swift Metal/LyricsService.swift Tests/LyricsChecks.swift -o "$RUNNER_TEMP/lyrics-checks"
           "$RUNNER_TEMP/lyrics-checks"
 
       - name: Verify Metal shader pipelines
