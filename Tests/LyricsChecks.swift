@@ -126,6 +126,13 @@ import Foundation
   let merged = LyricsResultIdentity.deduplicate([liriqo[0], duplicate], query: query, preferredKey: duplicate.key)
   precondition(merged.count == 1 && merged[0].key == duplicate.key)
   precondition(merged[0].nativeDocument?.sourceAttributions?.count == 2)
+  var unknownMetadata = duplicate
+  unknownMetadata.duration = 0
+  unknownMetadata.nativeDocument?.timingTrusted = false
+  precondition(LyricsResultIdentity.deduplicate([liriqo[0], unknownMetadata], query: query).count == 1,
+      "Identical payloads from cache-only and metadata-rich providers must merge")
+  var anotherRecording = duplicate; anotherRecording.duration = 240
+  precondition(LyricsResultIdentity.deduplicate([liriqo[0], anotherRecording], query: query).count == 2)
   var differentTiming = duplicate
   differentTiming.nativeDocument?.lines[0].words?[0].start = 1.3
   precondition(LyricsResultIdentity.deduplicate([liriqo[0], differentTiming], query: query).count == 2)

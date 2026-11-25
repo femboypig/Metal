@@ -174,21 +174,25 @@ struct LyricsSyncEngine {
     }
 }
 
-// Exact normalized payload identity includes native word windows and timing trust.
+// Exact normalized payload identity includes native word windows.
 // Different recordings or timing precision must never be collapsed into one result.
 enum LyricsResultIdentity {
     static func digest(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }
     static func content(_ doc: LyricsDocument) -> String {
         let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
         let lines = (try? encoder.encode(doc.lines)) ?? Data()
-        return digest(String(decoding: lines, as: UTF8.self) + "|\(doc.offset)|\(doc.instrumental)|\(doc.timingTrusted != false)")
+        return digest(String(decoding: lines, as: UTF8.self) + "|\(doc.offset)|\(doc.instrumental)")
     }
     static func deduplicate(_ candidates: [LyricsCandidate], query: LyricsQuery, preferredKey: String? = nil) -> [LyricsCandidate] {
-        var results: [LyricsCandidate] = [], positions: [String: Int] = [:]
+        var results: [LyricsCandidate] = [], positions: [String: [Int]] = [:]
         for candidate in candidates {
             let doc = candidate.document(query)
-            let identity = [LyricsQuery.normalized(candidate.trackName), LyricsQuery.normalized(candidate.artistName), String(candidate.duration), content(doc)].joined(separator: "|")
-            if let index = positions[identity] {
+            let identity = [LyricsQuery.normalized(candidate.trackName), LyricsCandidate.artists(candidate.artistName).sorted().joined(separator: ","), content(doc)].joined(separator: "|")
+            // Missing metadata is not a different lyric payload; conflicting known
+            // recording durations still remain independent selectable results.
+            if let index = positions[identity]?.first(where: {
+                candidate.duration <= 0 || results[$0].duration <= 0 || abs(candidate.duration - results[$0].duration) <= 2
+            }) {
                 let old = results[index]
                 var winner = candidate.key == preferredKey ? candidate : old
                 var merged = winner.document(query)
@@ -196,7 +200,7 @@ enum LyricsResultIdentity {
                 merged.attribution = merged.sourceAttributions?.joined(separator: " · ")
                 winner.nativeDocument = merged; results[index] = winner
             } else {
-                positions[identity] = results.count; results.append(candidate)
+                positions[identity, default: []].append(results.count); results.append(candidate)
             }
         }
         return results
