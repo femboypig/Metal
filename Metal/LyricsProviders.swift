@@ -18,10 +18,10 @@ struct AMLLProvider: NamedLyricsProvider {
         return data
     }
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
-        let page = try JSONDecoder().decode(Page.self, from: await get("search", query: [URLQueryItem(name: "musicName", value: q.lookupTitle), URLQueryItem(name: "artistName", value: q.artist), URLQueryItem(name: "pageSize", value: "8")]))
+        let page = try JSONDecoder().decode(Page.self, from: await get("search", query: [URLQueryItem(name: "musicName", value: q.lookupTitle), URLQueryItem(name: "artistName", value: q.searchArtist), URLQueryItem(name: "pageSize", value: "8")]))
         var candidates: [LyricsCandidate] = []
         for item in page.data.items.prefix(3) {
-            guard item.musicNames.contains(where: { LyricsQuery.normalized($0) == LyricsQuery.normalized(q.lookupTitle) }), LyricsCandidate.artists(item.artistNames.joined(separator: ",")) == LyricsCandidate.artists(q.artist) else { continue }
+            guard item.musicNames.contains(where: { LyricsQuery.normalized($0) == LyricsQuery.normalized(q.lookupTitle) }), LyricsCandidate.artists(item.artistNames.joined(separator: ",")) == LyricsCandidate.artists(q.searchArtist) else { continue }
             let record = try JSONDecoder().decode(Result.self, from: await get("get", query: [URLQueryItem(name: "id", value: String(item.id))]))
             guard let text = record.data.lyrics else { continue }
             var doc = LyricsFormats.parse(text, format: "ttml", source: "AMLL #\(item.id)")

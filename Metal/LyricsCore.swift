@@ -54,12 +54,20 @@ enum LyricsParser {
 }
 struct LyricsQuery: Sendable {
     var title: String; var artist: String; var album: String; var duration: Double
-    var altered: Bool { ["slowed", "sped up", "remix", "instrumental", "edit", "nightcore", "reverb", "speed up"].contains { title.lowercased().contains($0) } }
+    var searchArtist: String {
+        if Self.normalized(artist) == "unknown artist", title.contains(" - ") { return title.components(separatedBy: " - ")[0] }
+        return artist
+    }
+    var searchTitle: String {
+        let value = Self.normalized(artist) == "unknown artist" && title.contains(" - ") ? title.components(separatedBy: " - ").dropFirst().joined(separator: " - ") : title
+        return value.replacingOccurrences(of: #"(?i)\s*[\[(](?:official audio|official video|lyric video|lyrics|hd|hq)[\])]\s*$"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+    }
+    var altered: Bool { searchTitle.range(of: #"(?i)\b(?:slowed|sped[ -]+up|remix|instrumental|edit|nightcore|reverb|speed[ -]+up|unofficial)\b"#, options: .regularExpression) != nil }
     var lookupTitle: String {
-        guard altered else { return title }
-        let pattern = #"(?i)\s*[\[(].*(?:slowed|sped up|remix|instrumental|edit|nightcore|reverb|speed up).*?[\])]"#
-        let base = title.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
-        return base.replacingOccurrences(of: #"(?i)\s*[-–]?\s*(?:slowed|sped up|remix|instrumental|edit|nightcore|reverb|speed up).*$"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+        guard altered else { return searchTitle }
+        let pattern = #"(?i)\s*[\[(].*(?:slowed|sped up|remix|instrumental|edit|nightcore|reverb|speed up|unofficial).*?[\])]"#
+        let base = searchTitle.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        return base.replacingOccurrences(of: #"(?i)\s*[-–]?\s*(?:slowed|sped up|remix|instrumental|edit|nightcore|reverb|speed up|unofficial).*$"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
     }
     static func normalized(_ s: String) -> String { s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")).components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ") }
 }
@@ -70,7 +78,7 @@ struct LyricsCandidate: Codable {
     var key: String { "\(providerID ?? "LRCLIB"):\(id):\(nativeDocument?.format ?? "lrc")" }
     static func artists(_ text: String) -> Set<String> { Set(text.components(separatedBy: CharacterSet(charactersIn: ",&、")).map { LyricsQuery.normalized($0) }.filter { !$0.isEmpty }) }
     func score(_ q: LyricsQuery) -> Double {
-        guard [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)), Self.artists(artistName) == Self.artists(q.artist) else { return 0 }
+        guard [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.searchTitle), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)), Self.artists(artistName) == Self.artists(q.searchArtist) else { return 0 }
         return 100 - (q.altered ? 0 : min(90, abs(duration - q.duration) * 4)) + (LyricsQuery.normalized(albumName ?? "") == LyricsQuery.normalized(q.album) && !q.album.isEmpty ? 10 : 0)
     }
     func document(_ q: LyricsQuery) -> LyricsDocument {
@@ -90,12 +98,16 @@ struct LRCLIBProvider: LyricsProvider {
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
         let exact = try await request(q, title: q.title, album: q.album)
         if !exact.isEmpty { return exact }
-        if q.lookupTitle != q.title || !q.album.isEmpty { return try await request(q, title: q.lookupTitle, album: "") }
+        if q.searchTitle != q.title {
+            let normalized = try await request(q, title: q.searchTitle, album: "")
+            if !normalized.isEmpty { return normalized }
+        }
+        if q.lookupTitle != q.searchTitle || !q.album.isEmpty { return try await request(q, title: q.lookupTitle, album: "") }
         return exact
     }
     private func request(_ q: LyricsQuery, title: String, album: String) async throws -> [LyricsCandidate] {
         var components = URLComponents(string: "https://lrclib.net/api/search")!
-        components.queryItems = [URLQueryItem(name: "track_name", value: title), URLQueryItem(name: "artist_name", value: q.artist)]
+        components.queryItems = [URLQueryItem(name: "track_name", value: title), URLQueryItem(name: "artist_name", value: q.searchArtist)]
         if !album.isEmpty { components.queryItems?.append(URLQueryItem(name: "album_name", value: album)) }
         var request = URLRequest(url: components.url!, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
