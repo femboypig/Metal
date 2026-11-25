@@ -84,7 +84,7 @@ actor LyricsService {
     func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?, LyricsLookupState) {
         guard let id = try? Self.identity(url) else { return ("", nil, .unreadable) }
         let q = await effectiveQuery(url: url, fallback: query, id: id)
-        let signature = "lyrics-search-v4:" + q.cacheKey
+        let signature = "lyrics-search-v5:" + q.cacheKey
         let revision = revisions[id, default: 0]
         let entry = await store.read(id)
         if let doc = await store.resolved(id), (!doc.lines.isEmpty || doc.instrumental), !force || entry.imported != nil { return (id, doc, .ready) }
