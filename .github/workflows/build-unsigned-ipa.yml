@@ -69,6 +69,8 @@ jobs:
           set -euo pipefail
           xcrun swiftc -O -whole-module-optimization -swift-version 5 Metal/LyricsCore.swift Metal/LyricsFormats.swift Metal/LyricsProviders.swift Metal/LyricsAlignment.swift Tests/LyricsAlignmentChecks.swift -o "$RUNNER_TEMP/lyrics-alignment-checks"
           "$RUNNER_TEMP/lyrics-alignment-checks"
+          xcrun swiftc -O -whole-module-optimization -swift-version 5 Metal/LyricsCore.swift Metal/LyricsFormats.swift Metal/LyricsProviders.swift Metal/LyricsAlignment.swift Metal/OnDeviceLyricsSync.swift Tests/LyricsAudioChecks.swift -o "$RUNNER_TEMP/lyrics-audio-checks"
+          "$RUNNER_TEMP/lyrics-audio-checks"
           xcrun swiftc -parse-as-library -framework CoreText Tests/LyricsFontChecks.swift -o "$RUNNER_TEMP/lyrics-font-checks"
           "$RUNNER_TEMP/lyrics-font-checks"
 

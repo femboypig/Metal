@@ -23,7 +23,9 @@ actor OnDeviceLyricsSync {
                   downloadConsent: @escaping DownloadConsent) async throws -> LyricsDocument {
         try Task.checkCancellation()
         let text = document.lines.map(\.text).joined(separator: "\n")
-        guard text.count <= 40_000, document.lines.reduce(0, { $0 + LyricsAlignment.words($1.text).count }) <= 3_000 else { throw LyricsAlignmentError.tooLong }
+        let referenceWords = document.lines.reduce(0) { $0 + LyricsAlignment.words($1.text).count }
+        guard referenceWords >= 4 else { throw LyricsAlignmentError.insufficientMatches }
+        guard text.count <= 40_000, referenceWords <= 3_000 else { throw LyricsAlignmentError.tooLong }
         let detector = NLLanguageRecognizer()
         detector.processString(text)
         guard let language = detector.dominantLanguage else { throw OnDeviceLyricsSyncError.unavailable }
@@ -37,7 +39,7 @@ actor OnDeviceLyricsSync {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let observed: [LyricsRecognizedWord]
-        if #available(iOS 26.0, *), SpeechTranscriber.isAvailable,
+        if #available(iOS 26.0, macOS 26.0, *), SpeechTranscriber.isAvailable,
            let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) {
             observed = try await modern(source: source, directory: directory, locale: supported,
                 progress: progress, consent: downloadConsent, forceModelPrompt: forceModelPrompt)
@@ -50,7 +52,7 @@ actor OnDeviceLyricsSync {
         return try LyricsAlignment.align(document: document, recognized: observed, duration: duration, language: language.rawValue)
     }
 
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     private func modern(source: AVAudioFile, directory: URL, locale: Locale, progress: @escaping Progress,
                         consent: @escaping DownloadConsent, forceModelPrompt: Bool) async throws -> [LyricsRecognizedWord] {
         let transcriber = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [],
@@ -77,10 +79,8 @@ actor OnDeviceLyricsSync {
             throw OnDeviceLyricsSyncError.unavailable
         }
         progress("Preparing audio…")
-        let converted = directory.appendingPathComponent("analysis.caf")
-        try Self.convert(source, to: converted, format: format)
-        let file = try AVAudioFile(forReading: converted)
-        let analyzer = SpeechAnalyzer(modules: modules)
+        let file = try Self.prepareAudio(source, directory: directory, format: format)
+        let analyzer = SpeechAnalyzer(modules: modules, options: nil)
         return try await withTaskCancellationHandler(operation: {
             progress("Matching vocals on device…")
             try await analyzer.start(inputAudioFile: file, finishAfterFile: true)
@@ -125,10 +125,8 @@ actor OnDeviceLyricsSync {
         try Task.checkCancellation()
         guard recognizer.isAvailable else { throw OnDeviceLyricsSyncError.unavailable }
         progress("Preparing audio…")
-        let converted = directory.appendingPathComponent("analysis.caf")
         let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
-        try Self.convert(source, to: converted, format: format)
-        let file = try AVAudioFile(forReading: converted)
+        let file = try Self.prepareAudio(source, directory: directory, format: format)
         let chunkFrames = AVAudioFramePosition(format.sampleRate * 45)
         let overlap = AVAudioFramePosition(format.sampleRate * 0.75)
         let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 4_096)!
@@ -193,6 +191,14 @@ actor OnDeviceLyricsSync {
         }, onCancel: { gate.cancel() })
     }
 
+    static func prepareAudio(_ source: AVAudioFile, directory: URL, format: AVAudioFormat) throws -> AVAudioFile {
+        let url = directory.appendingPathComponent("analysis.caf")
+        try convert(source, to: url, format: format)
+        // AVAudioFile's default reader converts to Float32. SpeechAnalyzer requires
+        // the exact format selected by the module, which may instead be Int16.
+        return try AVAudioFile(forReading: url, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+    }
+
     /// Stream conversion keeps memory bounded and preserves the file's time origin.
     private static func convert(_ source: AVAudioFile, to url: URL, format: AVAudioFormat) throws {
         source.framePosition = 0
@@ -225,7 +231,7 @@ actor OnDeviceLyricsSync {
 }
 
 /// Callback cancellation can race final recognition results; resume exactly once.
-private final class LyricsRecognitionGate: @unchecked Sendable {
+final class LyricsRecognitionGate: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<[LyricsRecognizedWord], Error>?
     private var task: SFSpeechRecognitionTask?

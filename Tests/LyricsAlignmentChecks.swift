@@ -42,6 +42,18 @@ import Foundation
             preconditionFailure("Malformed recognition timestamps must be rejected")
         } catch LyricsAlignmentError.insufficientMatches { }
 
+        let chorus = ["Hold on to me", "Bright day over water", "Hold on to me"]
+        let chorusDoc = LyricsParser.parse(chorus.joined(separator: "\n"), source: "Fixture")
+        let repeated = try LyricsAlignment.align(document: chorusDoc, recognized: observation(chorus), duration: 60, language: "en")
+        precondition(repeated.lines[0].time! < repeated.lines[2].time!, "Repeated lyrics must keep distinct acoustic occurrences")
+        let cancelled = Task {
+            while !Task.isCancelled { await Task.yield() }
+            return try LyricsAlignment.align(document: plain, recognized: observed, duration: 60, language: "en")
+        }
+        cancelled.cancel()
+        do { _ = try await cancelled.value; preconditionFailure("Cancelled matching must stop") }
+        catch is CancellationError { }
+
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = LyricsStore(directory: directory)

@@ -239,7 +239,8 @@ actor LyricsStore {
         guard let base = entry.imported ?? entry.selected.flatMap({ entry.results?[$0] }) ?? entry.cached else { return false }
         let currentKey = entry.imported != nil ? "imported" : base.resultKey ?? "legacy"
         guard currentKey == sourceKey, LyricsAlignment.fingerprint(base) == fingerprint,
-              !base.synchronized, proposed.lines.map(\.text) == base.lines.map(\.text) else { return false }
+              !base.synchronized, proposed.onDeviceTiming != nil, proposed.synchronized,
+              proposed.lines.map(\.text) == base.lines.map(\.text) else { return false }
         var document = proposed
         document.offset = base.offset
         document.onDeviceTiming?.originalOffset = base.offset
