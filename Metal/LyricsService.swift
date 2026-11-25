@@ -19,10 +19,26 @@ actor LyricsService {
         return hash.finalize().map { String(format: "%02x", $0) }.joined()
     }
     func identifier(url: URL) -> String { (try? Self.identity(url)) ?? "" }
-    func alternatives(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
-        guard Date() >= retryAfter else { throw URLError(.resourceUnavailable) }
-        do { return try await provider.search(query) }
-        catch { retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60); throw error }
+    func alternatives(_ query: LyricsQuery, id: String? = nil) async throws -> [LyricsCandidate] {
+        var cached: [LyricsCandidate] = []
+        if let id {
+            let entry = await store.read(id)
+            cached = (entry.results ?? [:]).values.compactMap { doc in
+                guard let p = doc.provenance, let sourceID = Int(p.identifier) else { return nil }
+                return LyricsCandidate(id: sourceID, trackName: p.title, artistName: p.artist, albumName: p.album,
+                    duration: p.duration, instrumental: doc.instrumental, plainLyrics: doc.lines.map(\.text).joined(separator: "\n"),
+                    syncedLyrics: nil, providerID: p.provider, nativeDocument: doc)
+            }
+        }
+        guard Date() >= retryAfter else { if !cached.isEmpty { return cached }; throw URLError(.resourceUnavailable) }
+        do {
+            let online = try await provider.search(query)
+            let keys = Set(online.map(\.key))
+            return online + cached.filter { !keys.contains($0.key) }
+        } catch {
+            retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60)
+            if !cached.isEmpty { return cached }; throw error
+        }
     }
     func choose(_ candidate: LyricsCandidate, query: LyricsQuery, id: String) async {
         var document = candidate.document(query)
@@ -33,7 +49,7 @@ actor LyricsService {
     func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?) {
         guard let id = try? Self.identity(url) else { return ("", nil) }
         let entry = await store.read(id)
-        if let doc = await store.resolved(id), !force || entry.imported != nil || entry.selected != nil { return (id, doc) }
+        if let doc = await store.resolved(id), !force || entry.imported != nil { return (id, doc) }
         if !force, let date = entry.checked, Date().timeIntervalSince(date) < 86400 { return (id, nil) }
         if let task = requests[id] { return (id, await task.value) }
         let task = Task<LyricsDocument?, Never> {

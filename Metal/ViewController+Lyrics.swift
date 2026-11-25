@@ -106,12 +106,12 @@ extension ViewController {
         Task {
             let query = LyricsQuery(title: track.title, artist: track.artist, album: "", duration: track.duration)
             do {
-                let results = try await LyricsService.shared.alternatives(query)
                 let id = await LyricsService.shared.identifier(url: track.url)
+                let results = try await LyricsService.shared.alternatives(query, id: id)
                 guard currentPlaybackTrack()?.url == track.url else { return }
                 let alert = UIAlertController(title: "Lyrics Source", message: "Current: \(lyricsView.document?.source ?? "Automatic"). Confirm the recording before enabling timing. Imports take precedence. Texts are saved offline.", preferredStyle: .actionSheet)
                 alert.addAction(UIAlertAction(title: "Automatic", style: .default) { [weak self] _ in
-                    Task { await LyricsService.shared.automatic(id: id); self?.lyricsTrackURL = nil; self?.loadLyrics(force: true) }
+                    Task { await LyricsService.shared.automatic(id: id); self?.lyricsTrackURL = nil; self?.loadLyrics() }
                 })
                 for candidate in results.prefix(20) {
                     alert.addAction(UIAlertAction(title: "\(candidate.providerID ?? "LRCLIB") — \(candidate.nativeDocument?.synchronizationLevel ?? candidate.document(query).synchronizationLevel) · \(candidate.trackName)", style: .default) { [weak self] _ in
