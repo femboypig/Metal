@@ -5,11 +5,23 @@ import CryptoKit
 enum LyricsLookupState: Equatable { case ready, missing, unavailable, unreadable }
 
 actor LyricsService {
-    static let shared = LyricsService(provider: LyricsProviderManager())
+    static let shared = LyricsService()
+    static var defaultDirectory: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MetalLyrics") }
     let store: LyricsStore
     let provider: any LyricsProvider
-    init(provider: any LyricsProvider = LyricsProviderManager(), directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MetalLyrics")) {
-        self.provider = provider; self.store = LyricsStore(directory: directory)
+    private let manager: LyricsProviderManager?
+    init(manager: LyricsProviderManager = LyricsProviderManager(), directory: URL = LyricsService.defaultDirectory) {
+        self.manager = manager; self.provider = manager; self.store = LyricsStore(directory: directory)
+    }
+    init(provider: LyricsProviderManager, directory: URL = LyricsService.defaultDirectory) {
+        self.manager = provider; self.provider = provider; self.store = LyricsStore(directory: directory)
+    }
+    init(provider: any LyricsProvider, directory: URL = LyricsService.defaultDirectory) {
+        self.manager = nil; self.provider = provider; self.store = LyricsStore(directory: directory)
+    }
+    private func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        if let manager { return try await manager.search(query) }
+        return try await provider.search(query)
     }
     var revisions: [String: Int] = [:]
     var requests: [String: Task<(LyricsDocument?, LyricsLookupState), Never>] = [:]
@@ -46,28 +58,39 @@ actor LyricsService {
     func sourceCatalog(url: URL, query: LyricsQuery) async -> (String, LyricsQuery, [LyricsCandidate], [LyricsProviderAttempt], String?) {
         let id = identifier(url: url)
         let effective = await effectiveQuery(url: url, fallback: query, id: id)
-        var candidates: [LyricsCandidate] = []
+        let cached = await cachedCandidates(id: id)
+        var candidates = cached.1
+        var attempts: [LyricsProviderAttempt] = []
         var failure: String?
-        do { candidates = try await alternatives(effective, id: id) }
-        catch { let error = error as NSError; failure = "\(error.domain) (\(error.code))" }
-        let attempts = await provider.report(effective)
+        do {
+            if let manager {
+                let result = try await manager.searchDetailed(effective)
+                attempts = result.attempts
+                let keys = Set(result.candidates.map(\.key))
+                candidates = LyricsResultIdentity.deduplicate(result.candidates + cached.1.filter { !keys.contains($0.key) }, query: effective, preferredKey: cached.0)
+                if result.hasFailures && candidates.isEmpty { failure = "Lyrics providers unavailable" }
+            } else {
+                candidates = try await alternatives(effective, id: id)
+                if candidates.isEmpty { failure = "No online lyrics coordinator configured" }
+            }
+        } catch { let error = error as NSError; failure = "\(error.domain) (\(error.code))" }
         return (id, effective, candidates, attempts, failure)
     }
-    func alternatives(_ query: LyricsQuery, id: String? = nil) async throws -> [LyricsCandidate] {
-        var cached: [LyricsCandidate] = []
-        var selectedKey: String?
-        if let id {
-            let entry = await store.read(id)
-            selectedKey = entry.selected
-            cached = (entry.results ?? [:]).values.compactMap { doc in
-                guard let p = doc.provenance, let sourceID = Int(p.identifier) else { return nil }
-                return LyricsCandidate(id: sourceID, trackName: p.title, artistName: p.artist, albumName: p.album,
-                    duration: p.duration, instrumental: doc.instrumental, plainLyrics: doc.lines.map(\.text).joined(separator: "\n"),
-                    syncedLyrics: nil, providerID: p.provider, nativeDocument: doc)
-            }
+    private func cachedCandidates(id: String?) async -> (String?, [LyricsCandidate]) {
+        guard let id else { return (nil, []) }
+        let entry = await store.read(id)
+        let candidates = (entry.results ?? [:]).values.compactMap { doc -> LyricsCandidate? in
+            guard let p = doc.provenance, let sourceID = Int(p.identifier) else { return nil }
+            return LyricsCandidate(id: sourceID, trackName: p.title, artistName: p.artist, albumName: p.album,
+                duration: p.duration, instrumental: doc.instrumental, plainLyrics: doc.lines.map(\.text).joined(separator: "\n"),
+                syncedLyrics: nil, providerID: p.provider, nativeDocument: doc)
         }
+        return (entry.selected, candidates)
+    }
+    func alternatives(_ query: LyricsQuery, id: String? = nil) async throws -> [LyricsCandidate] {
+        let (selectedKey, cached) = await cachedCandidates(id: id)
         do {
-            let online = try await provider.search(query)
+            let online = try await search(query)
             let keys = Set(online.map(\.key))
             return LyricsResultIdentity.deduplicate(online + cached.filter { !keys.contains($0.key) }, query: query, preferredKey: selectedKey)
         } catch {
@@ -84,7 +107,7 @@ actor LyricsService {
     func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?, LyricsLookupState) {
         guard let id = try? Self.identity(url) else { return ("", nil, .unreadable) }
         let q = await effectiveQuery(url: url, fallback: query, id: id)
-        let signature = "lyrics-search-v5:" + q.cacheKey
+        let signature = "lyrics-search-v6:" + q.cacheKey
         let revision = revisions[id, default: 0]
         let entry = await store.read(id)
         if let doc = await store.resolved(id), (!doc.lines.isEmpty || doc.instrumental), !force || entry.imported != nil { return (id, doc, .ready) }
@@ -106,7 +129,7 @@ actor LyricsService {
                 }
             }
             do {
-                let results = try await self.provider.search(q)
+                let results = try await self.search(q)
                 guard !Task.isCancelled else { return (await self.store.resolved(id), .unavailable) }
                 for candidate in results.prefix(8) { try? await self.store.cache(candidate.document(q), id: id) }
                 let selected = LyricsCandidateMatcher.best(results, query: q)

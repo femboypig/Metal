@@ -131,13 +131,13 @@ struct LyricsProviderAttempt {
     }
 }
 
-protocol LyricsProvider {
-    func search(_ query: LyricsQuery) async throws -> [LyricsCandidate]
-    func report(_ query: LyricsQuery) async -> [LyricsProviderAttempt]
+struct LyricsSearchOutcome {
+    var candidates: [LyricsCandidate]
+    var attempts: [LyricsProviderAttempt]
+    var hasFailures: Bool { attempts.contains { $0.failed } }
 }
-extension LyricsProvider {
-    func report(_ query: LyricsQuery) async -> [LyricsProviderAttempt] { [] }
-}
+enum LyricsProviderConfigurationError: Error { case noProviders }
+protocol LyricsProvider { func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] }
 struct LRCLIBProvider: LyricsProvider {
     var session: URLSession = .shared
     // Missing durations occur in real LRCLIB search results. A single incomplete

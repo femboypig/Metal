@@ -163,10 +163,17 @@ actor LyricsProviderManager: LyricsProvider {
     var blockedStatus: [String: Int] = [:]
     var reports: [String: [LyricsProviderAttempt]] = [:]
     func report(_ query: LyricsQuery) async -> [LyricsProviderAttempt] { reports[query.cacheKey] ?? [] }
-    var requests: [String: Task<[LyricsCandidate], Error>] = [:]
-    init(providers: [(String, any LyricsProvider)] = [("LRCLIB", LRCLIBProvider()), ("AMLL", AMLLProvider()), ("Better Lyrics", BetterLyricsProvider()), ("LiriQo", LiriQoProvider())]) { self.providers = providers }
+    var requests: [String: Task<LyricsSearchOutcome, Error>] = [:]
+    init() { providers = [("LRCLIB", LRCLIBProvider()), ("AMLL", AMLLProvider()), ("Better Lyrics", BetterLyricsProvider()), ("LiriQo", LiriQoProvider())] }
+    init(providers: [(String, any LyricsProvider)]) { self.providers = providers }
     func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        let result = try await searchDetailed(query)
+        if result.candidates.isEmpty && result.hasFailures { throw URLError(.resourceUnavailable) }
+        return result.candidates
+    }
+    func searchDetailed(_ query: LyricsQuery) async throws -> LyricsSearchOutcome {
         try Task.checkCancellation()
+        guard !providers.isEmpty else { throw LyricsProviderConfigurationError.noProviders }
         let key = query.cacheKey
         if let task = requests[key] {
             let result = try await task.value; try Task.checkCancellation(); return result
@@ -178,7 +185,7 @@ actor LyricsProviderManager: LyricsProvider {
         try Task.checkCancellation()
         return result
     }
-    private func performSearch(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+    private func performSearch(_ query: LyricsQuery) async throws -> LyricsSearchOutcome {
         // Two providers maximum in flight, with provider-specific backoff and partial-failure tolerance.
         let online = providers
         let available = online.filter { Date() >= (blockedUntil[$0.0] ?? .distantPast) }
@@ -186,7 +193,6 @@ actor LyricsProviderManager: LyricsProvider {
         var attempts = online.filter { Date() < (blockedUntil[$0.0] ?? .distantPast) }.map {
             LyricsProviderAttempt(name: $0.0, resultCount: 0, matchCount: 0, failed: true, statusCode: blockedStatus[$0.0])
         }
-        var hadFailure = available.count < online.count
         for batch in stride(from: 0, to: available.count, by: 2) {
             await withTaskGroup(of: (String, [LyricsCandidate], Double?, Int?).self) { group in
                 for (name, provider) in available[batch..<min(batch + 2, available.count)] {
@@ -201,7 +207,6 @@ actor LyricsProviderManager: LyricsProvider {
                         matchCount: found.filter { $0.matchesMetadata(query) && (!$0.document(query).lines.isEmpty || $0.instrumental) }.count,
                         failed: retry != nil, statusCode: statusCode))
                     if let retry {
-                        hadFailure = true
                         // Better Lyrics 401 is a per-song public-cache miss, not a
                         // provider-wide outage. The next song may already be cached.
                         if !(name == "Better Lyrics" && statusCode == 401) {
@@ -213,13 +218,13 @@ actor LyricsProviderManager: LyricsProvider {
             }
         }
         if reports.count >= 16 { reports.removeValue(forKey: reports.keys.sorted().first!) }
-        reports[query.cacheKey] = online.compactMap { entry in attempts.first { $0.name == entry.0 } }
-        if results.isEmpty && hadFailure { throw URLError(.resourceUnavailable) }
+        let orderedAttempts = online.compactMap { entry in attempts.first { $0.name == entry.0 } }
+        reports[query.cacheKey] = orderedAttempts
         let sorted = results.sorted { lhs, rhs in
             let a = LyricsCandidateMatcher.score(lhs, query), b = LyricsCandidateMatcher.score(rhs, query)
             return a == b ? lhs.key < rhs.key : a > b
         }
-        return LyricsResultIdentity.deduplicate(sorted, query: query)
+        return LyricsSearchOutcome(candidates: LyricsResultIdentity.deduplicate(sorted, query: query), attempts: orderedAttempts)
     }
 }
 enum LyricsCandidateMatcher {

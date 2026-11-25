@@ -202,6 +202,10 @@ import Foundation
   _ = try await (sharedFirst, sharedSecond)
   let sharedCalls = await sharedProvider.calls
   precondition(sharedCalls == 1, "Provider searches for the same recording must be coalesced")
+  do {
+   _ = try await LyricsProviderManager(providers: []).searchDetailed(query)
+   preconditionFailure("An empty registry must never look like a successful search with no lyrics")
+  } catch LyricsProviderConfigurationError.noProviders { }
   let thirdProvider = TestLyricsProvider()
   let fourthProvider = TestLyricsProvider()
   let allSources = LyricsProviderManager(providers: [("Rejected", OfflineLyricsProvider()), ("Empty", EmptyLyricsProvider()), ("Third", thirdProvider), ("Fourth", fourthProvider)])
@@ -244,14 +248,16 @@ import Foundation
   print("Lyrics parser, offsets, seeking, malformed input, plain text, version safety and serialization passed")
  }
  static func verifyLiveLyrics(directory: URL) async throws {
-  for (title, artist, duration) in [("Lovefool", "The Cardigans", 197.0), ("Espresso", "Sabrina Carpenter", 175.0), ("Loose Cannon", "Puzzle", 177.0)] {
-   let query = LyricsQuery(title: title, artist: artist, album: "", duration: duration)
+  for (title, artist, album, duration) in [("Lovefool", "The Cardigans", "", 197.0), ("Espresso", "Sabrina Carpenter", "", 175.0), ("Loose Cannon", "Puzzle", "X Hail", 177.02893424036282), ("Oh Klahoma", "Jack Stauber", "Pop food", 185.33875)] {
+   let query = LyricsQuery(title: title, artist: artist, album: album, duration: duration)
    let candidates = try await LRCLIBProvider().search(query)
    precondition(candidates.contains { $0.matchesMetadata(query) }, "Live LRCLIB metadata match missing")
    let onlineManager = LyricsProviderManager()
    let onlinePath = directory.appendingPathComponent("all-providers-" + title)
    try Data(("provider file " + title).utf8).write(to: onlinePath)
    let onlineService = LyricsService(provider: onlineManager, directory: directory.appendingPathComponent(UUID().uuidString))
+   let atomic = try await onlineManager.searchDetailed(query)
+   precondition(atomic.attempts.count == 4 && !atomic.candidates.isEmpty, "One atomic result must contain both candidates and all provider statuses")
    let live = await onlineService.load(url: onlinePath, query: query)
    precondition(live.2 == .ready && live.1?.lines.isEmpty == false, "All-provider pipeline failed despite available lyrics")
    let catalog = await onlineService.sourceCatalog(url: onlinePath, query: query)
