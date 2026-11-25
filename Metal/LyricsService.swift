@@ -21,9 +21,7 @@ actor LyricsService {
         return try await provider.search(query)
     }
     func choose(_ candidate: LyricsCandidate, query: LyricsQuery, id: String) async {
-        var entry = await store.read(id)
-        entry.cached = candidate.document(query); entry.checked = Date()
-        try? await store.write(entry, id: id)
+        try? await store.cache(candidate.document(query), id: id)
     }
     func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?) {
         guard let id = try? Self.identity(url) else { return ("", nil) }
@@ -40,23 +38,23 @@ actor LyricsService {
                 if item.identifier?.rawValue.lowercased().contains("lyrics") == true,
                    let value = item.stringValue, !value.isEmpty {
                     var doc = LyricsParser.parse(value, source: "Embedded")
-                    var updated = entry; updated.cached = doc; try? await self.store.write(updated, id: id)
+                    try? await self.store.cache(doc, id: id)
                     doc.offset += entry.adjustment; return doc
                 }
             }
             guard Date() >= self.retryAfter else { return nil }
             do {
                 let results = try await self.provider.search(q)
-                var updated = entry; updated.checked = Date()
-                if let best = results.first, best.score(q) >= 80 { updated.cached = best.document(q) }
-                try? await self.store.write(updated, id: id)
-                var doc = updated.cached; doc?.offset += entry.adjustment; return doc
+                let selected = results.first.flatMap { $0.score(q) >= 80 ? $0.document(q) : nil }
+                try? await self.store.cache(selected, id: id)
+                let latest = await self.store.read(id)
+                var doc = latest.imported ?? latest.cached; doc?.offset += latest.adjustment; return doc
             } catch { self.retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60); return entry.cached }
         }
         requests[id] = task
         let result = await task.value; requests[id] = nil
         return (id, result)
     }
-    func imported(_ doc: LyricsDocument?, id: String) async { var entry = await store.read(id); entry.imported = doc; try? await store.write(entry, id: id) }
-    func adjust(_ seconds: Double, id: String) async { var entry = await store.read(id); entry.adjustment = seconds; try? await store.write(entry, id: id) }
+    func imported(_ doc: LyricsDocument?, id: String) async { try? await store.install(doc, id: id) }
+    func adjust(_ seconds: Double, id: String) async { try? await store.adjust(seconds, id: id) }
 }

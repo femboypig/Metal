@@ -88,5 +88,8 @@ actor LyricsStore {
     let directory: URL
     init(directory: URL) { self.directory = directory; try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
     func read(_ id: String) -> Entry { guard let data = try? Data(contentsOf: directory.appendingPathComponent(id + ".json")), let entry = try? JSONDecoder().decode(Entry.self, from: data) else { return Entry() }; return entry }
+    func cache(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.cached = doc; entry.checked = Date(); try write(entry, id: id) }
+    func install(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.imported = doc; try write(entry, id: id) }
+    func adjust(_ value: Double, id: String) throws { var entry = read(id); entry.adjustment = value; try write(entry, id: id) }
     func write(_ entry: Entry, id: String) throws { try JSONEncoder().encode(entry).write(to: directory.appendingPathComponent(id + ".json"), options: .atomic) }
 }
