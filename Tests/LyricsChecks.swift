@@ -69,7 +69,7 @@ import Foundation
   async let first = service.load(url: audio, query: query)
   async let second = service.load(url: audio, query: query)
   let id = await service.identifier(url: audio)
-  try await Task.sleep(nanoseconds: 30_000_000)
+  await provider.waitUntilStarted()
   await service.imported(plain, id: id)
   let responses = await (first, second)
   precondition(responses.0.1?.source == "Imported" && responses.1.1?.source == "Imported")
@@ -279,8 +279,15 @@ import Foundation
 
 actor TestLyricsProvider: LyricsProvider {
  var calls = 0
+ private var startWaiters: [CheckedContinuation<Void, Never>] = []
+ func waitUntilStarted() async {
+  if calls > 0 { return }
+  await withCheckedContinuation { startWaiters.append($0) }
+ }
  func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
   calls += 1
+  let waiters = startWaiters; startWaiters = []
+  for waiter in waiters { waiter.resume() }
   try await Task.sleep(nanoseconds: 150_000_000)
   return [LyricsCandidate(id: 1, trackName: query.title, artistName: query.artist, duration: query.duration,
       instrumental: false, plainLyrics: "Text", syncedLyrics: "[00:01]Text")]
