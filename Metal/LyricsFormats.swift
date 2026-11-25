@@ -1,6 +1,6 @@
 import Foundation
 
-struct LyricWord: Codable, Equatable { var start: Double; var end: Double; var text: String }
+struct LyricWord: Codable, Equatable { var start: Double; var end: Double?; var text: String }
 enum LyricsFormats {
     static func time(_ value: String) -> Double? {
         if value.hasSuffix("ms") { return Double(value.dropLast(2)).flatMap { $0.isFinite && $0 >= 0 ? $0 / 1000 : nil } }
@@ -53,9 +53,10 @@ enum LyricsFormats {
                 for (j, m) in matches.enumerated() {
                     guard let start = time(ns.substring(with: m.range(at: 1))) else { continue }
                     let end = j + 1 < matches.count ? time(ns.substring(with: matches[j + 1].range(at: 1))) : doc.lines.indices.contains(i + 1) ? doc.lines[i + 1].time : nil
-                    if let end, end >= start { words.append(LyricWord(start: start, end: end, text: ns.substring(with: m.range(at: 2)))) }
+                    if end == nil || end! >= start { words.append(LyricWord(start: start, end: end, text: ns.substring(with: m.range(at: 2)))) }
                 }
-                if !words.isEmpty { doc.lines[i].words = words; doc.lines[i].text = matches.map { ns.substring(with: $0.range(at: 2)) }.joined() }
+                if !words.isEmpty { doc.lines[i].words = words }
+                if !matches.isEmpty { doc.lines[i].text = matches.map { ns.substring(with: $0.range(at: 2)) }.joined() }
             }
             return doc
         }
