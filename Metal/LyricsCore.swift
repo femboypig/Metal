@@ -15,17 +15,8 @@ struct LyricsDocument: Codable {
     var attribution: String?
     var synchronizationLevel: String { !synchronized ? "Plain" : lines.contains { !($0.words?.isEmpty ?? true) } ? "Word synced" : "Line synced" }
     var synchronized: Bool { timingTrusted != false && !lines.isEmpty && lines.allSatisfy { $0.time != nil } }
-    func active(at time: Double) -> Int? {
-        guard synchronized else { return nil }
-        var low = 0, high = lines.count
-        while low < high { let mid = (low + high) / 2
-            if lines[mid].time! + offset <= time { low = mid + 1 } else { high = mid }
-        }
-        guard low > 0 else { return nil }
-        let index = low - 1
-        if let end = lines[index].end, time > end + offset { return nil }
-        return index
-    }
+    func active(at time: Double) -> Int? { LyricsSyncEngine(document: self)?.active(at: time) }
+
 }
 enum LyricsParser {
     static func parse(_ input: String, source: String) -> LyricsDocument {
@@ -146,4 +137,25 @@ actor LyricsStore {
 enum LyricsFollowPolicy {
     static func intentionallyMoved(_ distance: Double) -> Bool { abs(distance) >= 12 }
     static func awayFromCurrent(distance: Double, viewport: Double) -> Bool { abs(distance) > max(24, viewport * 0.25) }
+}
+
+struct LyricsSyncEngine {
+    let starts: [Double]
+    let ends: [Double?]
+    let offset: Double
+    init?(document: LyricsDocument) {
+        guard document.synchronized else { return nil }
+        starts = document.lines.compactMap(\.time); ends = document.lines.map(\.end); offset = document.offset
+    }
+    func active(at time: Double) -> Int? {
+        var low = 0, high = starts.count
+        while low < high {
+            let mid = (low + high) / 2
+            if starts[mid] + offset <= time { low = mid + 1 } else { high = mid }
+        }
+        guard low > 0 else { return nil }
+        let index = low - 1
+        if let end = ends[index], time > end + offset { return nil }
+        return index
+    }
 }

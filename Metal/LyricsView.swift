@@ -7,6 +7,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     let message = UILabel()
     let actions = UIStackView()
     var document: LyricsDocument?
+    var syncEngine: LyricsSyncEngine?
     var active: Int?
     var manual = false
     var lastViewportSize = CGSize.zero
@@ -69,14 +70,14 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     }
     func display(_ doc: LyricsDocument?, loading: Bool = false) {
         table.setContentOffset(table.contentOffset, animated: false)
-        document = doc; active = nil; manual = false; restoring = false; resume.isHidden = true; resumeMaterial.isHidden = true
+        document = doc; syncEngine = doc.flatMap(LyricsSyncEngine.init); active = nil; manual = false; restoring = false; resume.isHidden = true; resumeMaterial.isHidden = true
         let empty = doc?.lines.isEmpty ?? true
         table.isHidden = empty; message.isHidden = !empty; actions.isHidden = !empty || loading
         message.text = loading ? "Finding lyrics…" : (doc?.instrumental == true ? "Instrumental" : "No lyrics found.")
         table.reloadData(); table.setContentOffset(CGPoint(x: 0, y: -table.adjustedContentInset.top), animated: false)
     }
     func update(time: Double) {
-        let next = document?.active(at: time)
+        let next = syncEngine?.active(at: time)
         guard next != active else {
             // Height estimation and interrupted scroll animations can move the target after it was selected.
             if !manual && !table.isDragging && !table.isDecelerating && !restoring, let active,
