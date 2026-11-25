@@ -10,6 +10,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     private let syncLabel = UILabel()
     private let syncSpinner = UIActivityIndicatorView(style: .medium)
     private let syncCancel = UIButton(type: .custom)
+    var correctLine: ((Int) -> Void)?
     var cancelSync: (() -> Void)?
     var document: LyricsDocument?
     var syncEngine: LyricsSyncEngine?
@@ -117,7 +118,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         else if state == .unavailable { message.text = "Lyrics unavailable.\nTry again shortly." }
         else if state == .unreadable { message.text = "Audio file unavailable." }
         else { message.text = "No lyrics found." }
-        setSyncStatus(doc?.onDeviceTiming == nil ? nil : (doc!.lines.contains { $0.time == nil } ? "Partial on-device sync · Experimental" : "On-device sync · Experimental"), busy: false)
+        setSyncStatus(doc?.onDeviceTiming == nil ? nil : (doc!.synchronizationLevel + " · Experimental"), busy: false)
         setNeedsLayout()
         table.reloadData(); table.setContentOffset(CGPoint(x: 0, y: -table.adjustedContentInset.top), animated: false)
     }
@@ -218,6 +219,14 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         cell.textLabel?.text = document?.lines[indexPath.row].text
         cell.accessibilityHint = document?.synchronized == true && document?.lines[indexPath.row].time != nil ? "Double tap to play from this line" : nil
         style(cell, index: indexPath.row); return cell
+    }
+    func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
+        guard document?.onDeviceTiming != nil else { return nil }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            UIMenu(children: [UIAction(title: "Correct Line Timing", image: UIImage(systemName: "clock")) { [weak self] _ in
+                self?.correctLine?(indexPath.row)
+            }])
+        }
     }
     static func lyricsFont(text: String, size: CGFloat) -> UIFont {
         let latin = UIFont(name: "Fraunces72pt-Bold", size: size) ?? UIFont(name: "Georgia-Bold", size: size)!

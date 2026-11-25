@@ -31,7 +31,7 @@ extension ViewController {
         }
         lyricsSyncTask = Task(priority: .utility) { [weak self] in
             let entry = await LyricsService.shared.store.read(id)
-            if !force, let previous = entry.syncAttempt, previous.fingerprint == fingerprint,
+            if !force, let previous = entry.syncAttempt, previous.fingerprint == fingerprint, previous.revision == 2,
                Date().timeIntervalSince(previous.date) < 86_400 {
                 if self?.lyricsSyncGeneration == generation { self?.lyricsSyncTask = nil }
                 return
@@ -107,6 +107,7 @@ extension ViewController {
             lyricsView.leadingAnchor.constraint(equalTo: coverCarouselContainer.leadingAnchor),
             lyricsView.trailingAnchor.constraint(equalTo: coverCarouselContainer.trailingAnchor)
         ])
+        lyricsView.correctLine = { [weak self] row in self?.correctLyricsLine(row) }
         lyricsView.seek = { [weak self] time in self?.seek(to: time); self?.updateLyrics() }
         lyricsView.search = { [weak self] in self?.loadLyrics(force: true) }
         lyricsView.imported = { [weak self] in self?.importLyrics() }
@@ -173,6 +174,9 @@ extension ViewController {
                 }
             })
         }
+        actions.append(UIAction(title: "Copy On-device Sync Details", image: UIImage(systemName: "doc.on.doc")) { _ in
+            UIPasteboard.general.string = UserDefaults.standard.string(forKey: "MetalLyricsSync.diagnostics") ?? "On-device sync has not run yet."
+        })
         actions += [
             UIAction(title: "Lyrics Source", image: UIImage(systemName: "list.bullet")) { [weak self] _ in self?.chooseLyricsVersion() },
             UIAction(title: "Search Again", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in self?.setLyricsVisible(true); self?.loadLyrics(force: true) },
@@ -298,6 +302,40 @@ extension ViewController {
             apply(LyricsSearchMetadata(title: title, artist: artist))
         })
         alert.addAction(UIAlertAction(title: "Use File Metadata", style: .default) { _ in apply(nil) })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+    }
+    func correctLyricsLine(_ row: Int) {
+        guard let document = lyricsView.document, document.onDeviceTiming != nil,
+              document.lines.indices.contains(row), !lyricsIdentity.isEmpty else { return }
+        let id = lyricsIdentity, fingerprint = LyricsAlignment.fingerprint(document)
+        let key = document.source == "Imported" ? "imported" : document.resultKey ?? "legacy"
+        let alert = UIAlertController(title: "Line Timing", message: document.lines[row].text + "\nStart time in seconds, including your sync offset.", preferredStyle: .alert)
+        alert.addTextField {
+            $0.keyboardType = .numbersAndPunctuation
+            $0.text = String(format: "%.3f", document.lines[row].time.map { $0 + document.offset } ?? self.audioPlayer?.currentTime ?? 0)
+        }
+        let apply: (Double?) -> Void = { [weak self] time in
+            Task { @MainActor [weak self] in
+                let saved = (try? await LyricsService.shared.store.correctOnDeviceLine(id: id, sourceKey: key,
+                    fingerprint: fingerprint, row: row, time: time.map { $0 - document.offset })) ?? false
+                guard let self, self.lyricsIdentity == id else { return }
+                if saved {
+                    let updated = await LyricsService.shared.store.resolved(id)
+                    guard self.lyricsIdentity == id else { return }
+                    self.lyricsView.display(updated); self.updateLyrics()
+                } else {
+                    let error = UIAlertController(title: "Timing Not Saved", message: "Keep this line between the timed lines before and after it.", preferredStyle: .alert)
+                    error.addAction(UIAlertAction(title: "OK", style: .default)); self.present(error, animated: true)
+                }
+            }
+        }
+        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak alert] _ in
+            guard let value = Double((alert?.textFields?.first?.text ?? "").replacingOccurrences(of: ",", with: ".")), value.isFinite else { return }
+            apply(value)
+        })
+        alert.addAction(UIAlertAction(title: "Use Playback Position", style: .default) { [weak self] _ in apply(self?.audioPlayer?.currentTime) })
+        alert.addAction(UIAlertAction(title: "Remove Timestamp", style: .destructive) { _ in apply(nil) })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         present(alert, animated: true)
     }

@@ -5,9 +5,11 @@ import NaturalLanguage
 
 enum OnDeviceLyricsSyncError: LocalizedError {
     case unavailable, permission, declined, noSpeech
+    case unsupported(String)
     var errorDescription: String? {
         switch self {
         case .unavailable: return "On-device speech is unavailable for this language."
+        case .unsupported(let detail): return detail
         case .permission: return "Speech recognition permission is needed for on-device sync."
         case .declined: return "Speech model download postponed."
         case .noSpeech: return "Could not match the vocals reliably."
@@ -16,12 +18,18 @@ enum OnDeviceLyricsSyncError: LocalizedError {
 }
 
 actor OnDeviceLyricsSync {
+    private var diagnostics: [String] = []
+    private func record(_ value: String) {
+        diagnostics.append(value)
+        UserDefaults.standard.set(diagnostics.joined(separator: "\n"), forKey: "MetalLyricsSync.diagnostics")
+    }
     typealias Progress = @Sendable (String) -> Void
     typealias DownloadConsent = @Sendable (String) async -> Bool
 
     func generate(url: URL, document: LyricsDocument, forceModelPrompt: Bool = false, progress: @escaping Progress,
                   downloadConsent: @escaping DownloadConsent) async throws -> LyricsDocument {
-        try Task.checkCancellation()
+        diagnostics = ["OS: " + ProcessInfo.processInfo.operatingSystemVersionString]
+        record("Alignment revision: local-lines-v2")
         let text = document.lines.map(\.text).joined(separator: "\n")
         let referenceWords = document.lines.reduce(0) { $0 + LyricsAlignment.words($1.text).count }
         guard referenceWords >= 4 else { throw LyricsAlignmentError.insufficientMatches }
@@ -29,7 +37,8 @@ actor OnDeviceLyricsSync {
         let detector = NLLanguageRecognizer()
         detector.processString(text)
         guard let language = detector.dominantLanguage else { throw OnDeviceLyricsSyncError.unavailable }
-        let locale = Locale(identifier: language.rawValue)
+        let locale = Locale(identifier: language == .russian ? "ru-RU" : language.rawValue)
+        record("Requested locale: " + locale.identifier)
         progress("Preparing on-device sync…")
         let source = try AVAudioFile(forReading: url)
         let duration = Double(source.length) / source.processingFormat.sampleRate
@@ -39,17 +48,46 @@ actor OnDeviceLyricsSync {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let observed: [LyricsRecognizedWord]
-        if #available(iOS 26.0, macOS 26.0, *), SpeechTranscriber.isAvailable,
-           let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) {
-            observed = try await modern(source: source, directory: directory, locale: supported,
-                progress: progress, consent: downloadConsent, forceModelPrompt: forceModelPrompt)
-        } else {
-            observed = try await legacy(source: source, directory: directory, locale: locale,
-                hints: document.lines.map(\.text), progress: progress)
+        do {
+            if #available(iOS 26.0, macOS 26.0, *) {
+                let speechLocale = await SpeechTranscriber.supportedLocale(equivalentTo: locale)
+                let dictationLocale = await DictationTranscriber.supportedLocale(equivalentTo: locale)
+                record("SpeechTranscriber.isAvailable: \(SpeechTranscriber.isAvailable)")
+                record("SpeechTranscriber.supportedLocale: \(speechLocale?.identifier ?? "nil")")
+                record("DictationTranscriber.supportedLocale: \(dictationLocale?.identifier ?? "nil")")
+                if let supported = dictationLocale, language == .russian || !SpeechTranscriber.isAvailable || speechLocale == nil {
+                    record("Selected: DictationTranscriber")
+                    observed = try await dictation(source: source, directory: directory, locale: supported,
+                        progress: progress, consent: downloadConsent, forceModelPrompt: forceModelPrompt)
+                } else if SpeechTranscriber.isAvailable, let supported = speechLocale {
+                    record("Selected: SpeechTranscriber")
+                    observed = try await modern(source: source, directory: directory, locale: supported,
+                        progress: progress, consent: downloadConsent, forceModelPrompt: forceModelPrompt)
+                } else {
+                    record("Modern modules unavailable; checking strictly on-device SFSpeechRecognizer")
+                    observed = try await legacy(source: source, directory: directory, locale: locale,
+                        hints: document.lines.map(\.text), progress: progress)
+                }
+            } else {
+                record("SpeechAnalyzer and DictationTranscriber require iOS 26")
+                observed = try await legacy(source: source, directory: directory, locale: locale,
+                    hints: document.lines.map(\.text), progress: progress)
+            }
+        } catch {
+            record("Recognition failure: \(error.localizedDescription)")
+            throw error
         }
+        record("Observed timing units: \(observed.count)")
         try Task.checkCancellation()
         progress("Matching existing lyrics…")
-        return try LyricsAlignment.align(document: document, recognized: observed, duration: duration, language: language.rawValue)
+        do {
+            let aligned = try LyricsAlignment.align(document: document, recognized: observed, duration: duration, language: language.rawValue)
+            record("Aligned lines: \(aligned.lines.filter { $0.time != nil }.count)/\(aligned.lines.count); \(aligned.synchronizationLevel)")
+            return aligned
+        } catch {
+            record("No sufficiently confirmed line windows: \(error)")
+            throw error
+        }
     }
 
     @available(iOS 26.0, macOS 26.0, *)
@@ -58,23 +96,8 @@ actor OnDeviceLyricsSync {
         let transcriber = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [],
             attributeOptions: [.audioTimeRange])
         let modules: [any SpeechModule] = [transcriber]
-        let status = await AssetInventory.status(forModules: modules)
-        guard status != .unsupported else { throw OnDeviceLyricsSyncError.unavailable }
-        if status != .installed {
-            let preference = "MetalLyricsSync.modelDeclined." + locale.identifier
-            if !forceModelPrompt, let date = UserDefaults.standard.object(forKey: preference) as? Date,
-               Date().timeIntervalSince(date) < 604_800 { throw OnDeviceLyricsSyncError.declined }
-            let language = Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
-            let accepted = await consent(language)
-            try Task.checkCancellation()
-            guard accepted else { UserDefaults.standard.set(Date(), forKey: preference); throw OnDeviceLyricsSyncError.declined }
-            UserDefaults.standard.removeObject(forKey: preference)
-            progress("Installing speech model…")
-            if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
-                try await withTaskCancellationHandler(operation: { try await request.downloadAndInstall() },
-                    onCancel: { request.progress.cancel() })
-            }
-        }
+        try await ensureModel(modules, locale: locale, name: "SpeechTranscriber", progress: progress,
+            consent: consent, forceModelPrompt: forceModelPrompt)
         guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: modules, considering: source.processingFormat) else {
             throw OnDeviceLyricsSyncError.unavailable
         }
@@ -106,6 +129,76 @@ actor OnDeviceLyricsSync {
         })
     }
 
+    @available(iOS 26.0, macOS 26.0, *)
+    private func dictation(source: AVAudioFile, directory: URL, locale: Locale, progress: @escaping Progress,
+                        consent: @escaping DownloadConsent, forceModelPrompt: Bool) async throws -> [LyricsRecognizedWord] {
+        let transcriber = DictationTranscriber(locale: locale, contentHints: [], transcriptionOptions: [], reportingOptions: [],
+            attributeOptions: [.audioTimeRange])
+        let modules: [any SpeechModule] = [transcriber]
+        try await ensureModel(modules, locale: locale, name: "DictationTranscriber", progress: progress,
+            consent: consent, forceModelPrompt: forceModelPrompt)
+        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: modules, considering: source.processingFormat) else {
+            throw OnDeviceLyricsSyncError.unavailable
+        }
+        progress("Preparing audio…")
+        let file = try Self.prepareAudio(source, directory: directory, format: format)
+        let analyzer = SpeechAnalyzer(modules: modules, options: nil)
+        return try await withTaskCancellationHandler(operation: {
+            progress("Matching vocals on device…")
+            try await analyzer.start(inputAudioFile: file, finishAfterFile: true)
+            var words: [LyricsRecognizedWord] = []
+            do {
+                for try await result in transcriber.results {
+                    try Task.checkCancellation()
+                    guard result.isFinal else { continue }
+                    for run in result.text.runs {
+                        guard let range = run.audioTimeRange else { continue }
+                        let text = String(result.text[run.range].characters)
+                        words.append(LyricsRecognizedWord(text: text, start: CMTimeGetSeconds(range.start),
+                            end: CMTimeGetSeconds(CMTimeRangeGetEnd(range))))
+                    }
+                }
+                return words
+            } catch {
+                await analyzer.cancelAndFinishNow()
+                throw error
+            }
+        }, onCancel: {
+            Task { await analyzer.cancelAndFinishNow() }
+        })
+    }
+
+    @available(iOS 26.0, macOS 26.0, *)
+    private func ensureModel(_ modules: [any SpeechModule], locale: Locale, name: String,
+                             progress: @escaping Progress, consent: @escaping DownloadConsent,
+                             forceModelPrompt: Bool) async throws {
+        let status = await AssetInventory.status(forModules: modules)
+        record("\(name) AssetInventory.status: \(status)")
+        guard status != .unsupported else {
+            throw OnDeviceLyricsSyncError.unsupported("\(name): AssetInventory returned unsupported for \(locale.identifier) on this device.")
+        }
+        if status != .installed {
+            let preference = "MetalLyricsSync.modelDeclined." + locale.identifier
+            if !forceModelPrompt, let date = UserDefaults.standard.object(forKey: preference) as? Date,
+               Date().timeIntervalSince(date) < 604_800 { throw OnDeviceLyricsSyncError.declined }
+            let language = Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+            let accepted = await consent(language)
+            try Task.checkCancellation()
+            guard accepted else { UserDefaults.standard.set(Date(), forKey: preference); throw OnDeviceLyricsSyncError.declined }
+            UserDefaults.standard.removeObject(forKey: preference)
+            progress("Installing speech model…")
+            if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
+                try await withTaskCancellationHandler(operation: { try await request.downloadAndInstall() },
+                    onCancel: { request.progress.cancel() })
+            }
+        }
+        let installed = await AssetInventory.status(forModules: modules)
+        record("\(name) AssetInventory.status after installation: \(installed)")
+        guard installed == .installed else {
+            throw OnDeviceLyricsSyncError.unsupported("\(name): local model for \(locale.identifier) is not installed (\(installed)).")
+        }
+    }
+
     private func legacy(source: AVAudioFile, directory: URL, locale: Locale, hints: [String],
                         progress: @escaping Progress) async throws -> [LyricsRecognizedWord] {
         let preferred = Locale.preferredLanguages.map(Locale.init(identifier:)).first { $0.languageCode == locale.languageCode }
@@ -113,8 +206,14 @@ actor OnDeviceLyricsSync {
         let supported = locales.first { $0.regionCode == preferred?.regionCode } ??
             locales.first { $0.regionCode == Locale.current.regionCode } ??
             locales.first { $0.regionCode == (locale.languageCode == "en" ? "US" : "RU") } ?? locales.first
-        guard let supported, let recognizer = SFSpeechRecognizer(locale: supported),
-              recognizer.supportsOnDeviceRecognition else { throw OnDeviceLyricsSyncError.unavailable }
+        record("SFSpeechRecognizer.supportedLocale: \(supported?.identifier ?? "nil")")
+        guard let supported, let recognizer = SFSpeechRecognizer(locale: supported) else {
+            throw OnDeviceLyricsSyncError.unsupported("SFSpeechRecognizer: no recognizer for \(locale.identifier). See Copy On-device Sync Details for module checks.")
+        }
+        record("SFSpeechRecognizer.supportsOnDeviceRecognition: \(recognizer.supportsOnDeviceRecognition)")
+        guard recognizer.supportsOnDeviceRecognition else {
+            throw OnDeviceLyricsSyncError.unsupported("SFSpeechRecognizer: supportsOnDeviceRecognition is false for \(supported.identifier). See Copy On-device Sync Details. No server fallback was used.")
+        }
         let authorization: SFSpeechRecognizerAuthorizationStatus
         if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
             authorization = await withCheckedContinuation { continuation in

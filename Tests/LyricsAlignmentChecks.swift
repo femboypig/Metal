@@ -20,20 +20,52 @@ import Foundation
         precondition(aligned.active(at: observed[0].start + 1.25) == 0)
         precondition(aligned.active(at: 0) == nil)
 
-        // Missing the first word of the second line leaves that line untimed.
+        // Missing the opening word keeps the row anchored to a real later word.
         let partial = try LyricsAlignment.align(document: plain, recognized: observation(texts, omit: [4]), duration: 60, language: "en")
-        precondition(partial.lines[1].time == nil && partial.synchronized)
+        precondition(partial.lines[1].time == observed[5].start && partial.synchronized)
+        precondition(partial.onDeviceTiming?.anchoredLineStarts == [1] && partial.timingTrusted == false)
         precondition(partial.synchronizationLevel == "Partial on-device sync")
         let thirdStart = partial.lines[2].time! + partial.offset
         precondition(partial.active(at: thirdStart) == 2, "Partial sync must return the original row index")
-        precondition(partial.active(at: thirdStart - 1) == nil, "An unrecognized passage must not inherit an earlier highlight")
+
         precondition(partial.lines.map(\.text) == texts)
+
+        // A completely missed passage remains untimed; other rows survive.
+        let sparse = try LyricsAlignment.align(document: plain,
+            recognized: observation(texts, omit: Set(4...7)), duration: 60, language: "en")
+        precondition(sparse.lines[1].time == nil && sparse.synchronized && sparse.timingTrusted == false)
+        precondition(sparse.active(at: thirdStart - 1) == nil)
+
+        // Less than 20% of a song can still supply a useful, explicitly partial row.
+        let longTexts = texts + (0..<12).map { "Unrecognized passage number \($0)" }
+        let lowCoverage = try LyricsAlignment.align(document: LyricsParser.parse(longTexts.joined(separator: "\n"), source: "Fixture"),
+            recognized: observation([texts[0]]), duration: 120, language: "en")
+        precondition(lowCoverage.lines[0].time == 10 && lowCoverage.lines.dropFirst().allSatisfy { $0.time == nil })
+        precondition(lowCoverage.timingTrusted == false && lowCoverage.synchronizationLevel == "Partial on-device sync")
 
         precondition(LyricsAlignment.normalized("мой") != LyricsAlignment.normalized("мои"), "Cyrillic letters must retain phonetic distinctions")
         let russian = ["Ёлки тихо смотрят в небо", "Мы идём туда где свет"]
         let russianDoc = LyricsParser.parse(russian.joined(separator: "\n"), source: "Fixture")
         let russianAligned = try LyricsAlignment.align(document: russianDoc, recognized: observation(russian), duration: 60, language: "ru")
         precondition(russianAligned.synchronized && russianAligned.lines.map(\.text) == russian)
+        // Realistic ASR substitutions and omitted boundary words: text stays intact.
+        let ruLines = ["Ночью тихий ветер греет наши руки", "Никто не разобрал слова припева", "Снова тихий ветер греет наши руки"]
+        let ruDoc = LyricsParser.parse(ruLines.joined(separator: "\n"), source: "Fixture")
+        let ruWords = observation(ruLines, omit: [0, 6, 7, 8, 9, 10, 11, 12, 18])
+        var noisy = ruWords
+        if let index = noisy.firstIndex(where: { $0.text == "греет" }) { noisy[index].text = "реет" }
+        let ruPartial = try LyricsAlignment.align(document: ruDoc, recognized: noisy, duration: 90, language: "ru")
+        precondition(ruPartial.lines.map(\.text) == ruLines)
+        precondition(ruPartial.lines[0].time != nil && ruPartial.lines[1].time == nil && ruPartial.lines[2].time != nil)
+        precondition(ruPartial.lines[0].time! < ruPartial.lines[2].time! && ruPartial.timingTrusted == false)
+        precondition(ruPartial.lines.flatMap { $0.words ?? [] }.allSatisfy { word in noisy.contains { $0.start == word.start && $0.end == word.end } })
+        // A few unrelated common words at widely separated times must not form a row.
+        do {
+            _ = try LyricsAlignment.align(document: ruDoc, recognized: [
+                LyricsRecognizedWord(text: "тихий", start: 1, end: 2),
+                LyricsRecognizedWord(text: "ветер", start: 30, end: 31)], duration: 90, language: "ru")
+            preconditionFailure("Scattered coincidences must not invent a lyric span")
+        } catch LyricsAlignmentError.insufficientMatches { }
         do {
             _ = try LyricsAlignment.align(document: plain, recognized: [LyricsRecognizedWord(text: "unrelated", start: 2, end: 3)], duration: 60, language: "en")
             preconditionFailure("Unrelated recognition must never receive invented synchronization")
@@ -47,6 +79,12 @@ import Foundation
         let chorusDoc = LyricsParser.parse(chorus.joined(separator: "\n"), source: "Fixture")
         let repeated = try LyricsAlignment.align(document: chorusDoc, recognized: observation(chorus), duration: 60, language: "en")
         precondition(repeated.lines[0].time! < repeated.lines[2].time!, "Repeated lyrics must keep distinct acoustic occurrences")
+        let ruChorus = ["Тихий ветер унесёт печали", "Свет над городом встречает утро", "Тихий ветер унесёт печали"]
+        let chorusRuDoc = LyricsParser.parse(ruChorus.joined(separator: "\n"), source: "Fixture")
+        let ruRepeated = try LyricsAlignment.align(document: chorusRuDoc, recognized: observation(ruChorus, omit: [0, 3, 9, 12]), duration: 60, language: "ru")
+        let ruStarts = ruRepeated.lines.compactMap(\.time)
+        precondition(ruStarts.count == 3 && zip(ruStarts, ruStarts.dropFirst()).allSatisfy { $0 < $1 })
+
         let cancelled = Task {
             while !Task.isCancelled { await Task.yield() }
             return try LyricsAlignment.align(document: plain, recognized: observed, duration: 60, language: "en")
@@ -67,6 +105,14 @@ import Foundation
         let reopened = LyricsStore(directory: directory)
         let persisted = await reopened.resolved("import")
         precondition(persisted?.onDeviceTiming?.language == "en" && persisted?.offset == 1.75, "Offsets must be applied once")
+        let manualSaved = try await reopened.correctOnDeviceLine(id: "import", sourceKey: "imported",
+            fingerprint: LyricsAlignment.fingerprint(plain), row: 1, time: 13)
+        precondition(manualSaved)
+        let corrected = await LyricsStore(directory: directory).resolved("import")
+        precondition(corrected?.lines[1].time == 13 && corrected?.lines[1].text == texts[1])
+        let invalidEdit = try await reopened.correctOnDeviceLine(id: "import", sourceKey: "imported",
+            fingerprint: LyricsAlignment.fingerprint(plain), row: 1, time: 55)
+        precondition(!invalidEdit, "Manual edits must preserve chronological row order")
         try await reopened.removeOnDeviceTiming(id: "import")
         let restored = await reopened.resolved("import")
         precondition(restored?.lines == plain.lines && restored?.offset == 1.75 && restored?.onDeviceTiming == nil)

@@ -18,12 +18,12 @@ struct LyricsDocument: Codable {
     var onDeviceTiming: LyricsOnDeviceTiming?
     var synchronizationLevel: String {
         if !synchronized { return "Plain" }
-        if onDeviceTiming != nil { return lines.allSatisfy { $0.time != nil } ? "On-device sync" : "Partial on-device sync" }
+        if let timing = onDeviceTiming { return timing.lineCoverage >= 1 && timing.wordCoverage >= 1 && (timing.anchoredLineStarts?.isEmpty ?? true) ? "On-device sync" : "Partial on-device sync" }
         return lines.contains { !($0.words?.isEmpty ?? true) } ? "Word synced" : "Line synced"
     }
     var synchronized: Bool {
-        timingTrusted != false && !lines.isEmpty &&
-            (onDeviceTiming != nil ? lines.contains { $0.time != nil } : lines.allSatisfy { $0.time != nil })
+        !lines.isEmpty && (onDeviceTiming != nil ? lines.contains { $0.time != nil } :
+            timingTrusted != false && lines.allSatisfy { $0.time != nil })
     }
     func active(at time: Double) -> Int? { LyricsSyncEngine(document: self)?.active(at: time) }
 
@@ -231,7 +231,7 @@ actor LyricsStore {
     }
     func syncAttempt(_ fingerprint: String?, id: String) throws {
         var entry = read(id)
-        entry.syncAttempt = fingerprint.map { LyricsSyncAttempt(fingerprint: $0, date: Date()) }
+        entry.syncAttempt = fingerprint.map { LyricsSyncAttempt(fingerprint: $0, date: Date(), revision: 2) }
         try write(entry, id: id)
     }
     func saveOnDeviceTiming(_ proposed: LyricsDocument, id: String, sourceKey: String, fingerprint: String) throws -> Bool {
@@ -252,7 +252,30 @@ actor LyricsStore {
             if let key = document.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = document }
             if entry.selected == nil || entry.cached?.resultKey == base.resultKey { entry.cached = document }
         }
-        entry.syncAttempt = LyricsSyncAttempt(fingerprint: fingerprint, date: Date())
+        entry.syncAttempt = LyricsSyncAttempt(fingerprint: fingerprint, date: Date(), revision: 2)
+        try write(entry, id: id); return true
+    }
+    /// Edit a draft row without touching source audio or other source preferences.
+    func correctOnDeviceLine(id: String, sourceKey: String, fingerprint: String, row: Int, time: Double?) throws -> Bool {
+        var entry = read(id)
+        guard var document = entry.imported ?? entry.selected.flatMap({ entry.results?[$0] }) ?? entry.cached,
+              document.onDeviceTiming != nil, document.lines.indices.contains(row),
+              LyricsAlignment.fingerprint(document) == fingerprint,
+              (entry.imported != nil ? "imported" : document.resultKey ?? "legacy") == sourceKey else { return false }
+        if let time {
+            guard time.isFinite, time >= 0 else { return false }
+            let before = document.lines[..<row].compactMap(\.time).last
+            let after = document.lines.dropFirst(row + 1).compactMap(\.time).first
+            guard before.map({ time > $0 }) ?? true, after.map({ time < $0 }) ?? true else { return false }
+        }
+        document.lines[row].time = time; document.lines[row].end = nil; document.lines[row].words = nil
+        document.onDeviceTiming?.anchoredLineStarts?.removeAll { $0 == row }
+        document.onDeviceTiming?.lineCoverage = Double(document.lines.filter { $0.time != nil }.count) / Double(max(1, document.lines.count))
+        if entry.imported != nil { entry.imported = document }
+        else {
+            if let key = document.resultKey { entry.results?[key] = document }
+            if entry.selected == nil || entry.cached?.resultKey == document.resultKey { entry.cached = document }
+        }
         try write(entry, id: id); return true
     }
     func removeOnDeviceTiming(id: String) throws {
@@ -266,7 +289,7 @@ actor LyricsStore {
             if let key = document.resultKey { entry.results?[key] = document }
             if entry.selected == nil || entry.cached?.resultKey == document.resultKey { entry.cached = document }
         }
-        entry.syncAttempt = LyricsSyncAttempt(fingerprint: LyricsAlignment.fingerprint(document), date: Date())
+        entry.syncAttempt = LyricsSyncAttempt(fingerprint: LyricsAlignment.fingerprint(document), date: Date(), revision: 2)
         try write(entry, id: id)
     }
     func searchMetadata(_ metadata: LyricsSearchMetadata?, id: String) throws {
