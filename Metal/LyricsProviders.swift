@@ -157,6 +157,11 @@ enum LyricsProviderHTTP {
     }
 }
 
+private enum LyricsProviderResponse {
+    case found(name: String, candidates: [LyricsCandidate])
+    case failed(name: String, retryAfter: Double, statusCode: Int?)
+}
+
 actor LyricsProviderManager: LyricsProvider {
     let providers: [(String, any LyricsProvider)]
     var blockedUntil: [String: Date] = [:]
@@ -194,25 +199,30 @@ actor LyricsProviderManager: LyricsProvider {
             LyricsProviderAttempt(name: $0.0, resultCount: 0, matchCount: 0, failed: true, statusCode: blockedStatus[$0.0])
         }
         for batch in stride(from: 0, to: available.count, by: 2) {
-            await withTaskGroup(of: (String, [LyricsCandidate], Double?, Int?).self) { group in
+            // Keep child tasks independent. Collect immutable responses first;
+            // update accumulator arrays and actor state only after leaving the group.
+            let responses = await withTaskGroup(of: LyricsProviderResponse.self, returning: [LyricsProviderResponse].self) { group in
                 for (name, provider) in available[batch..<min(batch + 2, available.count)] {
-                    group.addTask {
-                        do { return (name, try await provider.search(query), nil, nil) }
-                        catch { return (name, [], (error as? LyricsHTTPError)?.retryAfter ?? 60, (error as? LyricsHTTPError)?.statusCode) }
+                    group.addTask { [name, provider, query] in
+                        do { return .found(name: name, candidates: try await provider.search(query)) }
+                        catch { return .failed(name: name, retryAfter: (error as? LyricsHTTPError)?.retryAfter ?? 60, statusCode: (error as? LyricsHTTPError)?.statusCode) }
                     }
                 }
-                for await (name, found, retry, statusCode) in group {
-                    results += found
+                var collected: [LyricsProviderResponse] = []
+                for await response in group { collected.append(response) }
+                return collected
+            }
+            for response in responses {
+                switch response {
+                case let .found(name, found):
+                    results.append(contentsOf: found)
                     attempts.append(LyricsProviderAttempt(name: name, resultCount: found.count,
-                        matchCount: found.filter { $0.matchesMetadata(query) && (!$0.document(query).lines.isEmpty || $0.instrumental) }.count,
-                        failed: retry != nil, statusCode: statusCode))
-                    if let retry {
-                        // Better Lyrics 401 is a per-song public-cache miss, not a
-                        // provider-wide outage. The next song may already be cached.
-                        if !(name == "Better Lyrics" && statusCode == 401) {
-                            blockedUntil[name] = Date().addingTimeInterval(retry)
-                            blockedStatus[name] = statusCode
-                        }
+                        matchCount: found.filter { $0.matchesMetadata(query) && (!$0.document(query).lines.isEmpty || $0.instrumental) }.count))
+                case let .failed(name, retry, statusCode):
+                    attempts.append(LyricsProviderAttempt(name: name, resultCount: 0, matchCount: 0, failed: true, statusCode: statusCode))
+                    if !(name == "Better Lyrics" && statusCode == 401) {
+                        blockedUntil[name] = Date().addingTimeInterval(retry)
+                        blockedStatus[name] = statusCode
                     }
                 }
             }

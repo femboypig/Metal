@@ -100,7 +100,8 @@ import Foundation
   try await store.select(sourceA, id: "sources")
   let sourceRestored = await store.resolved("sources")
   precondition(sourceRestored?.offset == doc.offset + 0.5)
-  let fallback = LyricsProviderManager(providers: [("Offline", OfflineLyricsProvider()), ("Fixture", TestLyricsProvider())])
+  let workingFallback = TestLyricsProvider()
+  let fallback = LyricsProviderManager(providers: [("Offline", OfflineLyricsProvider()), ("Fixture", workingFallback)])
   trace("mixed-provider fallback")
   let fallbackResults: [LyricsCandidate]
   do { fallbackResults = try await fallback.search(query) }
@@ -110,6 +111,9 @@ import Foundation
    throw error
   }
   precondition(fallbackResults.count == 1)
+  let fallbackAttempts = await fallback.report(query)
+  precondition(fallbackAttempts.count == 2 && fallbackAttempts[1].resultCount == 1,
+      "Release builds must retain the working provider result and both completion records")
   let nullable = Data(#"[{"id":101,"trackName":"Song","artistName":"Artist","duration":null,"instrumental":false,"plainLyrics":"One","syncedLyrics":"[00:01]One"},{"id":102,"trackName":"Song","artistName":"Artist","duration":200,"instrumental":false,"plainLyrics":"Two","syncedLyrics":"[00:02]Two"},{"id":"broken","trackName":"Song"}]"#.utf8)
   let tolerant = try LRCLIBProvider.candidates(nullable)
   precondition(tolerant.count == 2 && tolerant[0].duration == 0 && tolerant[1].duration == 200,
