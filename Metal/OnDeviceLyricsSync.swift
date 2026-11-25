@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AudioToolbox
 import Speech
 import NaturalLanguage
 
@@ -29,7 +30,8 @@ actor OnDeviceLyricsSync {
     func generate(url: URL, document: LyricsDocument, forceModelPrompt: Bool = false, progress: @escaping Progress,
                   downloadConsent: @escaping DownloadConsent) async throws -> LyricsDocument {
         diagnostics = ["OS: " + ProcessInfo.processInfo.operatingSystemVersionString]
-        record("Alignment revision: local-lines-v2")
+        record("Alignment revision: local-lines-v3-audio-eof")
+        try Task.checkCancellation()
         let text = document.lines.map(\.text).joined(separator: "\n")
         let referenceWords = document.lines.reduce(0) { $0 + LyricsAlignment.words($1.text).count }
         guard referenceWords >= 4 else { throw LyricsAlignmentError.insufficientMatches }
@@ -41,6 +43,7 @@ actor OnDeviceLyricsSync {
         record("Requested locale: " + locale.identifier)
         progress("Preparing on-device sync…")
         let source = try AVAudioFile(forReading: url)
+        record("Source format: \(source.fileFormat); processing: \(source.processingFormat); frames: \(source.length)")
         let duration = Double(source.length) / source.processingFormat.sampleRate
         guard duration.isFinite, duration > 0, duration <= 1_800 else { throw LyricsAlignmentError.tooLong }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("MetalLyricsSync-" + UUID().uuidString)
@@ -102,11 +105,15 @@ actor OnDeviceLyricsSync {
             throw OnDeviceLyricsSyncError.unavailable
         }
         progress("Preparing audio…")
-        let file = try Self.prepareAudio(source, directory: directory, format: format)
+        record("Preparing PCM for analyzer: \(format)")
+        let file: AVAudioFile
+        do { file = try Self.prepareAudio(source, directory: directory, format: format) }
+        catch { record("PCM preparation failed: \(Self.errorDetails(error))"); throw error }
+        record("Prepared PCM frames: \(file.length); format: \(file.processingFormat); duration: \(Double(file.length) / file.processingFormat.sampleRate)")
         let analyzer = SpeechAnalyzer(modules: modules, options: nil)
         return try await withTaskCancellationHandler(operation: {
             progress("Matching vocals on device…")
-            try await analyzer.start(inputAudioFile: file, finishAfterFile: true)
+            async let feeding: Void = feed(analyzer, file: file)
             var words: [LyricsRecognizedWord] = []
             do {
                 for try await result in transcriber.results {
@@ -119,8 +126,10 @@ actor OnDeviceLyricsSync {
                             end: CMTimeGetSeconds(CMTimeRangeGetEnd(range))))
                     }
                 }
+                try await feeding
                 return words
             } catch {
+                record("Analyzer results failed: \(Self.errorDetails(error))")
                 await analyzer.cancelAndFinishNow()
                 throw error
             }
@@ -141,11 +150,15 @@ actor OnDeviceLyricsSync {
             throw OnDeviceLyricsSyncError.unavailable
         }
         progress("Preparing audio…")
-        let file = try Self.prepareAudio(source, directory: directory, format: format)
+        record("Preparing PCM for analyzer: \(format)")
+        let file: AVAudioFile
+        do { file = try Self.prepareAudio(source, directory: directory, format: format) }
+        catch { record("PCM preparation failed: \(Self.errorDetails(error))"); throw error }
+        record("Prepared PCM frames: \(file.length); format: \(file.processingFormat); duration: \(Double(file.length) / file.processingFormat.sampleRate)")
         let analyzer = SpeechAnalyzer(modules: modules, options: nil)
         return try await withTaskCancellationHandler(operation: {
             progress("Matching vocals on device…")
-            try await analyzer.start(inputAudioFile: file, finishAfterFile: true)
+            async let feeding: Void = feed(analyzer, file: file)
             var words: [LyricsRecognizedWord] = []
             do {
                 for try await result in transcriber.results {
@@ -158,14 +171,33 @@ actor OnDeviceLyricsSync {
                             end: CMTimeGetSeconds(CMTimeRangeGetEnd(range))))
                     }
                 }
+                try await feeding
                 return words
             } catch {
+                record("Analyzer results failed: \(Self.errorDetails(error))")
                 await analyzer.cancelAndFinishNow()
                 throw error
             }
         }, onCancel: {
             Task { await analyzer.cancelAndFinishNow() }
         })
+    }
+
+    @available(iOS 26.0, macOS 26.0, *)
+    private func feed(_ analyzer: SpeechAnalyzer, file: AVAudioFile) async throws {
+        do {
+            record("Starting analyzer PCM stream")
+            let input = LyricsAudioInput(url: file.url, commonFormat: file.processingFormat.commonFormat,
+                interleaved: file.processingFormat.isInterleaved)
+            _ = try await analyzer.analyzeSequence(input)
+            record("Analyzer PCM stream fully consumed")
+            try await analyzer.finalizeAndFinishThroughEndOfInput()
+            record("Analyzer results finalized")
+        } catch {
+            record("Analyzer PCM stream failed: \(Self.errorDetails(error))")
+            await analyzer.cancelAndFinishNow()
+            throw error
+        }
     }
 
     @available(iOS 26.0, macOS 26.0, *)
@@ -301,6 +333,26 @@ actor OnDeviceLyricsSync {
         return try AVAudioFile(forReading: url, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
     }
 
+    private static func errorDetails(_ error: Error) -> String {
+        let value = error as NSError
+        let underlying = (value.userInfo[NSUnderlyingErrorKey] as? NSError).map { "; underlying: \($0.domain) \($0.code)" } ?? ""
+        return "\(value.domain) \(value.code): \(value.localizedDescription)" + underlying
+    }
+
+    /// EOF is a normal decoder termination, including reads returning a final
+    /// partial buffer with eofErr. Other read errors must still fail the job.
+    static func readAudioFrames(into buffer: AVAudioPCMBuffer, read: () throws -> Void) throws -> Bool {
+        buffer.frameLength = 0
+        do {
+            try read()
+            return buffer.frameLength == 0
+        } catch {
+            let value = error as NSError
+            guard value.domain == NSOSStatusErrorDomain && value.code == Int(kAudioFileEndOfFileError) else { throw error }
+            return true
+        }
+    }
+
     /// Stream conversion keeps memory bounded and preserves the file's time origin.
     private static func convert(_ source: AVAudioFile, to url: URL, format: AVAudioFormat) throws {
         source.framePosition = 0
@@ -311,14 +363,19 @@ actor OnDeviceLyricsSync {
         let destination = try AVAudioFile(forWriting: url, settings: format.settings,
             commonFormat: format.commonFormat, interleaved: format.isInterleaved)
         var readError: Error?
+        var sourceEnded = false
+        var decodedFrames: AVAudioFramePosition = 0
         while true {
             try Task.checkCancellation()
             var error: NSError?
             output.frameLength = 0
             let status = converter.convert(to: output, error: &error) { requested, state in
-                guard source.framePosition < source.length else { state.pointee = .endOfStream; return nil }
+                guard !sourceEnded else { state.pointee = .endOfStream; return nil }
                 do {
-                    try source.read(into: input, frameCount: min(4_096, requested))
+                    sourceEnded = try Self.readAudioFrames(into: input) {
+                        try source.read(into: input, frameCount: min(4_096, requested))
+                    }
+                    decodedFrames += AVAudioFramePosition(input.frameLength)
                     state.pointee = input.frameLength > 0 ? .haveData : .endOfStream
                     return input.frameLength > 0 ? input : nil
                 } catch { readError = error; state.pointee = .endOfStream; return nil }
@@ -328,6 +385,43 @@ actor OnDeviceLyricsSync {
             if output.frameLength > 0 { try destination.write(from: output) }
             if status == .endOfStream { break }
             if status == .error { throw OnDeviceLyricsSyncError.unavailable }
+        }
+        guard decodedFrames > 0, destination.length > 0 else { throw OnDeviceLyricsSyncError.noSpeech }
+
+    }
+}
+
+/// Pull-based input bounds memory to the buffers SpeechAnalyzer is consuming.
+/// Own the decoder EOF handling instead of using its opaque file-input adapter.
+@available(iOS 26.0, macOS 26.0, *)
+struct LyricsAudioInput: AsyncSequence, Sendable {
+    typealias Element = AnalyzerInput
+    let url: URL
+    let commonFormat: AVAudioCommonFormat
+    let interleaved: Bool
+    func makeAsyncIterator() -> Iterator { Iterator(url: url, commonFormat: commonFormat, interleaved: interleaved) }
+    struct Iterator: AsyncIteratorProtocol {
+        let url: URL
+        let commonFormat: AVAudioCommonFormat
+        let interleaved: Bool
+        private var file: AVAudioFile?
+        private var finished = false
+        private var frames: Int64 = 0
+        init(url: URL, commonFormat: AVAudioCommonFormat, interleaved: Bool) {
+            self.url = url; self.commonFormat = commonFormat; self.interleaved = interleaved
+        }
+        mutating func next() async throws -> AnalyzerInput? {
+            try Task.checkCancellation()
+            guard !finished else { return nil }
+            if file == nil { file = try AVAudioFile(forReading: url, commonFormat: commonFormat, interleaved: interleaved) }
+            guard let file, let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 4096) else {
+                throw OnDeviceLyricsSyncError.unavailable
+            }
+            finished = try OnDeviceLyricsSync.readAudioFrames(into: buffer) { try file.read(into: buffer, frameCount: 4096) }
+            guard buffer.frameLength > 0 else { self.file = nil; return nil }
+            let start = CMTime(seconds: Double(frames) / file.processingFormat.sampleRate, preferredTimescale: 1_000_000_000)
+            frames += Int64(buffer.frameLength)
+            return AnalyzerInput(buffer: buffer, bufferStartTime: start)
         }
     }
 }

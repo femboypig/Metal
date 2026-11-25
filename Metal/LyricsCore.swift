@@ -231,7 +231,7 @@ actor LyricsStore {
     }
     func syncAttempt(_ fingerprint: String?, id: String) throws {
         var entry = read(id)
-        entry.syncAttempt = fingerprint.map { LyricsSyncAttempt(fingerprint: $0, date: Date(), revision: 2) }
+        entry.syncAttempt = fingerprint.map { LyricsSyncAttempt(fingerprint: $0, date: Date(), revision: 3) }
         try write(entry, id: id)
     }
     func saveOnDeviceTiming(_ proposed: LyricsDocument, id: String, sourceKey: String, fingerprint: String) throws -> Bool {
@@ -252,7 +252,7 @@ actor LyricsStore {
             if let key = document.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = document }
             if entry.selected == nil || entry.cached?.resultKey == base.resultKey { entry.cached = document }
         }
-        entry.syncAttempt = LyricsSyncAttempt(fingerprint: fingerprint, date: Date(), revision: 2)
+        entry.syncAttempt = LyricsSyncAttempt(fingerprint: fingerprint, date: Date(), revision: 3)
         try write(entry, id: id); return true
     }
     /// Edit a draft row without touching source audio or other source preferences.
@@ -289,7 +289,7 @@ actor LyricsStore {
             if let key = document.resultKey { entry.results?[key] = document }
             if entry.selected == nil || entry.cached?.resultKey == document.resultKey { entry.cached = document }
         }
-        entry.syncAttempt = LyricsSyncAttempt(fingerprint: LyricsAlignment.fingerprint(document), date: Date(), revision: 2)
+        entry.syncAttempt = LyricsSyncAttempt(fingerprint: LyricsAlignment.fingerprint(document), date: Date(), revision: 3)
         try write(entry, id: id)
     }
     func searchMetadata(_ metadata: LyricsSearchMetadata?, id: String) throws {

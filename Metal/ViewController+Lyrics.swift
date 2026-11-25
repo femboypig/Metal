@@ -31,7 +31,7 @@ extension ViewController {
         }
         lyricsSyncTask = Task(priority: .utility) { [weak self] in
             let entry = await LyricsService.shared.store.read(id)
-            if !force, let previous = entry.syncAttempt, previous.fingerprint == fingerprint, previous.revision == 2,
+            if !force, let previous = entry.syncAttempt, previous.fingerprint == fingerprint, previous.revision == 3,
                Date().timeIntervalSince(previous.date) < 86_400 {
                 if self?.lyricsSyncGeneration == generation { self?.lyricsSyncTask = nil }
                 return
