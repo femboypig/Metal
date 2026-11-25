@@ -216,12 +216,15 @@ import Foundation
   _ = try await cacheFallback.search(query)
   let cacheCalls = await cacheOnly.calls
   precondition(cacheCalls == 2, "One public cache miss must not suppress another song")
-  for title in ["Artist - Song", "Song - Artist"] {
+  for title in ["Artist - Song", "Song - Artist", "Artist -- Song", "Song -- Artist", "Artist—Song", "Song – Artist"] {
    let filename = LyricsQuery(title: title, artist: "Unknown Artist", album: "", duration: 200)
    let untitledService = LyricsService(provider: LRCLIBProvider(session: session), directory: directory.appendingPathComponent(UUID().uuidString))
    let result = await untitledService.load(url: renamed, query: filename)
    precondition(result.2 == .ready && result.1?.lines.isEmpty == false, "Both filename orders must reach displayable lyrics")
   }
+  precondition(LyricsQuery(title: "Loose Cannon -- Puzzle", artist: "Puzzle", album: "", duration: 177).searchTitle == "Loose Cannon")
+  precondition(LyricsQuery(title: "Loose Cannon — Puzzle", artist: "Puzzle", album: "", duration: 177).searchTitle == "Loose Cannon")
+  precondition(LyricsQuery(title: "Thunderstruck", artist: "AC-DC", album: "", duration: 292).searchArtist == "AC-DC")
   let titleOnly = LyricsQuery(title: "Song", artist: "Unknown Artist", album: "", duration: 200)
   let titleCandidates = try await LRCLIBProvider(session: session).search(titleOnly)
   let titleText = LyricsCandidateMatcher.best(titleCandidates, query: titleOnly)
@@ -254,7 +257,15 @@ import Foundation
    let catalog = await onlineService.sourceCatalog(url: onlinePath, query: query)
    precondition(!catalog.2.isEmpty && catalog.3.count == 4, "Source selection must contain real choices and all provider attempts")
    for attempt in catalog.3 { print("Live provider: \(title), \(attempt.name), \(attempt.summary), HTTP \(attempt.statusCode ?? 200)") }
-   for filename in [artist + " - " + title, title + " - " + artist] {
+   let defaultService = LyricsService(directory: directory.appendingPathComponent(UUID().uuidString))
+   let defaultCatalog = await defaultService.sourceCatalog(url: onlinePath, query: query)
+   precondition(defaultCatalog.3.count == 4 && !defaultCatalog.2.isEmpty,
+       "Default service must expose the same provider results as the injected manager")
+   let sharedCatalog = await LyricsService.shared.sourceCatalog(url: onlinePath, query: query)
+   precondition(sharedCatalog.3.count == 4 && !sharedCatalog.2.isEmpty,
+       "Production shared service must show all provider states and actual source choices")
+   print("Production source catalog: \(title), choices \(sharedCatalog.2.count), providers \(sharedCatalog.3.count)")
+   for filename in [artist + " - " + title, title + " - " + artist, title + " -- " + artist, artist + "—" + title] {
     let fileQuery = LyricsQuery(title: filename, artist: "Unknown Artist", album: "", duration: duration)
     let fileResults = try await LRCLIBProvider().search(fileQuery)
     precondition(LyricsCandidateMatcher.best(fileResults, query: fileQuery)?.lines.isEmpty == false, "Live filename search failed")
@@ -303,6 +314,7 @@ final class LyricsFixtureProtocol: URLProtocol {
  override class func canInit(with request: URLRequest) -> Bool { true }
  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
  override func startLoading() {
+  precondition(request.cachePolicy == .reloadIgnoringLocalCacheData, "Lyrics HTTP searches must not replay stale URLCache responses")
   let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
   precondition(!items.contains { $0.name == "q" && ($0.value ?? "").contains("Unknown Artist") }, "Placeholder artists must never be sent as search keywords")
   let title = items.first { $0.name == "title" || $0.name == "s" }?.value

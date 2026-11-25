@@ -5,7 +5,7 @@ import CryptoKit
 enum LyricsLookupState: Equatable { case ready, missing, unavailable, unreadable }
 
 actor LyricsService {
-    static let shared = LyricsService()
+    static let shared = LyricsService(provider: LyricsProviderManager())
     let store: LyricsStore
     let provider: any LyricsProvider
     init(provider: any LyricsProvider = LyricsProviderManager(), directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MetalLyrics")) {
@@ -43,12 +43,15 @@ actor LyricsService {
         requests[id]?.cancel(); requests[id] = nil
         try? await store.searchMetadata(metadata, id: id)
     }
-    func sourceCatalog(url: URL, query: LyricsQuery) async -> (String, LyricsQuery, [LyricsCandidate], [LyricsProviderAttempt]) {
+    func sourceCatalog(url: URL, query: LyricsQuery) async -> (String, LyricsQuery, [LyricsCandidate], [LyricsProviderAttempt], String?) {
         let id = identifier(url: url)
         let effective = await effectiveQuery(url: url, fallback: query, id: id)
-        let candidates = (try? await alternatives(effective, id: id)) ?? []
-        let attempts = await (provider as? LyricsProviderManager)?.report(effective) ?? []
-        return (id, effective, candidates, attempts)
+        var candidates: [LyricsCandidate] = []
+        var failure: String?
+        do { candidates = try await alternatives(effective, id: id) }
+        catch { let error = error as NSError; failure = "\(error.domain) (\(error.code))" }
+        let attempts = await provider.report(effective)
+        return (id, effective, candidates, attempts, failure)
     }
     func alternatives(_ query: LyricsQuery, id: String? = nil) async throws -> [LyricsCandidate] {
         var cached: [LyricsCandidate] = []

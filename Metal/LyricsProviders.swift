@@ -7,7 +7,7 @@ struct AMLLProvider: LyricsProvider {
     func get(_ path: String, query: [URLQueryItem]) async throws -> Data {
         var url = URLComponents(string: "https://api.amll.dev/v1/lyrics/" + path)!
         url.queryItems = query
-        var request = URLRequest(url: url.url!, timeoutInterval: 15)
+        var request = URLRequest(url: url.url!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw LyricsHTTPError(retryAfter: 60, statusCode: (response as? HTTPURLResponse)?.statusCode) }
@@ -143,7 +143,7 @@ enum LyricsProviderHTTP {
     static func get(_ base: String, items: [URLQueryItem], session: URLSession, unavailable: Set<Int>) async throws -> Data? {
         try Task.checkCancellation()
         var url = URLComponents(string: base)!; url.queryItems = items
-        var request = URLRequest(url: url.url!, timeoutInterval: 25)
+        var request = URLRequest(url: url.url!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 25)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         try Task.checkCancellation()
@@ -157,25 +157,12 @@ enum LyricsProviderHTTP {
     }
 }
 
-struct LyricsProviderAttempt {
-    var name: String; var resultCount: Int; var matchCount: Int
-    var failed = false; var statusCode: Int?
-    var summary: String {
-        if failed {
-            if statusCode == 401 && name == "Better Lyrics" { return "Not in public cache" }
-            return statusCode == 429 ? "Try again later" : "Unavailable"
-        }
-        if matchCount > 0 { return "\(matchCount) matching versions" }
-        return resultCount > 0 ? "No matching recording" : "No results"
-    }
-}
-
 actor LyricsProviderManager: LyricsProvider {
     let providers: [(String, any LyricsProvider)]
     var blockedUntil: [String: Date] = [:]
     var blockedStatus: [String: Int] = [:]
     var reports: [String: [LyricsProviderAttempt]] = [:]
-    func report(_ query: LyricsQuery) -> [LyricsProviderAttempt] { reports[query.cacheKey] ?? [] }
+    func report(_ query: LyricsQuery) async -> [LyricsProviderAttempt] { reports[query.cacheKey] ?? [] }
     var requests: [String: Task<[LyricsCandidate], Error>] = [:]
     init(providers: [(String, any LyricsProvider)] = [("LRCLIB", LRCLIBProvider()), ("AMLL", AMLLProvider()), ("Better Lyrics", BetterLyricsProvider()), ("LiriQo", LiriQoProvider())]) { self.providers = providers }
     func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] {

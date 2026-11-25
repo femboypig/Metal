@@ -58,21 +58,23 @@ struct LyricsQuery: Sendable {
     var title: String; var artist: String; var album: String; var duration: Double
     var cacheKey: String { [title, artist, album, String(duration)].joined(separator: "\n") }
     var hasArtist: Bool { !Self.normalized(artist).isEmpty && Self.normalized(artist) != "unknown artist" }
+    private var titleParts: [String] {
+        // Treat separator dashes consistently without splitting hyphenated artist names.
+        title.replacingOccurrences(of: #"\s*(?:-{2,}|[–—−])\s*|\s+-\s+"#, with: "\u{001f}", options: .regularExpression)
+            .components(separatedBy: "\u{001f}").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+    }
     var searchArtist: String {
-        if Self.normalized(artist) == "unknown artist", title.contains(" - ") { return title.components(separatedBy: " - ")[0] }
-        return artist
+        if !hasArtist, titleParts.count > 1 { return titleParts[0] }
+        return artist.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     var searchTitle: String {
-        var value = Self.normalized(artist) == "unknown artist" && title.contains(" - ") ? title.components(separatedBy: " - ").dropFirst().joined(separator: " - ") : title
-        if Self.normalized(artist) != "unknown artist" {
-            for separator in [" - ", " – ", " — "] {
-                let parts = value.components(separatedBy: separator)
-                guard parts.count > 1 else { continue }
-                if Self.normalized(parts[0]) == Self.normalized(artist) { value = parts.dropFirst().joined(separator: separator); break }
-                if Self.normalized(parts.last!) == Self.normalized(artist) { value = parts.dropLast().joined(separator: separator); break }
-            }
+        let parts = titleParts
+        var value = title
+        if parts.count > 1 {
+            if !hasArtist || Self.normalized(parts[0]) == Self.normalized(artist) { value = parts.dropFirst().joined(separator: " - ") }
+            else if Self.normalized(parts.last!) == Self.normalized(artist) { value = parts.dropLast().joined(separator: " - ") }
         }
-        return value.replacingOccurrences(of: #"(?i)\s*[\[(](?:official audio|official video|lyric video|lyrics|hd|hq)[\])]\s*$"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+        return value.replacingOccurrences(of: #"(?i)\s*[\[(](?:official audio|official video|lyric video|lyrics|hd|hq)[\])]\s*$"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
     }
     var altered: Bool { searchTitle.range(of: #"(?i)\b(?:slowed|sped[ -]+up|remix|instrumental|edit|nightcore|reverb|speed[ -]+up|unofficial)\b"#, options: .regularExpression) != nil }
     var lookupTitle: String {
@@ -116,7 +118,26 @@ struct LyricsCandidate: Codable {
     }
 }
 struct LyricsHTTPError: Error { var retryAfter: Double; var statusCode: Int? = nil }
-protocol LyricsProvider { func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] }
+struct LyricsProviderAttempt {
+    var name: String; var resultCount: Int; var matchCount: Int
+    var failed = false; var statusCode: Int?
+    var summary: String {
+        if failed {
+            if statusCode == 401 && name == "Better Lyrics" { return "Not in public cache" }
+            return statusCode == 429 ? "Try again later" : "Unavailable"
+        }
+        if matchCount > 0 { return "\(matchCount) matching versions" }
+        return resultCount > 0 ? "No matching recording" : "No results"
+    }
+}
+
+protocol LyricsProvider {
+    func search(_ query: LyricsQuery) async throws -> [LyricsCandidate]
+    func report(_ query: LyricsQuery) async -> [LyricsProviderAttempt]
+}
+extension LyricsProvider {
+    func report(_ query: LyricsQuery) async -> [LyricsProviderAttempt] { [] }
+}
 struct LRCLIBProvider: LyricsProvider {
     var session: URLSession = .shared
     // Missing durations occur in real LRCLIB search results. A single incomplete
@@ -164,7 +185,7 @@ struct LRCLIBProvider: LyricsProvider {
         var components = URLComponents(string: "https://lrclib.net/api/search")!
         components.queryItems = freeform ? [URLQueryItem(name: "q", value: title)] : [URLQueryItem(name: "track_name", value: title), URLQueryItem(name: "artist_name", value: q.searchArtist)]
         if !album.isEmpty { components.queryItems?.append(URLQueryItem(name: "album_name", value: album)) }
-        var request = URLRequest(url: components.url!, timeoutInterval: 15)
+        var request = URLRequest(url: components.url!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }

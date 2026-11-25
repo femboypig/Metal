@@ -111,11 +111,14 @@ extension ViewController {
         Task {
             let catalog = await LyricsService.shared.sourceCatalog(url: track.url, query: lyricsQuery(for: track))
             guard currentPlaybackTrack()?.url == track.url else { return }
-            let (id, query, results, attempts) = catalog
+            let (id, query, results, attempts, failure) = catalog
             let entry = await LyricsService.shared.store.read(id)
             var details = ["\(query.searchTitle) — \(query.searchArtist)"]
             details += attempts.map { "\($0.name): \($0.summary)" }
-            if results.isEmpty { details.append("No versions available. Retry or correct the search below.") }
+            if results.isEmpty {
+                let incomplete = failure != nil || attempts.isEmpty || attempts.allSatisfy(\.failed)
+                details.append(incomplete ? "Search could not be completed. Retry or copy search details below." : "No matching versions. Retry or edit the search below.")
+            }
             let alert = UIAlertController(title: "Lyrics Source", message: details.joined(separator: "\n"), preferredStyle: .actionSheet)
             if !results.isEmpty || entry.selected != nil {
                 alert.addAction(UIAlertAction(title: "Automatic", style: .default) { [weak self] _ in
@@ -144,6 +147,21 @@ extension ViewController {
             alert.addAction(UIAlertAction(title: "Edit Search", style: .default) { [weak self] _ in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.editLyricsSearch(track: track, id: id, query: query) }
             })
+            if results.isEmpty {
+                alert.addAction(UIAlertAction(title: "Copy Search Details", style: .default) { _ in
+                    let fields: [String: Any] = [
+                        "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
+                        "title": query.title, "artist": query.artist, "searchTitle": query.searchTitle,
+                        "searchArtist": query.searchArtist, "album": query.album, "duration": query.duration,
+                        "failure": failure ?? "none", "providers": attempts.map {
+                            ["name": $0.name, "status": $0.summary, "results": $0.resultCount, "matches": $0.matchCount, "http": $0.statusCode ?? 200] as [String: Any]
+                        }
+                    ]
+                    if let data = try? JSONSerialization.data(withJSONObject: fields, options: [.prettyPrinted, .sortedKeys]) {
+                        UIPasteboard.general.string = String(data: data, encoding: .utf8)
+                    }
+                })
+            }
             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
             alert.popoverPresentationController?.sourceView = playerOptionsButton
             present(alert, animated: true)
