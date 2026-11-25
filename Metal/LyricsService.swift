@@ -53,6 +53,7 @@ actor LyricsService {
             guard Date() >= self.retryAfter else { return nil }
             do {
                 let results = try await self.provider.search(q)
+                for candidate in results.prefix(8) { try? await self.store.cache(candidate.document(q), id: id) }
                 let selected = results.first.flatMap { LyricsCandidateMatcher.score($0, q) >= 75 ? $0.document(q) : nil }
                 try? await self.store.cache(selected, id: id)
                 let latest = await self.store.read(id)

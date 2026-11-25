@@ -1,12 +1,14 @@
 import Foundation
 
 struct LyricLine: Codable, Equatable { var time: Double?; var text: String; var end: Double?; var words: [LyricWord]?; var translation: String?; var background: Bool? }
+struct LyricsProvenance: Codable { var provider: String; var identifier: String; var title: String; var artist: String; var album: String?; var duration: Double }
 struct LyricsDocument: Codable {
     var version = 1
     var lines: [LyricLine]
     var instrumental = false
     var source: String
     var offset: Double = 0
+    var provenance: LyricsProvenance?
     var timingTrusted: Bool?
     var format: String?
     var resultKey: String?
@@ -84,6 +86,7 @@ struct LyricsCandidate: Codable {
         let safe = !q.altered && score(q) > 0 && abs(duration - q.duration) <= 2
         var doc = nativeDocument ?? LyricsFormats.parse(safe ? (syncedLyrics ?? plainLyrics ?? "") : (plainLyrics ?? syncedLyrics ?? ""), format: "lrc", source: "\(providerID ?? "LRCLIB") #\(id)")
         doc.resultKey = key
+        doc.provenance = LyricsProvenance(provider: providerID ?? "LRCLIB", identifier: String(id), title: trackName, artist: artistName, album: albumName, duration: duration)
         doc.attribution = providerID == "AMLL" ? "https://github.com/amll-dev/amll-ttml-db" : "https://lrclib.net"
         if !safe { doc.timingTrusted = false }
         doc.instrumental = instrumental
