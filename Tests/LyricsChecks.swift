@@ -342,3 +342,4 @@ actor PublicCacheFixtureProvider: LyricsProvider {
   if query.title == "Missing" { throw LyricsHTTPError(retryAfter: 60, statusCode: 401) }
   return [LyricsCandidate(id: 9, trackName: query.title, artistName: query.artist, duration: query.duration, instrumental: false, plainLyrics: "One", syncedLyrics: "[00:01]One")]
  }
+}
