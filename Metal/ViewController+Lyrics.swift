@@ -20,9 +20,14 @@ extension ViewController {
     }
     func setLyricsVisible(_ visible: Bool) {
         lyricsVisible = visible
-        coverCarouselContainer.isHidden = visible
-        coverCarouselContainer.accessibilityElementsHidden = visible
-        lyricsView.isHidden = !visible
+        let changes = {
+            self.coverCarouselContainer.isHidden = visible
+            self.coverCarouselContainer.accessibilityElementsHidden = visible
+            self.lyricsView.isHidden = !visible
+        }
+        if UIAccessibility.isReduceMotionEnabled { changes() }
+        else { UIView.transition(with: coverCarouselContainer.superview!, duration: 0.18,
+            options: [.transitionCrossDissolve, .allowAnimatedContent], animations: changes) }
         if visible { loadLyrics() }
         else { applyCarouselLayout(isPlaying: audioPlayer?.isPlaying == true, animated: false) }
         updatePlayerOptionsMenu()
@@ -54,6 +59,7 @@ extension ViewController {
             guard let self else { return }; self.setLyricsVisible(!self.lyricsVisible)
         }
         let manage = UIMenu(title: "Lyrics Options", children: [
+            UIAction(title: "Search Another Version", image: UIImage(systemName: "list.bullet")) { [weak self] _ in self?.chooseLyricsVersion() },
             UIAction(title: "Search Again", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in self?.setLyricsVisible(true); self?.loadLyrics(force: true) },
             UIAction(title: "Import Lyrics", image: UIImage(systemName: "doc")) { [weak self] _ in self?.importLyrics() },
             UIAction(title: "Paste Lyrics", image: UIImage(systemName: "doc.on.clipboard")) { [weak self] _ in self?.pasteLyrics() },
@@ -75,11 +81,11 @@ extension ViewController {
     }
     func acceptLyrics(_ text: String, track: Track) {
         Task {
-            let result = await LyricsService.shared.load(url: track.url, query: LyricsQuery(title: track.title, artist: track.artist, album: "", duration: track.duration))
-            guard !result.0.isEmpty else { return }
+            let id = await LyricsService.shared.identifier(url: track.url)
+            guard !id.isEmpty else { return }
             let doc = LyricsParser.parse(text, source: "Imported")
             guard !doc.lines.isEmpty else { showToast(message: "This file contains no lyrics", success: false); return }
-            await LyricsService.shared.imported(doc, id: result.0)
+            await LyricsService.shared.imported(doc, id: id)
             if currentPlaybackTrack()?.url == track.url { setLyricsVisible(true); loadLyrics(force: true) }
         }
     }
@@ -90,6 +96,29 @@ extension ViewController {
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Import", style: .default) { [weak self, weak alert] _ in self?.acceptLyrics(alert?.textFields?.first?.text ?? "", track: track) })
         present(alert, animated: true)
+    }
+    func chooseLyricsVersion() {
+        guard let track = currentPlaybackTrack() else { return }
+        setLyricsVisible(true)
+        Task {
+            let query = LyricsQuery(title: track.title, artist: track.artist, album: "", duration: track.duration)
+            do {
+                let results = try await LyricsService.shared.alternatives(query)
+                let id = await LyricsService.shared.identifier(url: track.url)
+                guard currentPlaybackTrack()?.url == track.url else { return }
+                let alert = UIAlertController(title: "Choose Lyrics", message: "Different recordings may need Adjust Sync. Imported lyrics take precedence.", preferredStyle: .actionSheet)
+                for candidate in results.prefix(12) {
+                    alert.addAction(UIAlertAction(title: "\(candidate.trackName) · \(candidate.artistName) · \(Int(candidate.duration))s", style: .default) { [weak self] _ in
+                        Task { await LyricsService.shared.choose(candidate, query: query, id: id)
+                            if self?.currentPlaybackTrack()?.url == track.url { self?.lyricsTrackURL = nil; self?.loadLyrics() }
+                        }
+                    })
+                }
+                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+                alert.popoverPresentationController?.sourceView = playerOptionsButton
+                present(alert, animated: true)
+            } catch { showToast(message: "Lyrics search is unavailable. Try again later.", success: false) }
+        }
     }
     func adjustLyrics() {
         guard !lyricsIdentity.isEmpty else { return }

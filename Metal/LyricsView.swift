@@ -51,7 +51,9 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         let next = document?.active(at: time)
         guard next != active else { return }
         active = next
-        for cell in table.visibleCells { if let index = table.indexPath(for: cell) { style(cell, index: index.row) } }
+        let changes = { for cell in self.table.visibleCells { if let index = self.table.indexPath(for: cell) { self.style(cell, index: index.row) } } }
+        if UIAccessibility.isReduceMotionEnabled { changes() }
+        else { UIView.animate(withDuration: 0.18, animations: changes) }
         if !manual { center(animated: !UIAccessibility.isReduceMotionEnabled) }
     }
     func center(animated: Bool) {
@@ -79,7 +81,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         let distance = active.map { abs(index - $0) } ?? 1
         let opacity: CGFloat = document?.synchronized != true ? 1 : (distance == 0 ? 1 : (distance < 3 ? 0.42 : 0.30))
         cell.textLabel?.textColor = UIColor.label.withAlphaComponent(opacity)
-        cell.accessibilityTraits = index == active ? [.selected, .button] : [.button]
+        cell.accessibilityTraits = document?.synchronized == true ? (index == active ? [.selected, .button] : [.button]) : [.staticText]
     }
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         guard let doc = document, let time = doc.lines[indexPath.row].time else { return }

@@ -69,6 +69,7 @@ struct LyricsCandidate: Codable {
         return doc
     }
 }
+struct LyricsHTTPError: Error { var retryAfter: Double }
 protocol LyricsProvider { func search(_ query: LyricsQuery) async throws -> [LyricsCandidate] }
 struct LRCLIBProvider: LyricsProvider {
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
@@ -77,7 +78,8 @@ struct LRCLIBProvider: LyricsProvider {
         var request = URLRequest(url: components.url!, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw URLError(.badServerResponse) }
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        guard http.statusCode == 200 else { throw LyricsHTTPError(retryAfter: max(60, Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 60)) }
         return try JSONDecoder().decode([LyricsCandidate].self, from: data).sorted { $0.score(q) > $1.score(q) }
     }
 }

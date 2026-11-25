@@ -15,6 +15,16 @@ actor LyricsService {
         while let data = try handle.read(upToCount: 262144), !data.isEmpty { hash.update(data: data) }
         return hash.finalize().map { String(format: "%02x", $0) }.joined()
     }
+    func identifier(url: URL) -> String { (try? Self.identity(url)) ?? "" }
+    func alternatives(_ query: LyricsQuery) async throws -> [LyricsCandidate] {
+        guard Date() >= retryAfter else { throw URLError(.resourceUnavailable) }
+        return try await provider.search(query)
+    }
+    func choose(_ candidate: LyricsCandidate, query: LyricsQuery, id: String) async {
+        var entry = await store.read(id)
+        entry.cached = candidate.document(query); entry.checked = Date()
+        try? await store.write(entry, id: id)
+    }
     func load(url: URL, query: LyricsQuery, force: Bool = false) async -> (String, LyricsDocument?) {
         guard let id = try? Self.identity(url) else { return ("", nil) }
         let entry = await store.read(id)
@@ -41,7 +51,7 @@ actor LyricsService {
                 if let best = results.first, best.score(q) >= 80 { updated.cached = best.document(q) }
                 try? await self.store.write(updated, id: id)
                 var doc = updated.cached; doc?.offset += entry.adjustment; return doc
-            } catch { self.retryAfter = Date().addingTimeInterval(60); return entry.cached }
+            } catch { self.retryAfter = Date().addingTimeInterval((error as? LyricsHTTPError)?.retryAfter ?? 60); return entry.cached }
         }
         requests[id] = task
         let result = await task.value; requests[id] = nil
