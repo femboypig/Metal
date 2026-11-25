@@ -3,10 +3,13 @@ import Foundation
 struct LyricWord: Codable, Equatable { var start: Double; var end: Double; var text: String }
 enum LyricsFormats {
     static func time(_ value: String) -> Double? {
-        if value.hasSuffix("ms") { return Double(value.dropLast(2)).map { $0 / 1000 } }
-        if value.hasSuffix("s") { return Double(value.dropLast()) }
+        if value.hasSuffix("ms") { return Double(value.dropLast(2)).flatMap { $0.isFinite && $0 >= 0 ? $0 / 1000 : nil } }
+        if value.hasSuffix("s") { return Double(value.dropLast()).flatMap { $0.isFinite && $0 >= 0 ? $0 : nil } }
         let parts = value.split(separator: ":").compactMap { Double($0) }
-        guard !parts.isEmpty else { return nil }
+        guard !parts.isEmpty, parts.count <= 3, parts.allSatisfy({ $0.isFinite && $0 >= 0 }),
+              parts.count == value.split(separator: ":").count else { return nil }
+        if parts.count > 1 && parts.last! >= 60 { return nil }
+        if parts.count == 3 && parts[1] >= 60 { return nil }
         return parts.reduce(0) { $0 * 60 + $1 }
     }
     static func parse(_ text: String, format: String, source: String) -> LyricsDocument {
@@ -86,7 +89,7 @@ private final class TTMLLyricsDelegate: NSObject, XMLParserDelegate {
                 if current?.words == nil { current?.words = [] }
                 current?.words?.append(LyricWord(start: start, end: end, text: span.text))
             }
-            if !stack.isEmpty { stack[stack.count - 1].text += span.text }
+            if !stack.isEmpty && span.role != "x-translation" && span.role != "x-roman" { stack[stack.count - 1].text += span.text }
         }
         if name == "p", var line = current {
             line.text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
