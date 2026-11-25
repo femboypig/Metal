@@ -37,8 +37,8 @@ extension ViewController {
         if lyricsTrackURL != audioPlayer?.url { loadLyrics() }
         lyricsView.update(time: audioPlayer?.currentTime ?? 0)
     }
-    func loadLyrics(force: Bool = false) {
-        guard let track = currentPlaybackTrack(), lyricsVisible else { return }
+    func loadLyrics(force: Bool = false, track requestedTrack: Track? = nil) {
+        guard let track = requestedTrack ?? currentPlaybackTrack(), lyricsVisible else { return }
         if !force && lyricsTrackURL == track.url && lyricsTask != nil { return }
         lyricsTask?.cancel()
         lyricsGeneration += 1

@@ -164,7 +164,7 @@ extension ViewController {
         guard !queue.isEmpty, let index = currentTrackIndex, index < queue.count else { return }
 
         let track = queue[index]
-        if lyricsVisible { lyricsTrackURL = nil; loadLyrics() }
+        if lyricsVisible { lyricsTrackURL = nil; loadLyrics(track: track) }
         playerHeaderLabel?.text = currentPlaybackContext
         let savedPosition = persistedSettings.lastTrackFile == track.url.lastPathComponent
             ? persistedSettings.playbackPosition
@@ -337,7 +337,7 @@ extension ViewController {
                 progress: player.duration > 0 ? player.currentTime / player.duration : 0, reason: reason)
             if !isCommittingCoverSwipe { adaptDailyMixQueueIfNeeded() }
         }
-        if !isCommittingCoverSwipe && isPlayerPageVisible && currentQueue.count > 1 {
+        if !lyricsVisible && !isCommittingCoverSwipe && isPlayerPageVisible && currentQueue.count > 1 {
             let nextTrack = getNextTrack()
             let trackAfterNext = getTrackAfterNext()
             if nextTrack != nil {
@@ -438,6 +438,7 @@ extension ViewController {
             self.finishListeningTelemetry(completed: true, skipped: false, progress: completedProgress)
             self.audioPlayer = playerB
             self.lyricsTrackURL = nil
+            if self.lyricsVisible { self.loadLyrics(track: nextTrack) }
             self.audioPlayer?.delegate = self
             self.currentTrackIndex = nextIndex
             self.playerHeaderLabel?.text = self.currentPlaybackContext
@@ -497,7 +498,7 @@ extension ViewController {
 
         if aidj.isTransitioning { aidj.cancel(keeping: audioPlayer) }
 
-        if !isCommittingCoverSwipe && isPlayerPageVisible && queue.count > 1 {
+        if !lyricsVisible && !isCommittingCoverSwipe && isPlayerPageVisible && queue.count > 1 {
             let prevTrack = getPreviousTrack()
             let trackBeforePrev = getTrackBeforePrevious()
             if prevTrack != nil {

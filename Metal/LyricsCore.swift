@@ -52,14 +52,20 @@ enum LyricsParser {
 struct LyricsQuery: Sendable {
     var title: String; var artist: String; var album: String; var duration: Double
     var altered: Bool { ["slowed", "sped up", "remix", "instrumental", "edit", "nightcore", "reverb", "speed up"].contains { title.lowercased().contains($0) } }
+    var lookupTitle: String {
+        guard altered else { return title }
+        let pattern = #"(?i)\s*[\[(].*(?:slowed|sped up|remix|instrumental|edit|nightcore|reverb|speed up).*?[\])]"#
+        let base = title.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        return base.replacingOccurrences(of: #"(?i)\s*[-–]?\s*(?:slowed|sped up|remix|instrumental|edit|nightcore|reverb|speed up).*$"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+    }
     static func normalized(_ s: String) -> String { s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX")).components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ") }
 }
 struct LyricsCandidate: Codable {
     var id: Int; var trackName: String; var artistName: String; var albumName: String?; var duration: Double
     var instrumental: Bool; var plainLyrics: String?; var syncedLyrics: String?
     func score(_ q: LyricsQuery) -> Double {
-        guard LyricsQuery.normalized(trackName) == LyricsQuery.normalized(q.title), LyricsQuery.normalized(artistName) == LyricsQuery.normalized(q.artist) else { return 0 }
-        return 100 - min(90, abs(duration - q.duration) * 4) + (LyricsQuery.normalized(albumName ?? "") == LyricsQuery.normalized(q.album) && !q.album.isEmpty ? 10 : 0)
+        guard [LyricsQuery.normalized(q.title), LyricsQuery.normalized(q.lookupTitle)].contains(LyricsQuery.normalized(trackName)), LyricsQuery.normalized(artistName) == LyricsQuery.normalized(q.artist) else { return 0 }
+        return 100 - (q.altered ? 0 : min(90, abs(duration - q.duration) * 4)) + (LyricsQuery.normalized(albumName ?? "") == LyricsQuery.normalized(q.album) && !q.album.isEmpty ? 10 : 0)
     }
     func document(_ q: LyricsQuery) -> LyricsDocument {
         let safe = !q.altered && abs(duration - q.duration) <= 2
@@ -74,7 +80,7 @@ protocol LyricsProvider { func search(_ query: LyricsQuery) async throws -> [Lyr
 struct LRCLIBProvider: LyricsProvider {
     func search(_ q: LyricsQuery) async throws -> [LyricsCandidate] {
         var components = URLComponents(string: "https://lrclib.net/api/search")!
-        components.queryItems = [URLQueryItem(name: "track_name", value: q.title), URLQueryItem(name: "artist_name", value: q.artist)]
+        components.queryItems = [URLQueryItem(name: "track_name", value: q.lookupTitle), URLQueryItem(name: "artist_name", value: q.artist)]
         var request = URLRequest(url: components.url!, timeoutInterval: 15)
         request.setValue("Metal v1.0 (https://github.com/femboypig/Metal)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
