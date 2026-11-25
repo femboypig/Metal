@@ -142,3 +142,8 @@ actor LyricsStore {
     }
     func write(_ entry: Entry, id: String) throws { try JSONEncoder().encode(entry).write(to: directory.appendingPathComponent(id + ".json"), options: .atomic) }
 }
+
+enum LyricsFollowPolicy {
+    static func intentionallyMoved(_ distance: Double) -> Bool { abs(distance) >= 12 }
+    static func awayFromCurrent(distance: Double, viewport: Double) -> Bool { abs(distance) > max(24, viewport * 0.25) }
+}

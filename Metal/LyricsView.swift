@@ -2,7 +2,8 @@ import UIKit
 
 final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     let table = UITableView(frame: .zero, style: .plain)
-    let resume = UIButton(type: .system)
+    private let resume = LyricsFollowButton(type: .system)
+    let resumeMaterial = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
     let message = UILabel()
     let actions = UIStackView()
     var document: LyricsDocument?
@@ -36,7 +37,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         configuration.image = UIImage(systemName: "location.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
         configuration.imagePadding = 7
         configuration.baseForegroundColor = .label
-        configuration.baseBackgroundColor = .secondarySystemBackground.withAlphaComponent(0.9)
+        configuration.baseBackgroundColor = .clear
         configuration.cornerStyle = .capsule
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 9, leading: 15, bottom: 9, trailing: 15)
         configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
@@ -46,6 +47,9 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         resume.layer.shadowOpacity = 0.1; resume.layer.shadowRadius = 8
         resume.accessibilityLabel = "Return to current lyric line"
         resume.addTarget(self, action: #selector(resumeTapped), for: .touchUpInside)
+        resumeMaterial.isUserInteractionEnabled = false; resumeMaterial.clipsToBounds = true
+        resumeMaterial.layer.cornerRadius = 19; resumeMaterial.isHidden = true
+        addSubview(resumeMaterial)
         resume.isHidden = true; addSubview(resume)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -60,10 +64,11 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         actions.frame = CGRect(x: 30, y: bounds.midY - 20, width: bounds.width - 60, height: 144)
         let width = min(bounds.width - 32, resume.sizeThatFits(CGSize(width: bounds.width, height: 40)).width)
         resume.frame = CGRect(x: (bounds.width - width) / 2, y: bounds.height - 48, width: width, height: 38)
+        resumeMaterial.frame = resume.frame
         if changed && !manual && !table.isDragging && !table.isDecelerating { center(animated: false) }
     }
     func display(_ doc: LyricsDocument?, loading: Bool = false) {
-        document = doc; active = nil; manual = false; resume.isHidden = true
+        document = doc; active = nil; manual = false; resume.isHidden = true; resumeMaterial.isHidden = true
         let empty = doc?.lines.isEmpty ?? true
         table.isHidden = empty; message.isHidden = !empty; actions.isHidden = !empty || loading
         message.text = loading ? "Finding lyrics…" : (doc?.instrumental == true ? "Instrumental" : "No lyrics found.")
@@ -98,9 +103,10 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         let away: Bool
         if let active, active < table.numberOfRows(inSection: 0) {
             let row = table.rectForRow(at: IndexPath(row: active, section: 0))
-            away = abs(row.midY - (table.contentOffset.y + table.bounds.midY)) > table.bounds.height * 0.25
+            away = LyricsFollowPolicy.awayFromCurrent(distance: Double(row.midY - (table.contentOffset.y + table.bounds.midY)), viewport: Double(table.bounds.height))
         } else { away = false }
         resume.isHidden = !(manual && away && document?.synchronized == true)
+        resumeMaterial.isHidden = resume.isHidden
     }
     func scrollViewDidScroll(_ scrollView: UIScrollView) { if manual { updateResume() } }
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate: Bool) {
@@ -109,7 +115,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { finishBrowsingGesture() }
     func finishBrowsingGesture() {
         updateResume()
-        if abs(table.contentOffset.y - dragStartY) < 12 || (active != nil && resume.isHidden) { manual = false }
+        if !LyricsFollowPolicy.intentionallyMoved(Double(table.contentOffset.y - dragStartY)) || (active != nil && resume.isHidden) { manual = false }
         if !manual { center(animated: !UIAccessibility.isReduceMotionEnabled) }
         updateResume()
     }
@@ -142,6 +148,10 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     }
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         guard let doc = document, doc.synchronized, let time = doc.lines[indexPath.row].time else { return }
-        seek?(max(0, time + doc.offset)); manual = false; resume.isHidden = true
+        seek?(max(0, time + doc.offset)); manual = false; resume.isHidden = true; resumeMaterial.isHidden = true
     }
+}
+
+private final class LyricsFollowButton: UIButton {
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool { bounds.insetBy(dx: -4, dy: -4).contains(point) }
 }

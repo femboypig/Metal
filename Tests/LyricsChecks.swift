@@ -65,6 +65,25 @@ import Foundation
   await offline.imported(nil, id: id)
   let cachedOnline = await offline.load(url: renamed, query: query)
   precondition(cachedOnline.1?.synchronized == true, "Removing an import must retain the offline provider cache")
+  var sourceA = doc; sourceA.resultKey = "A:1:lrc"
+  var sourceB = doc; sourceB.resultKey = "B:1:ttml"
+  try await store.cache(sourceA, id: "sources")
+  try await store.select(sourceA, id: "sources")
+  try await store.adjust(0.5, id: "sources")
+  try await store.cache(sourceB, id: "sources")
+  let stillSelected = await store.resolved("sources")
+  precondition(stillSelected?.resultKey == sourceA.resultKey && stillSelected?.offset == doc.offset + 0.5)
+  try await store.select(sourceB, id: "sources")
+  try await store.adjust(-1, id: "sources")
+  try await store.select(sourceA, id: "sources")
+  let sourceRestored = await store.resolved("sources")
+  precondition(sourceRestored?.offset == doc.offset + 0.5)
+  let fallback = LyricsProviderManager(providers: [("Offline", OfflineLyricsProvider()), ("Fixture", TestLyricsProvider())])
+  let fallbackResults = try await fallback.search(query)
+  precondition(fallbackResults.count == 1)
+  precondition(!LyricsFollowPolicy.intentionallyMoved(5) && LyricsFollowPolicy.intentionallyMoved(40))
+  precondition(!LyricsFollowPolicy.awayFromCurrent(distance: 10, viewport: 300))
+  precondition(LyricsFollowPolicy.awayFromCurrent(distance: 100, viewport: 300))
   print("Lyrics parser, offsets, seeking, malformed input, plain text, version safety and serialization passed")
  }
 }
