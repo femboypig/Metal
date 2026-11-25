@@ -6,6 +6,11 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     private var resumeVisible = false
     let message = UILabel()
     let actions = UIStackView()
+    private let syncFooter = UIStackView()
+    private let syncLabel = UILabel()
+    private let syncSpinner = UIActivityIndicatorView(style: .medium)
+    private let syncCancel = UIButton(type: .custom)
+    var cancelSync: (() -> Void)?
     var document: LyricsDocument?
     var syncEngine: LyricsSyncEngine?
     var active: Int?
@@ -47,6 +52,17 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         resume.accessibilityLabel = "Return to current lyric line"
         resume.addTarget(self, action: #selector(resumeTapped), for: .touchUpInside)
         resume.isHidden = true; addSubview(resume)
+        syncFooter.axis = .horizontal; syncFooter.alignment = .center; syncFooter.spacing = 8
+        syncLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
+        syncLabel.textColor = .secondaryLabel; syncLabel.numberOfLines = 2
+        syncLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        syncSpinner.hidesWhenStopped = true
+        syncCancel.setTitle("Cancel", for: .normal); syncCancel.setTitleColor(.label, for: .normal)
+        syncCancel.titleLabel?.font = UIFont(name: "DrukWide-Bold", size: 8) ?? UIFont.systemFont(ofSize: 11, weight: .bold)
+        syncCancel.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        syncCancel.addTarget(self, action: #selector(cancelSyncTapped), for: .touchUpInside)
+        syncFooter.addArrangedSubview(syncSpinner); syncFooter.addArrangedSubview(syncLabel); syncFooter.addArrangedSubview(syncCancel)
+        syncFooter.isHidden = true; addSubview(syncFooter)
     }
     private func emptyStateButton(_ title: String, action: Selector, primary: Bool = false) -> UIButton {
         let button = UIButton(type: .custom)
@@ -69,11 +85,14 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layoutSubviews() {
-        super.layoutSubviews(); table.frame = bounds.insetBy(dx: 12, dy: 0)
-        let changed = lastViewportSize != bounds.size
+        super.layoutSubviews()
+        let footer: CGFloat = syncFooter.isHidden ? 0 : 32
+        table.frame = CGRect(x: 12, y: 0, width: max(1, bounds.width - 24), height: max(1, bounds.height - footer))
+        syncFooter.frame = CGRect(x: 12, y: bounds.height - footer, width: max(1, bounds.width - 24), height: footer)
+        let changed = lastViewportSize != table.bounds.size
         if changed {
-            lastViewportSize = bounds.size
-            table.contentInset = UIEdgeInsets(top: bounds.height * 0.5, left: 0, bottom: bounds.height * 0.5, right: 0)
+            lastViewportSize = table.bounds.size
+            table.contentInset = UIEdgeInsets(top: table.bounds.height * 0.5, left: 0, bottom: table.bounds.height * 0.5, right: 0)
         }
         let available = max(1, bounds.width - 40)
         let messageHeight = message.sizeThatFits(CGSize(width: available, height: .greatestFiniteMagnitude)).height
@@ -85,7 +104,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         let width = min(bounds.width - 32, resume.sizeThatFits(CGSize(width: bounds.width, height: 40)).width)
         let height = max(36, resume.sizeThatFits(CGSize(width: width, height: 60)).height)
         resume.bounds = CGRect(x: 0, y: 0, width: width, height: height)
-        resume.center = CGPoint(x: bounds.midX, y: bounds.height - 10 - height / 2)
+        resume.center = CGPoint(x: bounds.midX, y: table.frame.maxY - 10 - height / 2)
         if changed && !manual && !table.isDragging && !table.isDecelerating { center(animated: false) }
     }
     func display(_ doc: LyricsDocument?, loading: Bool = false, state: LyricsLookupState = .missing) {
@@ -98,9 +117,17 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         else if state == .unavailable { message.text = "Lyrics unavailable.\nTry again shortly." }
         else if state == .unreadable { message.text = "Audio file unavailable." }
         else { message.text = "No lyrics found." }
+        setSyncStatus(doc?.onDeviceTiming == nil ? nil : (doc!.lines.contains { $0.time == nil } ? "Partial on-device sync · Experimental" : "On-device sync · Experimental"), busy: false)
         setNeedsLayout()
         table.reloadData(); table.setContentOffset(CGPoint(x: 0, y: -table.adjustedContentInset.top), animated: false)
     }
+    func setSyncStatus(_ text: String?, busy: Bool) {
+        syncLabel.text = text; syncFooter.isHidden = text == nil
+        syncCancel.isHidden = !busy
+        if busy { syncSpinner.startAnimating() } else { syncSpinner.stopAnimating() }
+        setNeedsLayout()
+    }
+    @objc private func cancelSyncTapped() { cancelSync?() }
     func update(time: Double) {
         let next = syncEngine?.active(at: time)
         guard next != active else {
@@ -186,17 +213,23 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         cell.backgroundColor = .clear; cell.selectionStyle = .none
         cell.textLabel?.numberOfLines = 0
         let size: CGFloat = bounds.width < 350 ? 26 : 29
-        cell.textLabel?.font = UIFontMetrics(forTextStyle: .title2).scaledFont(for: UIFont(name: "Fraunces72pt-Bold", size: size) ?? UIFont(name: "Georgia-Bold", size: size)!, maximumPointSize: 42)
+        cell.textLabel?.font = UIFontMetrics(forTextStyle: .title2).scaledFont(for: Self.lyricsFont(text: document?.lines[indexPath.row].text ?? "", size: size), maximumPointSize: 42)
         cell.textLabel?.adjustsFontForContentSizeCategory = true
         cell.textLabel?.text = document?.lines[indexPath.row].text
-        cell.accessibilityHint = document?.synchronized == true ? "Double tap to play from this line" : nil
+        cell.accessibilityHint = document?.synchronized == true && document?.lines[indexPath.row].time != nil ? "Double tap to play from this line" : nil
         style(cell, index: indexPath.row); return cell
+    }
+    static func lyricsFont(text: String, size: CGFloat) -> UIFont {
+        let latin = UIFont(name: "Fraunces72pt-Bold", size: size) ?? UIFont(name: "Georgia-Bold", size: size)!
+        let cyrillic = text.unicodeScalars.contains { (0x0400...0x052F).contains($0.value) || (0xA640...0xA69F).contains($0.value) }
+        guard cyrillic, let font = UIFont(name: "Literata72pt-ExtraBold", size: size) else { return latin }
+        return UIFont(name: "Literata72pt-ExtraBold", size: size * latin.capHeight / max(1, font.capHeight)) ?? font
     }
     func style(_ cell: UITableViewCell, index: Int) {
         let distance = active.map { abs(index - $0) } ?? 1
         let opacity: CGFloat = document?.synchronized != true ? 1 : (distance == 0 ? 1 : (distance < 3 ? 0.42 : 0.30))
         cell.textLabel?.textColor = UIColor.label.withAlphaComponent(opacity)
-        cell.accessibilityTraits = document?.synchronized == true ? (index == active ? [.selected, .button] : [.button]) : [.staticText]
+        cell.accessibilityTraits = document?.synchronized == true && document?.lines[index].time != nil ? (index == active ? [.selected, .button] : [.button]) : [.staticText]
     }
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         guard let doc = document, doc.synchronized, let time = doc.lines[indexPath.row].time else { return }

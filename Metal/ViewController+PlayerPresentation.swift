@@ -22,6 +22,7 @@ extension ViewController {
     }
 
     func setPlayerPresented(_ presented: Bool, animated: Bool = true) {
+        if !presented { cancelOnDeviceLyricsSync() }
         if playerPresentationAnimator != nil {
             pendingPlayerPresentation = presented
             return

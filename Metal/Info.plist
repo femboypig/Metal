@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Metal matches existing lyrics to vocals using on-device speech recognition. Your audio is never uploaded.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -46,6 +48,7 @@
 	<array>
 		<string>DrukWideBold.ttf</string>
 		<string>Fonts/Fraunces72pt-Bold.ttf</string>
+		<string>Fonts/Literata72pt-ExtraBold.ttf</string>
 	</array>
 </dict>
 </plist>

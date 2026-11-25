@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FA0000000000000000000008 /* OnDeviceLyricsSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000018 /* OnDeviceLyricsSync.swift */; };
+		FA0000000000000000000007 /* LyricsAlignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000017 /* LyricsAlignment.swift */; };
 		FA0000000000000000000006 /* LyricsProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000016; };
 		FA0000000000000000000005 /* LyricsFormats.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000015; };
 		FA0000000000000000000004 /* ViewController+Lyrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000014; };
@@ -82,6 +84,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		FA0000000000000000000018 /* OnDeviceLyricsSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OnDeviceLyricsSync.swift"; sourceTree = "<group>"; };
+		FA0000000000000000000017 /* LyricsAlignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsAlignment.swift"; sourceTree = "<group>"; };
 		FA0000000000000000000016 /* LyricsProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsProviders.swift"; sourceTree = "<group>"; };
 		FA0000000000000000000015 /* LyricsFormats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsFormats.swift"; sourceTree = "<group>"; };
 		FA0000000000000000000014 /* ViewController+Lyrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewController+Lyrics.swift"; sourceTree = "<group>"; };
@@ -189,6 +193,8 @@
 				FA0000000000000000000013 /* LyricsView.swift */,
 				FA0000000000000000000012 /* LyricsService.swift */,
 				FA0000000000000000000011 /* LyricsCore.swift */,
+				FA0000000000000000000018 /* OnDeviceLyricsSync.swift */,
+				FA0000000000000000000017 /* LyricsAlignment.swift */,
 				F80000000000000000000011 /* PlayerPresentation.swift */,
 				F60000000000000000000012 /* PulseAudioSampler.swift */,
 				F60000000000000000000011 /* PulseExperience.swift */,
@@ -362,6 +368,8 @@
 				FA0000000000000000000003 /* LyricsView.swift in Sources */,
 				FA0000000000000000000002 /* LyricsService.swift in Sources */,
 				FA0000000000000000000001 /* LyricsCore.swift in Sources */,
+				FA0000000000000000000008 /* OnDeviceLyricsSync.swift in Sources */,
+				FA0000000000000000000007 /* LyricsAlignment.swift in Sources */,
 				F80000000000000000000001 /* PlayerPresentation.swift in Sources */,
 				F60000000000000000000002 /* PulseAudioSampler.swift in Sources */,
 				F60000000000000000000001 /* PulseExperience.swift in Sources */,

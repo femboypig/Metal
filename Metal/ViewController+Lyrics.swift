@@ -2,6 +2,95 @@ import UIKit
 import UniformTypeIdentifiers
 
 extension ViewController {
+    @objc func cancelLyricsSyncForLifecycle() { cancelOnDeviceLyricsSync() }
+
+    func cancelOnDeviceLyricsSync() {
+        lyricsSyncGeneration += 1
+        if lyricsSyncTask != nil { lyricsView?.setSyncStatus(nil, busy: false) }
+        lyricsSyncTask?.cancel(); lyricsSyncTask = nil
+        if let continuation = lyricsModelConsent {
+            lyricsModelConsent = nil
+            lyricsModelPrompt?.dismiss(animated: true); lyricsModelPrompt = nil
+            continuation.resume(returning: false)
+        }
+    }
+
+    func beginAutomaticLyricsSync(force: Bool = false) {
+        guard lyricsVisible, isPlayerPageVisible, lyricsSyncTask == nil, !lyricsIdentity.isEmpty,
+              let track = currentPlaybackTrack(), let document = lyricsView.document,
+              !document.synchronized, !document.instrumental, !document.lines.isEmpty else { return }
+        let id = lyricsIdentity
+        let sourceKey = document.source == "Imported" ? "imported" : document.resultKey ?? "legacy"
+        let fingerprint = LyricsAlignment.fingerprint(document)
+        lyricsSyncGeneration += 1
+        let generation = lyricsSyncGeneration
+        lyricsView.cancelSync = { [weak self] in
+            self?.cancelOnDeviceLyricsSync()
+            self?.lyricsView.setSyncStatus("On-device sync cancelled", busy: false)
+            Task { try? await LyricsService.shared.store.syncAttempt(fingerprint, id: id) }
+        }
+        lyricsSyncTask = Task(priority: .utility) { [weak self] in
+            let entry = await LyricsService.shared.store.read(id)
+            if !force, let previous = entry.syncAttempt, previous.fingerprint == fingerprint,
+               Date().timeIntervalSince(previous.date) < 86_400 {
+                if self?.lyricsSyncGeneration == generation { self?.lyricsSyncTask = nil }
+                return
+            }
+            guard !Task.isCancelled else { return }
+            do {
+                let aligned = try await OnDeviceLyricsSync().generate(url: track.url, document: document, forceModelPrompt: force, progress: { [weak self] text in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.lyricsSyncGeneration == generation, self.lyricsSyncTask != nil, self.lyricsView.document?.onDeviceTiming == nil else { return }
+                        self.lyricsView.setSyncStatus(text, busy: true)
+                    }
+                }, downloadConsent: { [weak self] language in
+                    await self?.confirmLyricsSpeechModel(language: language, generation: generation) ?? false
+                })
+                try Task.checkCancellation()
+                let saved = try await LyricsService.shared.store.saveOnDeviceTiming(aligned, id: id, sourceKey: sourceKey, fingerprint: fingerprint)
+                let result = await LyricsService.shared.store.resolved(id)
+                guard let self, self.lyricsSyncGeneration == generation, self.lyricsIdentity == id,
+                      self.currentPlaybackTrack()?.url == track.url else { return }
+                if saved {
+                    self.lyricsView.display(result)
+                    self.lyricsView.update(time: self.audioPlayer?.currentTime ?? 0)
+                    self.updatePlayerOptionsMenu()
+                } else { self.lyricsView.setSyncStatus(nil, busy: false) }
+            } catch {
+                if !Task.isCancelled {
+                    try? await LyricsService.shared.store.syncAttempt(fingerprint, id: id)
+                    guard let self, self.lyricsSyncGeneration == generation else { return }
+                    let message = (error as? OnDeviceLyricsSyncError)?.errorDescription ?? "Could not sync reliably. Keeping the original text."
+                    self.lyricsView.setSyncStatus(message, busy: false)
+                }
+            }
+            if self?.lyricsSyncGeneration == generation { self?.lyricsSyncTask = nil }
+        }
+    }
+
+    func confirmLyricsSpeechModel(language: String, generation: Int) async -> Bool {
+        // Let an existing source picker finish instead of presenting over another alert.
+        while presentedViewController != nil {
+            guard !Task.isCancelled, lyricsSyncGeneration == generation, lyricsVisible else { return false }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        guard !Task.isCancelled, lyricsSyncGeneration == generation, lyricsVisible else { return false }
+        return await withCheckedContinuation { continuation in
+            lyricsModelConsent = continuation
+            let alert = UIAlertController(title: "On-device Lyrics Sync", message: "Download Apple's \(language) speech model? After installation, audio matching works offline. Your song is never uploaded.", preferredStyle: .alert)
+            let finish: (Bool) -> Void = { [weak self] accepted in
+                guard let self, self.lyricsSyncGeneration == generation else { return }
+                let current = self.lyricsModelConsent
+                self.lyricsModelConsent = nil; self.lyricsModelPrompt = nil
+                current?.resume(returning: accepted)
+            }
+            alert.addAction(UIAlertAction(title: "Not Now", style: .cancel) { _ in finish(false) })
+            alert.addAction(UIAlertAction(title: "Download", style: .default) { _ in finish(true) })
+            lyricsModelPrompt = alert
+            present(alert, animated: true)
+        }
+    }
+
     func lyricsQuery(for track: Track) -> LyricsQuery {
         let engineDuration = audioPlayer?.url == track.url ? audioPlayer?.duration : nil
         let duration = engineDuration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? track.duration
@@ -22,6 +111,8 @@ extension ViewController {
         lyricsView.search = { [weak self] in self?.loadLyrics(force: true) }
         lyricsView.imported = { [weak self] in self?.importLyrics() }
         lyricsView.paste = { [weak self] in self?.pasteLyrics() }
+        NotificationCenter.default.addObserver(self, selector: #selector(cancelLyricsSyncForLifecycle), name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(cancelLyricsSyncForLifecycle), name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
     }
     func setLyricsVisible(_ visible: Bool) {
         lyricsVisible = visible
@@ -33,8 +124,8 @@ extension ViewController {
         if UIAccessibility.isReduceMotionEnabled { changes() }
         else { UIView.transition(with: coverCarouselContainer.superview!, duration: 0.18,
             options: [.transitionCrossDissolve, .allowAnimatedContent], animations: changes) }
-        if visible { loadLyrics() }
-        else { applyCarouselLayout(isPlaying: audioPlayer?.isPlaying == true, animated: false) }
+        if visible { loadLyrics(); beginAutomaticLyricsSync() }
+        else { cancelOnDeviceLyricsSync(); applyCarouselLayout(isPlaying: audioPlayer?.isPlaying == true, animated: false) }
         updatePlayerOptionsMenu()
     }
     func updateLyrics() {
@@ -46,6 +137,7 @@ extension ViewController {
         guard let track = requestedTrack ?? currentPlaybackTrack(), lyricsVisible else { return }
         if !force && lyricsTrackURL == track.url && lyricsTask != nil { return }
         lyricsTask?.cancel()
+        cancelOnDeviceLyricsSync()
         lyricsGeneration += 1
         let generation = lyricsGeneration
         lyricsTrackURL = track.url; lyricsIdentity = ""
@@ -57,13 +149,31 @@ extension ViewController {
             self.lyricsIdentity = result.0
             self.lyricsView.display(result.1, state: result.2)
             self.lyricsView.update(time: self.audioPlayer?.currentTime ?? 0)
+            self.updatePlayerOptionsMenu()
+            self.beginAutomaticLyricsSync()
         }
     }
     func lyricsMenu() -> UIMenu {
         let toggle = UIAction(title: lyricsVisible ? "View Artwork" : "Lyrics", image: UIImage(systemName: "text.alignleft")) { [weak self] _ in
             guard let self else { return }; self.setLyricsVisible(!self.lyricsVisible)
         }
-        let manage = UIMenu(title: "Lyrics Options", children: [
+        var actions: [UIMenuElement] = []
+        if lyricsVisible, let document = lyricsView?.document, !document.synchronized {
+            actions.append(UIAction(title: "Sync on Device · Experimental", image: UIImage(systemName: "waveform")) { [weak self] _ in
+                self?.cancelOnDeviceLyricsSync(); self?.beginAutomaticLyricsSync(force: true)
+            })
+        }
+        if lyricsView?.document?.onDeviceTiming != nil {
+            actions.append(UIAction(title: "Remove On-device Sync", attributes: .destructive) { [weak self] _ in
+                guard let self, !self.lyricsIdentity.isEmpty else { return }
+                self.cancelOnDeviceLyricsSync()
+                let id = self.lyricsIdentity
+                Task { try? await LyricsService.shared.store.removeOnDeviceTiming(id: id)
+                    if self.lyricsIdentity == id { self.lyricsTrackURL = nil; self.loadLyrics() }
+                }
+            })
+        }
+        actions += [
             UIAction(title: "Lyrics Source", image: UIImage(systemName: "list.bullet")) { [weak self] _ in self?.chooseLyricsVersion() },
             UIAction(title: "Search Again", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in self?.setLyricsVisible(true); self?.loadLyrics(force: true) },
             UIAction(title: "Import Lyrics", image: UIImage(systemName: "doc")) { [weak self] _ in self?.importLyrics() },
@@ -74,7 +184,8 @@ extension ViewController {
                 let id = self.lyricsIdentity
                 Task { await LyricsService.shared.imported(nil, id: id); self.lyricsTrackURL = nil; self.loadLyrics() }
             }
-        ])
+        ]
+        let manage = UIMenu(title: "Lyrics Options", children: actions)
         return UIMenu(title: "", options: .displayInline, children: [toggle, manage])
     }
     func importLyrics() {

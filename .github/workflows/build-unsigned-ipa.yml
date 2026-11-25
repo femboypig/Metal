@@ -61,8 +61,16 @@ jobs:
 
       - name: Verify lyrics parsing and synchronization
         run: |
-          xcrun swiftc -O -whole-module-optimization -swift-version 5 Metal/LyricsCore.swift Metal/LyricsFormats.swift Metal/LyricsProviders.swift Metal/LyricsService.swift Tests/LyricsChecks.swift -o "$RUNNER_TEMP/lyrics-checks"
+          xcrun swiftc -O -whole-module-optimization -swift-version 5 Metal/LyricsCore.swift Metal/LyricsFormats.swift Metal/LyricsProviders.swift Metal/LyricsService.swift Metal/LyricsAlignment.swift Tests/LyricsChecks.swift -o "$RUNNER_TEMP/lyrics-checks"
           "$RUNNER_TEMP/lyrics-checks" ${{ inputs.verify_lyrics_network && '--live-lyrics' || '' }}
+
+      - name: Verify on-device lyrics alignment and typography
+        run: |
+          set -euo pipefail
+          xcrun swiftc -O -whole-module-optimization -swift-version 5 Metal/LyricsCore.swift Metal/LyricsFormats.swift Metal/LyricsProviders.swift Metal/LyricsAlignment.swift Tests/LyricsAlignmentChecks.swift -o "$RUNNER_TEMP/lyrics-alignment-checks"
+          "$RUNNER_TEMP/lyrics-alignment-checks"
+          xcrun swiftc -parse-as-library -framework CoreText Tests/LyricsFontChecks.swift -o "$RUNNER_TEMP/lyrics-font-checks"
+          "$RUNNER_TEMP/lyrics-font-checks"
 
       - name: Verify Metal shader pipelines
         run: |
@@ -108,6 +116,9 @@ jobs:
           assert info["CFBundleVersion"] == os.environ["EXPECTED_BUILD_VERSION"], info["CFBundleVersion"]
           assert (app / "Fonts/Fraunces72pt-Bold.ttf").is_file(), "missing Fraunces font"
           assert "Fonts/Fraunces72pt-Bold.ttf" in info.get("UIAppFonts", []), "Fraunces is not registered"
+          assert (app / "Fonts/Literata72pt-ExtraBold.ttf").is_file(), "missing Cyrillic lyrics font"
+          assert "Fonts/Literata72pt-ExtraBold.ttf" in info.get("UIAppFonts", []), "Literata is not registered"
+          assert info.get("NSSpeechRecognitionUsageDescription"), "missing native Speech permission description"
           for key in ("CFBundleIcons", "CFBundleIcons~ipad"):
               primary = info[key]["CFBundlePrimaryIcon"]
               assert primary["CFBundleIconName"] == "MetalStarAppIcon", primary

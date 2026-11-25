@@ -15,8 +15,16 @@ struct LyricsDocument: Codable {
     var resultKey: String?
     var attribution: String?
     var sourceAttributions: [String]?
-    var synchronizationLevel: String { !synchronized ? "Plain" : lines.contains { !($0.words?.isEmpty ?? true) } ? "Word synced" : "Line synced" }
-    var synchronized: Bool { timingTrusted != false && !lines.isEmpty && lines.allSatisfy { $0.time != nil } }
+    var onDeviceTiming: LyricsOnDeviceTiming?
+    var synchronizationLevel: String {
+        if !synchronized { return "Plain" }
+        if onDeviceTiming != nil { return lines.allSatisfy { $0.time != nil } ? "On-device sync" : "Partial on-device sync" }
+        return lines.contains { !($0.words?.isEmpty ?? true) } ? "Word synced" : "Line synced"
+    }
+    var synchronized: Bool {
+        timingTrusted != false && !lines.isEmpty &&
+            (onDeviceTiming != nil ? lines.contains { $0.time != nil } : lines.allSatisfy { $0.time != nil })
+    }
     func active(at time: Double) -> Int? { LyricsSyncEngine(document: self)?.active(at: time) }
 
 }
@@ -112,7 +120,7 @@ struct LyricsCandidate: Codable {
         doc.resultKey = key
         doc.provenance = LyricsProvenance(provider: providerID ?? "LRCLIB", identifier: String(id), title: trackName, artist: artistName, album: albumName, duration: duration)
         if doc.attribution == nil { doc.attribution = providerID == "AMLL" ? "https://github.com/amll-dev/amll-ttml-db" : "https://lrclib.net" }
-        if !safe { doc.timingTrusted = false }
+        if !safe && doc.onDeviceTiming == nil { doc.timingTrusted = false }
         doc.instrumental = instrumental
         return doc
     }
@@ -196,7 +204,7 @@ struct LRCLIBProvider: LyricsProvider {
 struct LyricsSearchMetadata: Codable { var title: String; var artist: String }
 
 actor LyricsStore {
-    struct Entry: Codable { var cached: LyricsDocument?; var imported: LyricsDocument?; var checked: Date?; var adjustment: Double = 0; var results: [String: LyricsDocument]?; var selected: String?; var offsets: [String: Double]?; var lookupSignature: String?; var searchOverride: LyricsSearchMetadata? }
+    struct Entry: Codable { var cached: LyricsDocument?; var imported: LyricsDocument?; var checked: Date?; var adjustment: Double = 0; var results: [String: LyricsDocument]?; var selected: String?; var offsets: [String: Double]?; var lookupSignature: String?; var searchOverride: LyricsSearchMetadata?; var syncAttempt: LyricsSyncAttempt? }
     let directory: URL
     init(directory: URL) { self.directory = directory; try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
     func read(_ id: String) -> Entry {
@@ -208,7 +216,57 @@ actor LyricsStore {
         }
         return entry
     }
-    func cache(_ doc: LyricsDocument?, id: String, lookupSignature: String? = nil) throws { var entry = read(id); entry.cached = doc; if let doc, let key = doc.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = doc }; entry.checked = Date(); entry.lookupSignature = lookupSignature; try write(entry, id: id) }
+    private func retainingTiming(_ incoming: LyricsDocument?, from old: LyricsDocument?) -> LyricsDocument? {
+        guard let incoming, !incoming.synchronized, let old, old.onDeviceTiming != nil,
+              incoming.lines.map(\.text) == old.lines.map(\.text) else { return incoming }
+        return old
+    }
+    func cache(_ doc: LyricsDocument?, id: String, lookupSignature: String? = nil) throws {
+        var entry = read(id)
+        let existing = (doc?.resultKey).flatMap { entry.results?[$0] }
+        let value = retainingTiming(doc, from: existing)
+        entry.cached = value
+        if let value, let key = value.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = value }
+        entry.checked = Date(); entry.lookupSignature = lookupSignature; try write(entry, id: id)
+    }
+    func syncAttempt(_ fingerprint: String?, id: String) throws {
+        var entry = read(id)
+        entry.syncAttempt = fingerprint.map { LyricsSyncAttempt(fingerprint: $0, date: Date()) }
+        try write(entry, id: id)
+    }
+    func saveOnDeviceTiming(_ proposed: LyricsDocument, id: String, sourceKey: String, fingerprint: String) throws -> Bool {
+        var entry = read(id)
+        guard let base = entry.imported ?? entry.selected.flatMap({ entry.results?[$0] }) ?? entry.cached else { return false }
+        let currentKey = entry.imported != nil ? "imported" : base.resultKey ?? "legacy"
+        guard currentKey == sourceKey, LyricsAlignment.fingerprint(base) == fingerprint,
+              !base.synchronized, proposed.lines.map(\.text) == base.lines.map(\.text) else { return false }
+        var document = proposed
+        document.offset = base.offset
+        document.onDeviceTiming?.originalOffset = base.offset
+        document.onDeviceTiming?.originalLines = base.lines
+        document.onDeviceTiming?.originalTimingTrusted = base.timingTrusted
+        if entry.imported != nil { entry.imported = document }
+        else {
+            if let key = document.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = document }
+            if entry.selected == nil || entry.cached?.resultKey == base.resultKey { entry.cached = document }
+        }
+        entry.syncAttempt = LyricsSyncAttempt(fingerprint: fingerprint, date: Date())
+        try write(entry, id: id); return true
+    }
+    func removeOnDeviceTiming(id: String) throws {
+        var entry = read(id)
+        guard var document = entry.imported ?? entry.selected.flatMap({ entry.results?[$0] }) ?? entry.cached,
+              let generated = document.onDeviceTiming else { return }
+        document.lines = generated.originalLines; document.offset = generated.originalOffset
+        document.timingTrusted = generated.originalTimingTrusted; document.onDeviceTiming = nil
+        if entry.imported != nil { entry.imported = document }
+        else {
+            if let key = document.resultKey { entry.results?[key] = document }
+            if entry.selected == nil || entry.cached?.resultKey == document.resultKey { entry.cached = document }
+        }
+        entry.syncAttempt = LyricsSyncAttempt(fingerprint: LyricsAlignment.fingerprint(document), date: Date())
+        try write(entry, id: id)
+    }
     func searchMetadata(_ metadata: LyricsSearchMetadata?, id: String) throws {
         var entry = read(id); entry.searchOverride = metadata; entry.checked = nil; entry.lookupSignature = nil
         try write(entry, id: id)
@@ -217,7 +275,7 @@ actor LyricsStore {
     func adjust(_ value: Double, id: String, sourceKey: String? = nil) throws { var entry = read(id); let key = sourceKey ?? entry.imported?.resultKey ?? entry.imported.map { _ in "imported" } ?? entry.selected ?? entry.cached?.resultKey ?? "legacy"
         if entry.offsets == nil { entry.offsets = [:] }; entry.offsets?[key] = value
         entry.adjustment = 0; try write(entry, id: id) }
-    func select(_ doc: LyricsDocument?, id: String) throws { var entry = read(id); entry.selected = doc?.resultKey; if let doc, let key = doc.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = doc }; try write(entry, id: id) }
+    func select(_ incoming: LyricsDocument?, id: String) throws { var entry = read(id); let doc = retainingTiming(incoming, from: (incoming?.resultKey).flatMap { entry.results?[$0] }); entry.selected = doc?.resultKey; if let doc, let key = doc.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = doc }; try write(entry, id: id) }
     func resolved(_ id: String) -> LyricsDocument? {
         let entry = read(id)
         var doc = entry.imported ?? entry.selected.flatMap { entry.results?[$0] } ?? entry.cached
@@ -236,10 +294,13 @@ enum LyricsFollowPolicy {
 struct LyricsSyncEngine {
     let starts: [Double]
     let ends: [Double?]
+    let lineIndices: [Int]
     let offset: Double
     init?(document: LyricsDocument) {
         guard document.synchronized else { return nil }
-        starts = document.lines.compactMap(\.time); ends = document.lines.map(\.end); offset = document.offset
+        let timed = document.lines.enumerated().filter { $0.element.time != nil }
+        starts = timed.map { $0.element.time! }; ends = timed.map { $0.element.end }
+        lineIndices = timed.map(\.offset); offset = document.offset
     }
     func active(at time: Double) -> Int? {
         var low = 0, high = starts.count
@@ -250,7 +311,7 @@ struct LyricsSyncEngine {
         guard low > 0 else { return nil }
         let index = low - 1
         if let end = ends[index], time > end + offset { return nil }
-        return index
+        return lineIndices[index]
     }
 }
 

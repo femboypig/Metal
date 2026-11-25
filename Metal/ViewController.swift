@@ -91,6 +91,10 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var lyricsView: LyricsView!
     var lyricsVisible = false
     var lyricsTask: Task<Void, Never>?
+    var lyricsSyncTask: Task<Void, Never>?
+    var lyricsSyncGeneration = 0
+    var lyricsModelPrompt: UIAlertController?
+    var lyricsModelConsent: CheckedContinuation<Bool, Never>?
     var lyricsGeneration = 0
     var lyricsTrackURL: URL?
     var lyricsIdentity = ""
@@ -244,6 +248,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
     
     deinit {
+        lyricsSyncTask?.cancel()
         dailyMixRefreshTimer?.invalidate()
         playerPresentationAnimator?.stopAnimation(true)
         libraryDisplayLink?.invalidate()
@@ -379,7 +384,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     func registerCustomFonts() {
-        for (name, directory) in [("DrukWideBold", nil as String?), ("Fraunces72pt-Bold", "Fonts")] {
+        for (name, directory) in [("DrukWideBold", nil as String?), ("Fraunces72pt-Bold", "Fonts"), ("Literata72pt-ExtraBold", "Fonts")] {
             guard let url = Bundle.main.url(forResource: name, withExtension: "ttf", subdirectory: directory) else { continue }
             var error: Unmanaged<CFError>?
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
