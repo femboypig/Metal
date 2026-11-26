@@ -93,6 +93,8 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var lyricsTask: Task<Void, Never>?
     var lyricsSyncTask: Task<Void, Never>?
     var lyricsSyncGeneration = 0
+    var lyricsSyncStatus: String?
+    var lyricsSyncBusy = false
     var lyricsModelPrompt: UIAlertController?
     var lyricsModelConsent: CheckedContinuation<Bool, Never>?
     var lyricsGeneration = 0

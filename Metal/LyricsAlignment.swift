@@ -109,7 +109,8 @@ enum LyricsAlignment {
             for pair in candidates[index].pairs { matches[pair.0] = pair.1 }
             tail = previous[index]
         }
-        let coverage = Double(matches.count) / Double(tokens.count)
+        let exactCount = matches.filter { tokens[$0.key].key == keys[$0.value] }.count
+        let coverage = Double(exactCount) / Double(tokens.count)
         var result = document
         for index in result.lines.indices {
             result.lines[index].time = nil; result.lines[index].end = nil; result.lines[index].words = nil
@@ -124,10 +125,11 @@ enum LyricsAlignment {
             guard end > start else { continue }
             // If the opening word was missed, use the first actual anchor, never
             // extrapolate an invented onset. Keep this distinction for review.
-            if first != indices.first { anchoredStarts.append(index) }
+            if first != indices.first || tokens[first].key != keys[firstWord] { anchoredStarts.append(index) }
             result.lines[index].time = start; result.lines[index].end = end
             let wordWindows = matched.compactMap { token -> LyricWord? in
-                guard let unit = matches[token], words(observed[unit].text).count == 1 else { return nil }
+                guard let unit = matches[token], words(observed[unit].text).count == 1,
+                      keys[unit] == tokens[token].key else { return nil }
                 return LyricWord(start: observed[unit].start, end: observed[unit].end, text: tokens[token].text)
             }
             result.lines[index].words = wordWindows.isEmpty ? nil : wordWindows
@@ -146,6 +148,20 @@ enum LyricsAlignment {
 
     private struct LineCandidate { var row: Int; var pairs: [(Int, Int)] }
     private struct Window { var pairs: [(Int, Int)]; var score: Double }
+
+    private static func nearWord(_ lhs: String, _ rhs: String) -> Bool {
+        let a = Array(lhs), b = Array(rhs)
+        guard a.count >= 5, b.count >= 5, abs(a.count - b.count) <= 1 else { return false }
+        var i = 0, j = 0, edits = 0
+        while i < a.count && j < b.count {
+            if a[i] == b[j] { i += 1; j += 1; continue }
+            edits += 1
+            if edits > 1 { return false }
+            if a.count >= b.count { i += 1 }
+            if b.count >= a.count { j += 1 }
+        }
+        return edits + (a.count - i) + (b.count - j) == 1
+    }
 
     /// Smith–Waterman local matching: omissions and ASR substitutions incur small
     /// penalties, while unrelated passages reset. Only exact acoustic word anchors
@@ -189,7 +205,23 @@ enum LyricsAlignment {
                 if observed[pairs[index].1].start - observed[pairs[index - 1].1].end > 5 { compact = false }
             }
             guard compact else { continue }
-            windows.append(Window(pairs: pairs, score: Double(pairs.count * 4) - Double(span - pairs.count) * 0.5))
+            let confidence = Double(pairs.count) / Double(reference.count)
+            // Favor a coherent full row over splitting it into weak fragments.
+            let score = Double(pairs.count * 4) + confidence * 2 - 3 - Double(span - pairs.count) * 0.5
+            // Refine a missing boundary only when a neighboring acoustic word
+            // differs by one edit and at least two exact anchors confirm the row.
+            // No onset is extrapolated from average word duration.
+            if first.0 > 0, first.1 > 0, words(observed[first.1 - 1].text).count == 1,
+               observed[first.1].start - observed[first.1 - 1].end <= 1.5,
+               nearWord(reference[first.0 - 1], keys[first.1 - 1]) {
+                pairs.insert((first.0 - 1, first.1 - 1), at: 0)
+            }
+            if last.0 + 1 < reference.count, last.1 + 1 < keys.count, words(observed[last.1 + 1].text).count == 1,
+               observed[last.1 + 1].start - observed[last.1].end <= 1.5,
+               nearWord(reference[last.0 + 1], keys[last.1 + 1]) {
+                pairs.append((last.0 + 1, last.1 + 1))
+            }
+            windows.append(Window(pairs: pairs, score: score))
         }
         // Some native results expose a whole phrase window. Its real boundaries
         // can anchor a row, but must never be split into invented word timestamps.
@@ -198,7 +230,7 @@ enum LyricsAlignment {
             guard phrase.count >= 2, phrase.count <= reference.count,
                   phrase.contains(where: { $0.count >= 4 }), Set(phrase).count >= 2 else { continue }
             for start in 0...(reference.count - phrase.count) where Array(reference[start..<(start + phrase.count)]) == phrase {
-                windows.append(Window(pairs: phrase.indices.map { (start + $0, unit) }, score: Double(phrase.count * 4)))
+                windows.append(Window(pairs: phrase.indices.map { (start + $0, unit) }, score: Double(phrase.count * 4) + Double(phrase.count) / Double(reference.count) * 2 - 3))
             }
         }
         // Bound candidate-chain work even for pathological repetitions.

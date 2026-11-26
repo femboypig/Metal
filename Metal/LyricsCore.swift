@@ -231,28 +231,33 @@ actor LyricsStore {
     }
     func syncAttempt(_ fingerprint: String?, id: String) throws {
         var entry = read(id)
-        entry.syncAttempt = fingerprint.map { LyricsSyncAttempt(fingerprint: $0, date: Date(), revision: 3) }
+        entry.syncAttempt = fingerprint.map { LyricsSyncAttempt(fingerprint: $0, date: Date(), revision: 4) }
         try write(entry, id: id)
     }
-    func saveOnDeviceTiming(_ proposed: LyricsDocument, id: String, sourceKey: String, fingerprint: String) throws -> Bool {
+    func saveOnDeviceTiming(_ proposed: LyricsDocument, id: String, sourceKey: String, fingerprint: String, replacingGenerated: Bool = false) throws -> Bool {
         try Task.checkCancellation()
         var entry = read(id)
         guard let base = entry.imported ?? entry.selected.flatMap({ entry.results?[$0] }) ?? entry.cached else { return false }
         let currentKey = entry.imported != nil ? "imported" : base.resultKey ?? "legacy"
         guard currentKey == sourceKey, LyricsAlignment.fingerprint(base) == fingerprint,
-              !base.synchronized, proposed.onDeviceTiming != nil, proposed.synchronized,
+              (!base.synchronized || (replacingGenerated && base.onDeviceTiming != nil)), proposed.onDeviceTiming != nil, proposed.synchronized,
               proposed.lines.map(\.text) == base.lines.map(\.text) else { return false }
         var document = proposed
         document.offset = base.offset
         document.onDeviceTiming?.originalOffset = base.offset
-        document.onDeviceTiming?.originalLines = base.lines
-        document.onDeviceTiming?.originalTimingTrusted = base.timingTrusted
+        if let original = base.onDeviceTiming {
+            document.onDeviceTiming?.originalLines = original.originalLines
+            document.onDeviceTiming?.originalTimingTrusted = original.originalTimingTrusted
+        } else {
+            document.onDeviceTiming?.originalLines = base.lines
+            document.onDeviceTiming?.originalTimingTrusted = base.timingTrusted
+        }
         if entry.imported != nil { entry.imported = document }
         else {
             if let key = document.resultKey { if entry.results == nil { entry.results = [:] }; entry.results?[key] = document }
             if entry.selected == nil || entry.cached?.resultKey == base.resultKey { entry.cached = document }
         }
-        entry.syncAttempt = LyricsSyncAttempt(fingerprint: fingerprint, date: Date(), revision: 3)
+        entry.syncAttempt = LyricsSyncAttempt(fingerprint: fingerprint, date: Date(), revision: 4)
         try write(entry, id: id); return true
     }
     /// Edit a draft row without touching source audio or other source preferences.
@@ -289,7 +294,7 @@ actor LyricsStore {
             if let key = document.resultKey { entry.results?[key] = document }
             if entry.selected == nil || entry.cached?.resultKey == document.resultKey { entry.cached = document }
         }
-        entry.syncAttempt = LyricsSyncAttempt(fingerprint: LyricsAlignment.fingerprint(document), date: Date(), revision: 3)
+        entry.syncAttempt = LyricsSyncAttempt(fingerprint: LyricsAlignment.fingerprint(document), date: Date(), revision: 4)
         try write(entry, id: id)
     }
     func searchMetadata(_ metadata: LyricsSearchMetadata?, id: String) throws {
@@ -321,13 +326,14 @@ struct LyricsSyncEngine {
     let ends: [Double?]
     let lineIndices: [Int]
     let offset: Double
+    let onDevice: Bool
     init?(document: LyricsDocument) {
         guard document.synchronized else { return nil }
         let timed = document.lines.enumerated().filter { $0.element.time != nil }
         starts = timed.map { $0.element.time! }; ends = timed.map { $0.element.end }
-        lineIndices = timed.map(\.offset); offset = document.offset
+        lineIndices = timed.map(\.offset); offset = document.offset; onDevice = document.onDeviceTiming != nil
     }
-    func active(at time: Double) -> Int? {
+    private func position(at time: Double) -> Int? {
         var low = 0, high = starts.count
         while low < high {
             let mid = (low + high) / 2
@@ -335,9 +341,23 @@ struct LyricsSyncEngine {
         }
         guard low > 0 else { return nil }
         let index = low - 1
-        if let end = ends[index], time > end + offset { return nil }
+        return index
+    }
+    func active(at time: Double) -> Int? {
+        guard let index = position(at: time) else { return nil }
+        if let end = ends[index], time > end + offset {
+            // Avoid a blank highlight between two confirmed neighboring rows.
+            // Never carry it through an unknown row or an instrumental break.
+            let next = index + 1
+            guard onDevice, next < starts.count, lineIndices[next] == lineIndices[index] + 1,
+                  starts[next] - end <= 2.5 else { return nil }
+        }
         return lineIndices[index]
     }
+    /// Keep the last confirmed row as the viewport focus during acoustic gaps.
+    /// This does not highlight untimed rows or invent timestamps for them.
+    func focus(at time: Double) -> Int? { position(at: time).map { lineIndices[$0] } }
+
 }
 
 // Exact normalized payload identity includes native word windows.

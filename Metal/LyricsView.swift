@@ -6,10 +6,6 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     private var resumeVisible = false
     let message = UILabel()
     let actions = UIStackView()
-    private let syncFooter = UIStackView()
-    private let syncLabel = UILabel()
-    private let syncSpinner = UIActivityIndicatorView(style: .medium)
-    private let syncCancel = UIButton(type: .custom)
     var correctLine: ((Int) -> Void)?
     var cancelSync: (() -> Void)?
     var document: LyricsDocument?
@@ -17,7 +13,10 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     var active: Int?
     var manual = false
     var lastViewportSize = CGSize.zero
-    var restoring = false
+    private var scrollAnimator: UIViewPropertyAnimator?
+    private var scrollGeneration = 0
+    var restoring: Bool { scrollAnimator?.state == .active }
+    private var followTarget: Int?
     var dragStartY: CGFloat = 0
     var seek: ((Double) -> Void)?
     var search: (() -> Void)?
@@ -53,17 +52,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         resume.accessibilityLabel = "Return to current lyric line"
         resume.addTarget(self, action: #selector(resumeTapped), for: .touchUpInside)
         resume.isHidden = true; addSubview(resume)
-        syncFooter.axis = .horizontal; syncFooter.alignment = .center; syncFooter.spacing = 8
-        syncLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
-        syncLabel.textColor = .secondaryLabel; syncLabel.numberOfLines = 2
-        syncLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        syncSpinner.hidesWhenStopped = true
-        syncCancel.setTitle("Cancel", for: .normal); syncCancel.setTitleColor(.label, for: .normal)
-        syncCancel.titleLabel?.font = UIFont(name: "DrukWide-Bold", size: 8) ?? UIFont.systemFont(ofSize: 11, weight: .bold)
-        syncCancel.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        syncCancel.addTarget(self, action: #selector(cancelSyncTapped), for: .touchUpInside)
-        syncFooter.addArrangedSubview(syncSpinner); syncFooter.addArrangedSubview(syncLabel); syncFooter.addArrangedSubview(syncCancel)
-        syncFooter.isHidden = true; addSubview(syncFooter)
+
     }
     private func emptyStateButton(_ title: String, action: Selector, primary: Bool = false) -> UIButton {
         let button = UIButton(type: .custom)
@@ -87,9 +76,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func layoutSubviews() {
         super.layoutSubviews()
-        let footer: CGFloat = syncFooter.isHidden ? 0 : 32
-        table.frame = CGRect(x: 12, y: 0, width: max(1, bounds.width - 24), height: max(1, bounds.height - footer))
-        syncFooter.frame = CGRect(x: 12, y: bounds.height - footer, width: max(1, bounds.width - 24), height: footer)
+        table.frame = CGRect(x: 12, y: 0, width: max(1, bounds.width - 24), height: max(1, bounds.height))
         let changed = lastViewportSize != table.bounds.size
         if changed {
             lastViewportSize = table.bounds.size
@@ -109,8 +96,9 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         if changed && !manual && !table.isDragging && !table.isDecelerating { center(animated: false) }
     }
     func display(_ doc: LyricsDocument?, loading: Bool = false, state: LyricsLookupState = .missing) {
+        stopCentering()
         table.setContentOffset(table.contentOffset, animated: false)
-        document = doc; syncEngine = doc.flatMap(LyricsSyncEngine.init); active = nil; manual = false; restoring = false; resumeVisible = false; resume.layer.removeAllAnimations(); resume.alpha = 1; resume.transform = .identity; resume.isHidden = true
+        document = doc; syncEngine = doc.flatMap(LyricsSyncEngine.init); active = nil; followTarget = nil; manual = false; resumeVisible = false; resume.layer.removeAllAnimations(); resume.alpha = 1; resume.transform = .identity; resume.isHidden = true
         let empty = doc?.lines.isEmpty ?? true
         table.isHidden = empty; message.isHidden = !empty; actions.isHidden = !empty || loading
         if loading { message.text = "Finding lyrics…" }
@@ -118,22 +106,17 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         else if state == .unavailable { message.text = "Lyrics unavailable.\nTry again shortly." }
         else if state == .unreadable { message.text = "Audio file unavailable." }
         else { message.text = "No lyrics found." }
-        setSyncStatus(doc?.onDeviceTiming == nil ? nil : (doc!.synchronizationLevel + " · Experimental"), busy: false)
         setNeedsLayout()
         table.reloadData(); table.setContentOffset(CGPoint(x: 0, y: -table.adjustedContentInset.top), animated: false)
     }
-    func setSyncStatus(_ text: String?, busy: Bool) {
-        syncLabel.text = text; syncFooter.isHidden = text == nil
-        syncCancel.isHidden = !busy
-        if busy { syncSpinner.startAnimating() } else { syncSpinner.stopAnimating() }
-        setNeedsLayout()
-    }
-    @objc private func cancelSyncTapped() { cancelSync?() }
     func update(time: Double) {
+        let target = syncEngine?.focus(at: time)
+        let targetChanged = target != followTarget
+        followTarget = target
         let next = syncEngine?.active(at: time)
-        guard next != active else {
+        guard next != active || targetChanged else {
             // Height estimation and interrupted scroll animations can move the target after it was selected.
-            if !manual && !table.isDragging && !table.isDecelerating && !restoring, let active,
+            if !manual && !table.isDragging && !table.isDecelerating && !restoring, let active = followTarget,
                active < table.numberOfRows(inSection: 0) {
                 let row = table.rectForRow(at: IndexPath(row: active, section: 0))
                 if LyricsFollowPolicy.awayFromCurrent(distance: Double(row.midY - table.contentOffset.y - table.bounds.midY), viewport: Double(table.bounds.height)) { center(animated: false) }
@@ -147,24 +130,42 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         if !manual && !table.isDragging && !table.isDecelerating { center(animated: !UIAccessibility.isReduceMotionEnabled) }
         updateResume()
     }
+    private func stopCentering() {
+        scrollGeneration += 1
+        if let animator = scrollAnimator, animator.state == .active {
+            animator.stopAnimation(false)
+            animator.finishAnimation(at: .current)
+        }
+        scrollAnimator = nil
+    }
     func center(animated: Bool) {
-        guard let active else { return }
-        guard active < table.numberOfRows(inSection: 0), table.bounds.height > 0 else { return }
+        guard let active = followTarget, active < table.numberOfRows(inSection: 0), table.bounds.height > 0 else { return }
         table.layoutIfNeeded()
         let row = table.rectForRow(at: IndexPath(row: active, section: 0))
         let top = -table.adjustedContentInset.top
         let bottom = max(top, table.contentSize.height - table.bounds.height + table.adjustedContentInset.bottom)
         let target = min(bottom, max(top, row.midY - table.bounds.height * 0.5))
-        guard abs(table.contentOffset.y - target) > 1 else { restoring = false; return }
-        restoring = animated
-        table.setContentOffset(CGPoint(x: table.contentOffset.x, y: target), animated: animated)
-        if !animated { restoring = false }
+        guard abs(table.contentOffset.y - target) > 1 else { return }
+        stopCentering()
+        guard animated else { table.setContentOffset(CGPoint(x: table.contentOffset.x, y: target), animated: false); return }
+        let generation = scrollGeneration
+        let animator = UIViewPropertyAnimator(duration: 0.28, curve: .easeInOut) { [weak self] in
+            guard let self else { return }
+            self.table.contentOffset = CGPoint(x: self.table.contentOffset.x, y: target)
+        }
+        scrollAnimator = animator
+        animator.addCompletion { [weak self] _ in
+            guard let self, self.scrollGeneration == generation else { return }
+            self.scrollAnimator = nil
+            self.updateResume()
+        }
+        animator.startAnimation()
     }
     @objc func resumeTapped() { manual = false; center(animated: !UIAccessibility.isReduceMotionEnabled); updateResume() }
     func updateResume() {
         if restoring { return }
         let away: Bool
-        if let active, active < table.numberOfRows(inSection: 0) {
+        if let active = followTarget, active < table.numberOfRows(inSection: 0) {
             let row = table.rectForRow(at: IndexPath(row: active, section: 0))
             away = LyricsFollowPolicy.awayFromCurrent(distance: Double(row.midY - (table.contentOffset.y + table.bounds.midY)), viewport: Double(table.bounds.height))
         } else { away = false }
@@ -195,19 +196,18 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { finishBrowsingGesture() }
     func finishBrowsingGesture() {
         updateResume()
-        if !LyricsFollowPolicy.intentionallyMoved(Double(table.contentOffset.y - dragStartY)) || (active != nil && !resumeVisible) { manual = false }
+        if !LyricsFollowPolicy.intentionallyMoved(Double(table.contentOffset.y - dragStartY)) || (followTarget != nil && !resumeVisible) { manual = false }
         if !manual { center(animated: !UIAccessibility.isReduceMotionEnabled) }
         updateResume()
     }
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-        restoring = false
         if !manual { center(animated: false) }
         updateResume()
     }
     @objc func searchTapped() { search?() }
     @objc func importTapped() { imported?() }
     @objc func pasteTapped() { paste?() }
-    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { dragStartY = table.contentOffset.y; manual = true; restoring = false }
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { stopCentering(); dragStartY = table.contentOffset.y; manual = true }
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { document?.lines.count ?? 0 }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "line", for: indexPath)

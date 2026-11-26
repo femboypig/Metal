@@ -2,11 +2,16 @@ import UIKit
 import UniformTypeIdentifiers
 
 extension ViewController {
+    func setLyricsSyncStatus(_ text: String?, busy: Bool) {
+        guard lyricsSyncStatus != text || lyricsSyncBusy != busy else { return }
+        lyricsSyncStatus = text; lyricsSyncBusy = busy
+        updatePlayerOptionsMenu()
+    }
     @objc func cancelLyricsSyncForLifecycle() { cancelOnDeviceLyricsSync() }
 
     func cancelOnDeviceLyricsSync() {
         lyricsSyncGeneration += 1
-        if lyricsSyncTask != nil { lyricsView?.setSyncStatus(nil, busy: false) }
+        setLyricsSyncStatus(nil, busy: false)
         lyricsSyncTask?.cancel(); lyricsSyncTask = nil
         if let continuation = lyricsModelConsent {
             lyricsModelConsent = nil
@@ -18,7 +23,12 @@ extension ViewController {
     func beginAutomaticLyricsSync(force: Bool = false) {
         guard lyricsVisible, isPlayerPageVisible, lyricsSyncTask == nil, !lyricsIdentity.isEmpty,
               let track = currentPlaybackTrack(), let document = lyricsView.document,
-              !document.synchronized, !document.instrumental, !document.lines.isEmpty else { return }
+              (!document.synchronized || (force && document.onDeviceTiming != nil)), !document.instrumental, !document.lines.isEmpty else { return }
+        var reference = document
+        if let generated = document.onDeviceTiming {
+            reference.lines = generated.originalLines; reference.timingTrusted = generated.originalTimingTrusted
+            reference.onDeviceTiming = nil
+        }
         let id = lyricsIdentity
         let sourceKey = document.source == "Imported" ? "imported" : document.resultKey ?? "legacy"
         let fingerprint = LyricsAlignment.fingerprint(document)
@@ -26,42 +36,45 @@ extension ViewController {
         let generation = lyricsSyncGeneration
         lyricsView.cancelSync = { [weak self] in
             self?.cancelOnDeviceLyricsSync()
-            self?.lyricsView.setSyncStatus("On-device sync cancelled", busy: false)
+            self?.setLyricsSyncStatus("On-device sync cancelled", busy: false)
             Task { try? await LyricsService.shared.store.syncAttempt(fingerprint, id: id) }
         }
         lyricsSyncTask = Task(priority: .utility) { [weak self] in
             let entry = await LyricsService.shared.store.read(id)
-            if !force, let previous = entry.syncAttempt, previous.fingerprint == fingerprint, previous.revision == 3,
+            if !force, let previous = entry.syncAttempt, previous.fingerprint == fingerprint, previous.revision == 4,
                Date().timeIntervalSince(previous.date) < 86_400 {
                 if self?.lyricsSyncGeneration == generation { self?.lyricsSyncTask = nil }
                 return
             }
             guard !Task.isCancelled else { return }
+            self?.setLyricsSyncStatus("Preparing audio…", busy: true)
             do {
-                let aligned = try await OnDeviceLyricsSync().generate(url: track.url, document: document, forceModelPrompt: force, progress: { [weak self] text in
+                let aligned = try await OnDeviceLyricsSync().generate(url: track.url, document: reference, forceModelPrompt: force, progress: { [weak self] text in
                     Task { @MainActor [weak self] in
-                        guard let self, self.lyricsSyncGeneration == generation, self.lyricsSyncTask != nil, self.lyricsView.document?.onDeviceTiming == nil else { return }
-                        self.lyricsView.setSyncStatus(text, busy: true)
+                        guard let self, self.lyricsSyncGeneration == generation, self.lyricsSyncTask != nil else { return }
+                        self.setLyricsSyncStatus(text, busy: true)
                     }
                 }, downloadConsent: { [weak self] language in
                     await self?.confirmLyricsSpeechModel(language: language, generation: generation) ?? false
                 })
                 try Task.checkCancellation()
-                let saved = try await LyricsService.shared.store.saveOnDeviceTiming(aligned, id: id, sourceKey: sourceKey, fingerprint: fingerprint)
+                let saved = try await LyricsService.shared.store.saveOnDeviceTiming(aligned, id: id, sourceKey: sourceKey, fingerprint: fingerprint, replacingGenerated: force)
                 let result = await LyricsService.shared.store.resolved(id)
                 guard let self, self.lyricsSyncGeneration == generation, self.lyricsIdentity == id,
                       self.currentPlaybackTrack()?.url == track.url else { return }
+                self.lyricsSyncTask = nil
                 if saved {
+                    self.setLyricsSyncStatus(nil, busy: false)
                     self.lyricsView.display(result)
                     self.lyricsView.update(time: self.audioPlayer?.currentTime ?? 0)
                     self.updatePlayerOptionsMenu()
-                } else { self.lyricsView.setSyncStatus(nil, busy: false) }
+                } else { self.setLyricsSyncStatus(nil, busy: false) }
             } catch {
                 if !Task.isCancelled {
                     try? await LyricsService.shared.store.syncAttempt(fingerprint, id: id)
                     guard let self, self.lyricsSyncGeneration == generation else { return }
                     let message = (error as? OnDeviceLyricsSyncError)?.errorDescription ?? "Could not sync reliably. Keeping the original text."
-                    self.lyricsView.setSyncStatus(message, busy: false)
+                    self.setLyricsSyncStatus(message, busy: false)
                 }
             }
             if self?.lyricsSyncGeneration == generation { self?.lyricsSyncTask = nil }
@@ -159,12 +172,29 @@ extension ViewController {
             guard let self else { return }; self.setLyricsVisible(!self.lyricsVisible)
         }
         var actions: [UIMenuElement] = []
+        if let status = lyricsSyncStatus {
+            actions.append(UIAction(title: lyricsSyncBusy ? "Syncing Lyrics…" : "Lyrics Sync", subtitle: status, attributes: .disabled) { _ in })
+        }
+        if lyricsSyncBusy {
+            actions.append(UIAction(title: "Cancel Sync") { [weak self] _ in self?.lyricsView.cancelSync?() })
+        }
         if lyricsVisible, let document = lyricsView?.document, !document.synchronized {
-            actions.append(UIAction(title: "Sync on Device · Experimental", image: UIImage(systemName: "waveform")) { [weak self] _ in
+            actions.append(UIAction(title: "Sync on Device", image: UIImage(systemName: "waveform")) { [weak self] _ in
                 self?.cancelOnDeviceLyricsSync(); self?.beginAutomaticLyricsSync(force: true)
             })
         }
         if lyricsView?.document?.onDeviceTiming != nil {
+            actions.append(UIAction(title: "Refine Timing", image: UIImage(systemName: "waveform")) { [weak self] _ in
+                guard let self else { return }
+                let id = self.lyricsIdentity
+                let alert = UIAlertController(title: "Rebuild Timing?", message: "Analyze the existing text again. Manual line timing edits will be replaced; your text and sync offset stay saved.", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "Rebuild", style: .default) { [weak self] _ in
+                    guard let self, self.lyricsIdentity == id else { return }
+                    self.cancelOnDeviceLyricsSync(); self.beginAutomaticLyricsSync(force: true)
+                })
+                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel)); self.present(alert, animated: true)
+            })
+
             actions.append(UIAction(title: "Remove On-device Sync", attributes: .destructive) { [weak self] _ in
                 guard let self, !self.lyricsIdentity.isEmpty else { return }
                 self.cancelOnDeviceLyricsSync()
@@ -308,6 +338,7 @@ extension ViewController {
     func correctLyricsLine(_ row: Int) {
         guard let document = lyricsView.document, document.onDeviceTiming != nil,
               document.lines.indices.contains(row), !lyricsIdentity.isEmpty else { return }
+        cancelOnDeviceLyricsSync()
         let id = lyricsIdentity, fingerprint = LyricsAlignment.fingerprint(document)
         let key = document.source == "Imported" ? "imported" : document.resultKey ?? "legacy"
         let alert = UIAlertController(title: "Line Timing", message: document.lines[row].text + "\nStart time in seconds, including your sync offset.", preferredStyle: .alert)

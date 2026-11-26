@@ -30,7 +30,7 @@ actor OnDeviceLyricsSync {
     func generate(url: URL, document: LyricsDocument, forceModelPrompt: Bool = false, progress: @escaping Progress,
                   downloadConsent: @escaping DownloadConsent) async throws -> LyricsDocument {
         diagnostics = ["OS: " + ProcessInfo.processInfo.operatingSystemVersionString]
-        record("Alignment revision: local-lines-v3-audio-eof")
+        record("Alignment revision: local-lines-v4-context")
         try Task.checkCancellation()
         let text = document.lines.map(\.text).joined(separator: "\n")
         let referenceWords = document.lines.reduce(0) { $0 + LyricsAlignment.words($1.text).count }
@@ -61,11 +61,11 @@ actor OnDeviceLyricsSync {
                 if let supported = dictationLocale, language == .russian || !SpeechTranscriber.isAvailable || speechLocale == nil {
                     record("Selected: DictationTranscriber")
                     observed = try await dictation(source: source, directory: directory, locale: supported,
-                        progress: progress, consent: downloadConsent, forceModelPrompt: forceModelPrompt)
+                        progress: progress, consent: downloadConsent, forceModelPrompt: forceModelPrompt, hints: document.lines.map(\.text))
                 } else if SpeechTranscriber.isAvailable, let supported = speechLocale {
                     record("Selected: SpeechTranscriber")
                     observed = try await modern(source: source, directory: directory, locale: supported,
-                        progress: progress, consent: downloadConsent, forceModelPrompt: forceModelPrompt)
+                        progress: progress, consent: downloadConsent, forceModelPrompt: forceModelPrompt, hints: document.lines.map(\.text))
                 } else {
                     record("Modern modules unavailable; checking strictly on-device SFSpeechRecognizer")
                     observed = try await legacy(source: source, directory: directory, locale: locale,
@@ -95,7 +95,7 @@ actor OnDeviceLyricsSync {
 
     @available(iOS 26.0, macOS 26.0, *)
     private func modern(source: AVAudioFile, directory: URL, locale: Locale, progress: @escaping Progress,
-                        consent: @escaping DownloadConsent, forceModelPrompt: Bool) async throws -> [LyricsRecognizedWord] {
+                        consent: @escaping DownloadConsent, forceModelPrompt: Bool, hints: [String]) async throws -> [LyricsRecognizedWord] {
         let transcriber = SpeechTranscriber(locale: locale, transcriptionOptions: [], reportingOptions: [],
             attributeOptions: [.audioTimeRange])
         let modules: [any SpeechModule] = [transcriber]
@@ -111,6 +111,11 @@ actor OnDeviceLyricsSync {
         catch { record("PCM preparation failed: \(Self.errorDetails(error))"); throw error }
         record("Prepared PCM frames: \(file.length); format: \(file.processingFormat); duration: \(Double(file.length) / file.processingFormat.sampleRate)")
         let analyzer = SpeechAnalyzer(modules: modules, options: nil)
+        let context = AnalysisContext()
+        context.contextualStrings[.general] = Self.recognitionHints(hints)
+        do { try await analyzer.setContext(context); record("Existing-text context applied") }
+        catch is CancellationError { throw CancellationError() }
+        catch { record("Optional text context unavailable: \(Self.errorDetails(error))") }
         return try await withTaskCancellationHandler(operation: {
             progress("Matching vocals on device…")
             async let feeding: Void = feed(analyzer, file: file)
@@ -140,7 +145,7 @@ actor OnDeviceLyricsSync {
 
     @available(iOS 26.0, macOS 26.0, *)
     private func dictation(source: AVAudioFile, directory: URL, locale: Locale, progress: @escaping Progress,
-                        consent: @escaping DownloadConsent, forceModelPrompt: Bool) async throws -> [LyricsRecognizedWord] {
+                        consent: @escaping DownloadConsent, forceModelPrompt: Bool, hints: [String]) async throws -> [LyricsRecognizedWord] {
         let transcriber = DictationTranscriber(locale: locale, contentHints: [], transcriptionOptions: [], reportingOptions: [],
             attributeOptions: [.audioTimeRange])
         let modules: [any SpeechModule] = [transcriber]
@@ -156,6 +161,11 @@ actor OnDeviceLyricsSync {
         catch { record("PCM preparation failed: \(Self.errorDetails(error))"); throw error }
         record("Prepared PCM frames: \(file.length); format: \(file.processingFormat); duration: \(Double(file.length) / file.processingFormat.sampleRate)")
         let analyzer = SpeechAnalyzer(modules: modules, options: nil)
+        let context = AnalysisContext()
+        context.contextualStrings[.general] = Self.recognitionHints(hints)
+        do { try await analyzer.setContext(context); record("Existing-text context applied") }
+        catch is CancellationError { throw CancellationError() }
+        catch { record("Optional text context unavailable: \(Self.errorDetails(error))") }
         return try await withTaskCancellationHandler(operation: {
             progress("Matching vocals on device…")
             async let feeding: Void = feed(analyzer, file: file)
@@ -331,6 +341,17 @@ actor OnDeviceLyricsSync {
         // AVAudioFile's default reader converts to Float32. SpeechAnalyzer requires
         // the exact format selected by the module, which may instead be Int16.
         return try AVAudioFile(forReading: url, commonFormat: format.commonFormat, interleaved: format.isInterleaved)
+    }
+
+    /// Supply vocabulary and short phrases without replacing the source lyrics.
+    static func recognitionHints(_ lines: [String]) -> [String] {
+        var seen = Set<String>(), values: [String] = []
+        for line in lines {
+            let text = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty, text.count <= 120, seen.insert(text.lowercased()).inserted { values.append(text) }
+            if values.count >= 100 { break }
+        }
+        return values
     }
 
     private static func errorDetails(_ error: Error) -> String {

@@ -76,6 +76,8 @@ import Speech
             precondition(abs(Double(signalStart) / 16000 - 0.25) < 0.06, "Compressed audio time origin must survive decoding")
             print("Compressed native decode passed: " + filename)
         }
+        let hints = OnDeviceLyricsSync.recognitionHints(["Тихий ветер", "Тихий ветер", "", String(repeating: "я", count: 200)])
+        precondition(hints == ["Тихий ветер"], "Context must use bounded, deduplicated existing lyrics")
         let cancelled = LyricsRecognitionGate()
         do {
             let _: [LyricsRecognizedWord] = try await withCheckedThrowingContinuation { continuation in

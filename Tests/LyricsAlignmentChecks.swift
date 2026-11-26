@@ -36,6 +36,20 @@ import Foundation
         precondition(sparse.lines[1].time == nil && sparse.synchronized && sparse.timingTrusted == false)
         precondition(sparse.active(at: thirdStart - 1) == nil)
 
+        let sparseEngine = LyricsSyncEngine(document: sparse)!
+        precondition(sparseEngine.focus(at: thirdStart - 1) == 0 && sparseEngine.active(at: thirdStart - 1) == nil,
+            "The viewport must retain a confirmed focus through unknown passages without inventing a highlight")
+        precondition(sparseEngine.focus(at: thirdStart) == 2)
+        let fullEngine = LyricsSyncEngine(document: aligned)!
+        let between = observed[3].end + aligned.offset + 0.1
+        precondition(fullEngine.active(at: between) == 0 && fullEngine.focus(at: between) == 0,
+            "Short acoustic gaps between confirmed neighboring rows must not flash an empty highlight")
+        precondition(fullEngine.focus(at: 0) == nil)
+        precondition(fullEngine.focus(at: observed[8].start + aligned.offset) == 2)
+        precondition(fullEngine.focus(at: observed[0].start + aligned.offset) == 0, "Seeking back must immediately restore the earlier row")
+        precondition(fullEngine.focus(at: 59) == 3 && fullEngine.active(at: 59) == nil,
+            "A trailing instrumental must not keep a line highlighted")
+
         // Less than 20% of a song can still supply a useful, explicitly partial row.
         let longTexts = texts + (0..<12).map { "Unrecognized passage number \($0)" }
         let lowCoverage = try LyricsAlignment.align(document: LyricsParser.parse(longTexts.joined(separator: "\n"), source: "Fixture"),
@@ -64,6 +78,15 @@ import Foundation
             LyricsRecognizedWord(text: russian[1], start: 6.25, end: 9.125)], duration: 30, language: "ru")
         precondition(phraseSync.lines[0].time == 2.125 && phraseSync.lines[1].time == 6.25)
         precondition(phraseSync.lines.allSatisfy { $0.words == nil }, "Phrase windows must not invent word timings")
+        let boundaryLines = ["Ласковый ветер хранит наши тайны", "Завтра рассвет вернётся домой"]
+        let boundaryDoc = LyricsParser.parse(boundaryLines.joined(separator: "\n"), source: "Fixture")
+        var boundaryWords = observation(boundaryLines)
+        boundaryWords[0].text = "Ласкавый"
+        let refined = try LyricsAlignment.align(document: boundaryDoc, recognized: boundaryWords, duration: 60, language: "ru")
+        precondition(refined.lines[0].time == boundaryWords[0].start, "A near-matching boundary needs real acoustic timing and two exact neighboring anchors")
+        precondition(refined.lines.map(\.text) == boundaryLines && refined.timingTrusted == false)
+        precondition(refined.lines[0].words?.contains(where: { $0.text == "Ласковый" }) == false,
+            "A near match must not be presented as a genuinely recognized source word")
         // A few unrelated common words at widely separated times must not form a row.
         do {
             _ = try LyricsAlignment.align(document: ruDoc, recognized: [
@@ -122,6 +145,13 @@ import Foundation
         let invalidEdit = try await reopened.correctOnDeviceLine(id: "import", sourceKey: "imported",
             fingerprint: LyricsAlignment.fingerprint(plain), row: 1, time: 55)
         precondition(!invalidEdit, "Manual edits must preserve chronological row order")
+        let blockedRefine = try await reopened.saveOnDeviceTiming(fromDisplayed, id: "import", sourceKey: "imported", fingerprint: LyricsAlignment.fingerprint(plain))
+        precondition(!blockedRefine, "Existing generated timings require explicit rebuild authorization")
+        let rebuilt = try await reopened.saveOnDeviceTiming(fromDisplayed, id: "import", sourceKey: "imported", fingerprint: LyricsAlignment.fingerprint(plain), replacingGenerated: true)
+        precondition(rebuilt)
+        let rebuiltDoc = await reopened.resolved("import")
+        precondition(rebuiltDoc?.onDeviceTiming?.originalLines == plain.lines && rebuiltDoc?.offset == 1.75,
+            "Refinement must preserve the original plain text and per-source offset")
         try await reopened.removeOnDeviceTiming(id: "import")
         let restored = await reopened.resolved("import")
         precondition(restored?.lines == plain.lines && restored?.offset == 1.75 && restored?.onDeviceTiming == nil)

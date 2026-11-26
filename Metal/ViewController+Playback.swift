@@ -536,10 +536,11 @@ extension ViewController {
     func startTimer() {
         updateTimer?.invalidate()
         let interval: TimeInterval = UIApplication.shared.applicationState == .active ? 0.1 : 1.0
-        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.updatePlaybackProgress()
         }
         timer.tolerance = interval * 0.12
+        RunLoop.main.add(timer, forMode: .common)
         updateTimer = timer
     }
 
