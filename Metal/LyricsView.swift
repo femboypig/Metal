@@ -126,7 +126,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
             if !manual && !table.isDragging && !table.isDecelerating && !restoring, let active = followTarget,
                active < table.numberOfRows(inSection: 0) {
                 let row = table.rectForRow(at: IndexPath(row: active, section: 0))
-                if LyricsFollowPolicy.awayFromCurrent(distance: Double(row.midY - table.contentOffset.y - table.bounds.midY), viewport: Double(table.bounds.height)) { center(animated: false) }
+                if abs(row.midY - table.contentOffset.y - table.bounds.midY) > 12 { center(animated: false) }
             }
             return
         }

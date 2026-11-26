@@ -8,6 +8,8 @@ import UIKit
 
 @MainActor final class LyricsViewportApp: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
+    private var playbackPosition: Double = 0
+    private var playbackDriver: Timer?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         return true
     }
@@ -41,6 +43,12 @@ import UIKit
     private func checks(in host: UIView) async throws {
         let view = LyricsView(frame: CGRect(x: 16, y: 100, width: 330, height: 300))
         host.addSubview(view)
+        playbackDriver = Timer(fire: Date().addingTimeInterval(0.05), interval: 0.05, repeats: true) { [weak self, weak view] _ in
+            guard let self, let view else { return }
+            view.update(time: self.playbackPosition)
+        }
+        RunLoop.main.add(playbackDriver!, forMode: .common)
+        defer { playbackDriver?.invalidate(); playbackDriver = nil }
         let texts = (0..<16).map { "Строка \($0) — ветер над городом\nОстанется с нами до рассвета" }
         let plain = LyricsDocument(lines: texts.map { LyricLine(time: nil, text: $0) }, source: "Fixture")
         var generated = plain
@@ -52,34 +60,35 @@ import UIKit
         generated.onDeviceTiming = LyricsOnDeviceTiming(language: "ru", date: Date(), wordCoverage: 0.8,
             lineCoverage: 1, originalLines: plain.lines, originalOffset: 0)
         view.display(plain); view.setNeedsLayout(); view.layoutIfNeeded()
-        view.display(generated); view.layoutIfNeeded(); view.update(time: 0.1)
+        view.display(generated); view.layoutIfNeeded(); playbackPosition = 0.1; view.update(time: playbackPosition)
         try await settle(); try centered(view, row: 0)
+        try require(view.playbackUpdates >= 5, "The UI clock must advance without taps or gestures")
         for row in 1...4 {
-            view.update(time: Double(row) + 0.1)
-            try await settle(); view.update(time: Double(row) + 0.2)
+            playbackPosition = Double(row) + 0.1; view.update(time: playbackPosition)
+            try await settle(); playbackPosition = Double(row) + 0.2; view.update(time: playbackPosition)
             try centered(view, row: row)
         }
         // Layout and compositor changes must not leave an animation lock latched.
-        view.update(time: 5.1)
+        playbackPosition = 5.1; view.update(time: playbackPosition)
         view.frame.size.height = 350; view.setNeedsLayout(); view.layoutIfNeeded()
         view.table.layer.removeAllAnimations()
-        try await settle(); view.update(time: 5.2)
+        try await settle(); playbackPosition = 5.2; view.update(time: playbackPosition)
         try centered(view, row: 5)
         view.scrollViewWillBeginDragging(view.table)
         view.table.setContentOffset(CGPoint(x: 0, y: 0), animated: false)
         let browsingOffset = view.table.contentOffset.y
-        view.update(time: 8.1); try await settle()
+        playbackPosition = 8.1; view.update(time: playbackPosition); try await settle()
         try require(abs(view.table.contentOffset.y - browsingOffset) < 1, "Manual browsing was overridden")
         try require(view.active == 8, "Highlight stopped while browsing")
-        view.resumeTapped(); try await settle(); view.update(time: 8.2)
+        view.resumeTapped(); try await settle(); playbackPosition = 8.2; view.update(time: playbackPosition)
         try centered(view, row: 8)
-        view.update(time: 10.1); view.table.layer.removeAllAnimations()
-        try await settle(); view.update(time: 10.2)
+        playbackPosition = 10.1; view.update(time: playbackPosition); view.table.layer.removeAllAnimations()
+        try await settle(); playbackPosition = 10.2; view.update(time: playbackPosition)
         try centered(view, row: 10)
-        view.update(time: 2.1); try await settle(); view.update(time: 2.2)
+        playbackPosition = 2.1; view.update(time: playbackPosition); try await settle(); playbackPosition = 2.2; view.update(time: playbackPosition)
         try centered(view, row: 2)
-        view.display(generated); view.layoutIfNeeded(); view.update(time: 11.1)
-        try await settle(); view.update(time: 11.2)
+        view.display(generated); view.layoutIfNeeded(); playbackPosition = 11.1; view.update(time: playbackPosition)
+        try await settle(); playbackPosition = 11.2; view.update(time: playbackPosition)
         try centered(view, row: 11)
         try require(view.table.frame.height == view.bounds.height, "Processing status must not reserve lyrics viewport space")
     }
