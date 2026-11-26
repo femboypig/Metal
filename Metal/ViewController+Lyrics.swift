@@ -67,6 +67,7 @@ extension ViewController {
                     self.setLyricsSyncStatus(nil, busy: false)
                     self.lyricsView.display(result)
                     self.lyricsView.update(time: self.audioPlayer?.currentTime ?? 0)
+                    if self.audioPlayer?.isPlaying == true && self.updateTimer?.isValid != true { self.startTimer() }
                     self.updatePlayerOptionsMenu()
                 } else { self.setLyricsSyncStatus(nil, busy: false) }
             } catch {
@@ -163,6 +164,7 @@ extension ViewController {
             self.lyricsIdentity = result.0
             self.lyricsView.display(result.1, state: result.2)
             self.lyricsView.update(time: self.audioPlayer?.currentTime ?? 0)
+            if self.audioPlayer?.isPlaying == true && self.updateTimer?.isValid != true { self.startTimer() }
             self.updatePlayerOptionsMenu()
             self.beginAutomaticLyricsSync()
         }
@@ -204,8 +206,14 @@ extension ViewController {
                 }
             })
         }
-        actions.append(UIAction(title: "Copy On-device Sync Details", image: UIImage(systemName: "doc.on.doc")) { _ in
-            UIPasteboard.general.string = UserDefaults.standard.string(forKey: "MetalLyricsSync.diagnostics") ?? "On-device sync has not run yet."
+        actions.append(UIAction(title: "Copy On-device Sync Details", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+            guard let self else { return }
+            var state = self.lyricsView.playbackDiagnostics()
+            state["playerTime"] = self.audioPlayer?.currentTime ?? 0
+            state["playerPlaying"] = self.audioPlayer?.isPlaying ?? false
+            state["playbackTimerValid"] = self.updateTimer?.isValid ?? false
+            let json = (try? JSONSerialization.data(withJSONObject: state, options: [.prettyPrinted, .sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? ""
+            UIPasteboard.general.string = (UserDefaults.standard.string(forKey: "MetalLyricsSync.diagnostics") ?? "No recognition trace.") + "\nPlayback state:\n" + json
         })
         actions += [
             UIAction(title: "Lyrics Source", image: UIImage(systemName: "list.bullet")) { [weak self] _ in self?.chooseLyricsVersion() },

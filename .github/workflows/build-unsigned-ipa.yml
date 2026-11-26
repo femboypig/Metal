@@ -74,6 +74,9 @@ jobs:
           xcrun swiftc -parse-as-library -framework CoreText Tests/LyricsFontChecks.swift -o "$RUNNER_TEMP/lyrics-font-checks"
           "$RUNNER_TEMP/lyrics-font-checks"
 
+      - name: Verify generated lyrics viewport in iOS Simulator
+        run: bash Tests/RunLyricsViewportChecks.sh
+
       - name: Verify Metal shader pipelines
         run: |
           set -euo pipefail

@@ -13,9 +13,15 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
     var active: Int?
     var manual = false
     var lastViewportSize = CGSize.zero
-    private var scrollAnimator: UIViewPropertyAnimator?
-    private var scrollGeneration = 0
-    var restoring: Bool { scrollAnimator?.state == .active }
+    private var scrollTargetOffset: CGFloat?
+    private var scrollIssuedAt: CFTimeInterval = 0
+    var restoring: Bool {
+        guard let target = scrollTargetOffset else { return false }
+        // Animation state is bounded; a missed UIKit completion cannot lock following.
+        return abs(table.contentOffset.y - target) > 1 && CACurrentMediaTime() - scrollIssuedAt < 0.45
+    }
+    private(set) var lastPlaybackTime: Double = 0
+    private(set) var playbackUpdates = 0
     private var followTarget: Int?
     var dragStartY: CGFloat = 0
     var seek: ((Double) -> Void)?
@@ -110,6 +116,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         table.reloadData(); table.setContentOffset(CGPoint(x: 0, y: -table.adjustedContentInset.top), animated: false)
     }
     func update(time: Double) {
+        lastPlaybackTime = time; playbackUpdates += 1
         let target = syncEngine?.focus(at: time)
         let targetChanged = target != followTarget
         followTarget = target
@@ -130,13 +137,20 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         if !manual && !table.isDragging && !table.isDecelerating { center(animated: !UIAccessibility.isReduceMotionEnabled) }
         updateResume()
     }
+    func playbackDiagnostics() -> [String: Any] {
+        ["viewPlaybackTime": lastPlaybackTime, "playbackUpdates": playbackUpdates,
+         "activeRow": active as Any? ?? NSNull(), "focusRow": followTarget as Any? ?? NSNull(),
+         "manualBrowsing": manual, "centering": restoring,
+         "dragging": table.isDragging, "decelerating": table.isDecelerating,
+         "viewportHeight": table.bounds.height, "offset": table.contentOffset.y,
+         "synchronized": document?.synchronized ?? false,
+         "timedRows": syncEngine?.starts.count ?? 0,
+         "starts": syncEngine?.starts ?? [], "ends": syncEngine?.ends.map { $0 as Any? ?? NSNull() } ?? [],
+         "sourceOffset": document?.offset ?? 0]
+    }
     private func stopCentering() {
-        scrollGeneration += 1
-        if let animator = scrollAnimator, animator.state == .active {
-            animator.stopAnimation(false)
-            animator.finishAnimation(at: .current)
-        }
-        scrollAnimator = nil
+        scrollTargetOffset = nil
+        table.setContentOffset(table.contentOffset, animated: false)
     }
     func center(animated: Bool) {
         guard let active = followTarget, active < table.numberOfRows(inSection: 0), table.bounds.height > 0 else { return }
@@ -146,20 +160,9 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         let bottom = max(top, table.contentSize.height - table.bounds.height + table.adjustedContentInset.bottom)
         let target = min(bottom, max(top, row.midY - table.bounds.height * 0.5))
         guard abs(table.contentOffset.y - target) > 1 else { return }
-        stopCentering()
-        guard animated else { table.setContentOffset(CGPoint(x: table.contentOffset.x, y: target), animated: false); return }
-        let generation = scrollGeneration
-        let animator = UIViewPropertyAnimator(duration: 0.28, curve: .easeInOut) { [weak self] in
-            guard let self else { return }
-            self.table.contentOffset = CGPoint(x: self.table.contentOffset.x, y: target)
-        }
-        scrollAnimator = animator
-        animator.addCompletion { [weak self] _ in
-            guard let self, self.scrollGeneration == generation else { return }
-            self.scrollAnimator = nil
-            self.updateResume()
-        }
-        animator.startAnimation()
+        scrollTargetOffset = animated ? target : nil
+        scrollIssuedAt = CACurrentMediaTime()
+        table.setContentOffset(CGPoint(x: table.contentOffset.x, y: target), animated: animated)
     }
     @objc func resumeTapped() { manual = false; center(animated: !UIAccessibility.isReduceMotionEnabled); updateResume() }
     func updateResume() {
@@ -201,6 +204,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         updateResume()
     }
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        scrollTargetOffset = nil
         if !manual { center(animated: false) }
         updateResume()
     }
