@@ -138,15 +138,27 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         updateResume()
     }
     func playbackDiagnostics() -> [String: Any] {
-        ["viewPlaybackTime": lastPlaybackTime, "playbackUpdates": playbackUpdates,
-         "activeRow": active as Any? ?? NSNull(), "focusRow": followTarget as Any? ?? NSNull(),
-         "manualBrowsing": manual, "centering": restoring,
-         "dragging": table.isDragging, "decelerating": table.isDecelerating,
-         "viewportHeight": table.bounds.height, "offset": table.contentOffset.y,
-         "synchronized": document?.synchronized ?? false,
-         "timedRows": syncEngine?.starts.count ?? 0,
-         "starts": syncEngine?.starts ?? [], "ends": syncEngine?.ends.map { $0 as Any? ?? NSNull() } ?? [],
-         "sourceOffset": document?.offset ?? 0]
+        var state: [String: Any] = [:]
+        state["viewPlaybackTime"] = lastPlaybackTime
+        state["playbackUpdates"] = playbackUpdates
+        state["activeRow"] = active.map { $0 as Any } ?? NSNull()
+        state["focusRow"] = followTarget.map { $0 as Any } ?? NSNull()
+        state["manualBrowsing"] = manual
+        state["centering"] = restoring
+        state["dragging"] = table.isDragging
+        state["decelerating"] = table.isDecelerating
+        state["viewportHeight"] = table.bounds.height
+        state["offset"] = table.contentOffset.y
+        state["synchronized"] = document?.synchronized ?? false
+        state["timedRows"] = syncEngine?.starts.count ?? 0
+        state["starts"] = syncEngine?.starts ?? []
+        let ends: [Any] = (syncEngine?.ends ?? []).map { value in
+            if let value { return NSNumber(value: value) }
+            return NSNull()
+        }
+        state["ends"] = ends
+        state["sourceOffset"] = document?.offset ?? 0
+        return state
     }
     private func stopCentering() {
         scrollTargetOffset = nil
