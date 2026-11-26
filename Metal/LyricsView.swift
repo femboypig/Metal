@@ -126,7 +126,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
             if !manual && !table.isDragging && !table.isDecelerating && !restoring, let active = followTarget,
                active < table.numberOfRows(inSection: 0) {
                 let row = table.rectForRow(at: IndexPath(row: active, section: 0))
-                if abs(row.midY - table.contentOffset.y - table.bounds.midY) > 12 { center(animated: false) }
+                if abs(row.midY - table.contentOffset.y - table.bounds.height * 0.5) > 12 { center(animated: false) }
             }
             return
         }
@@ -182,7 +182,7 @@ final class LyricsView: UIView, UITableViewDataSource, UITableViewDelegate {
         let away: Bool
         if let active = followTarget, active < table.numberOfRows(inSection: 0) {
             let row = table.rectForRow(at: IndexPath(row: active, section: 0))
-            away = LyricsFollowPolicy.awayFromCurrent(distance: Double(row.midY - (table.contentOffset.y + table.bounds.midY)), viewport: Double(table.bounds.height))
+            away = LyricsFollowPolicy.awayFromCurrent(distance: Double(row.midY - (table.contentOffset.y + table.bounds.height * 0.5)), viewport: Double(table.bounds.height))
         } else { away = false }
         setResumeVisible(manual && away && document?.synchronized == true)
     }

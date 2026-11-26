@@ -36,7 +36,10 @@ import UIKit
     private func centered(_ view: LyricsView, row: Int) throws {
         view.table.layoutIfNeeded()
         let rect = view.table.rectForRow(at: IndexPath(row: row, section: 0))
-        let distance = abs(rect.midY - view.table.contentOffset.y - view.table.bounds.midY)
+        // Convert the actual row into its parent's coordinate space rather than
+        // reusing the production centering formula (bounds.origin is scroll offset).
+        let visibleRow = view.table.convert(rect, to: view)
+        let distance = abs(visibleRow.midY - view.table.frame.midY)
         try require(distance < 36, "Row \(row) failed centering: \(distance); \(view.playbackDiagnostics())")
         try require(view.active == row, "Highlight did not follow playback to row \(row)")
     }
@@ -44,8 +47,10 @@ import UIKit
         let view = LyricsView(frame: CGRect(x: 16, y: 100, width: 330, height: 300))
         host.addSubview(view)
         playbackDriver = Timer(fire: Date().addingTimeInterval(0.05), interval: 0.05, repeats: true) { [weak self, weak view] _ in
-            guard let self, let view else { return }
-            view.update(time: self.playbackPosition)
+            MainActor.assumeIsolated {
+                guard let self, let view else { return }
+                view.update(time: self.playbackPosition)
+            }
         }
         RunLoop.main.add(playbackDriver!, forMode: .common)
         defer { playbackDriver?.invalidate(); playbackDriver = nil }
@@ -80,8 +85,11 @@ import UIKit
         playbackPosition = 8.1; view.update(time: playbackPosition); try await settle()
         try require(abs(view.table.contentOffset.y - browsingOffset) < 1, "Manual browsing was overridden")
         try require(view.active == 8, "Highlight stopped while browsing")
+        let resume = view.subviews.compactMap { $0 as? UIButton }.first { $0.accessibilityLabel == "Return to current lyric line" }
+        try require(resume?.isHidden == false, "Return control must appear only after browsing away")
         view.resumeTapped(); try await settle(); playbackPosition = 8.2; view.update(time: playbackPosition)
         try centered(view, row: 8)
+        try require(resume?.isHidden == true, "Return control must hide after following is restored")
         playbackPosition = 10.1; view.update(time: playbackPosition); view.table.layer.removeAllAnimations()
         try await settle(); playbackPosition = 10.2; view.update(time: playbackPosition)
         try centered(view, row: 10)
