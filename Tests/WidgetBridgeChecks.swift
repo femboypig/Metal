@@ -12,11 +12,11 @@ import Foundation
     }
     static func main() throws {
         let original = MetalWidgetBridge.originalGroup
-        let resigned = original + ".A1B2C3D4E"
+        let resigned = original + ".A1B2C3D4E5"
         let signedProfile = try profile([resigned])
         verify(MetalWidgetBridge.profileGroups(signedProfile) == [resigned])
-        let appGroups = MetalWidgetBridge.groupCandidates(info: [:], profile: signedProfile, bundleIdentifier: "ru.femboypig.Metal.A1B2C3D4E")
-        let widgetGroups = MetalWidgetBridge.groupCandidates(info: [:], profile: signedProfile, bundleIdentifier: "ru.femboypig.Metal.widgets.A1B2C3D4E")
+        let appGroups = MetalWidgetBridge.groupCandidates(info: [:], profile: signedProfile, bundleIdentifier: "ru.femboypig.Metal.A1B2C3D4E5")
+        let widgetGroups = MetalWidgetBridge.groupCandidates(info: [:], profile: signedProfile, bundleIdentifier: "ru.femboypig.Metal.widgets.A1B2C3D4E5")
         verify(appGroups == widgetGroups && appGroups.first == resigned, "Both processes must use the same SideStore-signed group even without ALTAppGroups")
         verify(MetalWidgetBridge.groupCandidates(info: ["ALTAppGroups": [original]], profile: signedProfile, bundleIdentifier: nil).first == resigned,
             "Signed profile must take precedence over stale plist metadata")
@@ -25,7 +25,7 @@ import Foundation
         verify(MetalWidgetBridge.groupCandidates(info: ["ALTAppGroups": ["group.unrelated"]], profile: unrelatedProfile, bundleIdentifier: nil) == [original])
         verify(MetalWidgetBridge.profileGroups(Data("broken profile".utf8)).isEmpty)
         verify(MetalWidgetBridge.groupCandidates(info: [:], profile: nil, bundleIdentifier: "ru.femboypig.Metal") == [original])
-        verify(MetalWidgetBridge.groupCandidates(info: [:], profile: nil, bundleIdentifier: "ru.femboypig.Metal.A1B2C3D4E").first == resigned)
+        verify(MetalWidgetBridge.groupCandidates(info: [:], profile: nil, bundleIdentifier: "ru.femboypig.Metal.A1B2C3D4E5").first == resigned)
 
         let track = MetalWidgetTrack(id: "Песня & #1? + live.mp3", title: "Название", artist: "Исполнитель", artworkData: nil,
             fileSize: 10240, modificationDate: 1730000000.123456)
