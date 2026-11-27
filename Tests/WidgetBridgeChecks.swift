@@ -27,6 +27,9 @@ import Foundation
         verify(MetalWidgetBridge.groupCandidates(info: [:], profile: nil, bundleIdentifier: "ru.femboypig.Metal") == [original])
         verify(MetalWidgetBridge.groupCandidates(info: [:], profile: nil, bundleIdentifier: "ru.femboypig.Metal.A1B2C3D4E5").first == resigned)
 
+        verify(MetalWidgetBridge.groupCandidates(info: [:], profile: nil, bundleIdentifier: "ru.femboypig.Metal.A1B2C3D4E").first == original,
+            "Do not guess a group from an invalid nine-character team suffix")
+
         let track = MetalWidgetTrack(id: "Песня & #1? + live.mp3", title: "Название", artist: "Исполнитель", artworkData: nil,
             fileSize: 10240, modificationDate: 1730000000.123456)
         let request = MetalWidgetBridge.request(from: track.deepLinkURL)!

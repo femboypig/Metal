@@ -233,10 +233,11 @@ extension ViewController {
 
             updateCarouselArtworks(animated: false)
 
-            progressSlider.maximumValue = Float(track.duration)
+            let loadedDuration = audioPlayer?.duration ?? track.duration
+            progressSlider.maximumValue = Float(loadedDuration)
             progressSlider.value = Float(audioPlayer?.currentTime ?? 0)
             elapsedLabel.text = formatTime(audioPlayer?.currentTime ?? 0)
-            remainingLabel.text = "-" + formatTime(max(0, track.duration - (audioPlayer?.currentTime ?? 0)))
+            remainingLabel.text = "-" + formatTime(max(0, loadedDuration - (audioPlayer?.currentTime ?? 0)))
 
             startArtworkAnimation()
             updateNowPlayingInfo()
@@ -466,7 +467,7 @@ extension ViewController {
 
             self.updateCarouselArtworks(animated: true)
 
-            self.progressSlider.maximumValue = Float(nextTrack.duration)
+            self.progressSlider.maximumValue = Float(playerB.duration)
             self.progressSlider.value = 0
 
             self.startArtworkAnimation()
