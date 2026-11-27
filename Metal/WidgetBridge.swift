@@ -78,10 +78,12 @@ enum MetalWidgetBridge {
     /// Access is still enforced by containerURL, never by this plist parser.
     static func profileGroups(_ data: Data?) -> [String] {
         guard let data, data.count <= maximumBytes,
-              let start = data.range(of: Data("<plist".utf8)),
-              let end = data.range(of: Data("</plist>".utf8), in: start.lowerBound..<data.endIndex),
-              let plist = try? PropertyListSerialization.propertyList(from: data[start.lowerBound..<end.upperBound], format: nil) as? [String: Any],
-              let entitlements = plist["Entitlements"] as? [String: Any] else { return [] }
+              let plistStart = data.range(of: Data("<plist".utf8)),
+              let end = data.range(of: Data("</plist>".utf8), in: plistStart.lowerBound..<data.endIndex) else { return [] }
+        let declaration = data.range(of: Data("<?xml".utf8))?.lowerBound
+        let start = declaration.flatMap { $0 < plistStart.lowerBound ? $0 : nil } ?? plistStart.lowerBound
+        guard let parsed = try? PropertyListSerialization.propertyList(from: data[start..<end.upperBound], format: nil),
+              let plist = parsed as? [String: Any], let entitlements = plist["Entitlements"] as? [String: Any] else { return [] }
         return entitlements["com.apple.security.application-groups"] as? [String] ?? []
     }
 

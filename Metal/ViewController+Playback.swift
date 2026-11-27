@@ -479,6 +479,7 @@ extension ViewController {
             self.updatePlayerTheme(with: nextTrack.artwork)
             self.aidj.prepare(track: nextTrack.url, knownBPM: self.dailyMixVibeCache[nextTrack.url.lastPathComponent]?.profile.bpm)
             self.prepareUpcomingTrack()
+            self.scheduleWidgetRecommendationsPublish()
         }, completion: { [weak self] playerB in
             guard let self, self.audioPlayer === playerB else { return }
             self.updateNowPlayingInfo()

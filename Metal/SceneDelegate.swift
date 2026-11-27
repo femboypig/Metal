@@ -64,7 +64,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             viewController.playTrackFromWidget(request)
         case "library":
             pendingWidgetURL = nil
+            viewController.libraryCollection = .all; viewController.activeFilter = .all
+            viewController.searchBar.text = ""; viewController.filterTracks(); viewController.rebuildFiltersRow()
             viewController.setPlayerPresented(false)
+            viewController.scheduleWidgetRecommendationsPublish()
         case "daily-mix":
             pendingWidgetURL = nil
             let autoplay = URLComponents(url: url, resolvingAgainstBaseURL: false)?
