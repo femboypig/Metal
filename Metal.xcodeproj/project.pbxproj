@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        FC0000000000000000000001 /* WidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0000000000000000000011 /* WidgetBridge.swift */; };
+        FC0000000000000000000002 /* WidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0000000000000000000011 /* WidgetBridge.swift */; };
+
 		FA0000000000000000000008 /* OnDeviceLyricsSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000018 /* OnDeviceLyricsSync.swift */; };
 		FA0000000000000000000007 /* LyricsAlignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000017 /* LyricsAlignment.swift */; };
 		FA0000000000000000000006 /* LyricsProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000016; };
@@ -22,7 +25,6 @@
 		F60000000000000000000003 /* ViewController+Pulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000013 /* ViewController+Pulse.swift */; };
 		F60000000000000000000002 /* PulseAudioSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000012 /* PulseAudioSampler.swift */; };
 		F60000000000000000000001 /* PulseExperience.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* PulseExperience.swift */; };
-		F50000000000000000000002 /* ArtworkPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000011 /* ArtworkPlaceholder.swift */; };
 		F50000000000000000000001 /* ArtworkPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50000000000000000000011 /* ArtworkPlaceholder.swift */; };
 		F40000000000000000000002 /* ViewController+Collections.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000012 /* ViewController+Collections.swift */; };
 		F40000000000000000000001 /* LibraryCollectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000011 /* LibraryCollectionEngine.swift */; };
@@ -84,6 +86,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        FC0000000000000000000011 /* WidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetBridge.swift; sourceTree = "<group>"; };
+
 		FA0000000000000000000018 /* OnDeviceLyricsSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OnDeviceLyricsSync.swift"; sourceTree = "<group>"; };
 		FA0000000000000000000017 /* LyricsAlignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsAlignment.swift"; sourceTree = "<group>"; };
 		FA0000000000000000000016 /* LyricsProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LyricsProviders.swift"; sourceTree = "<group>"; };
@@ -179,6 +183,7 @@
 		04C7491E2FEFF60C00B62262 /* Metal */ = {
 			isa = PBXGroup;
 			children = (
+                FC0000000000000000000011 /* WidgetBridge.swift */,
 				A1B2C3D4E5F6000000000004 /* MetalStarAppIcon.icon */,
 				04157E5330246C69006395B8 /* Metal.entitlements */,
 				04C766D736C95B5AB14A99E4 /* AIDJEngine.swift */,
@@ -347,8 +352,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                FC0000000000000000000002 /* WidgetBridge.swift in Sources */,
 				B10000000000000000000001 /* MetalWidgets.swift in Sources */,
-				F50000000000000000000002 /* ArtworkPlaceholder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -356,6 +361,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                FC0000000000000000000001 /* WidgetBridge.swift in Sources */,
 				04C7504596FA5DF98520F8F2 /* AIDJEngine.swift in Sources */,
 				A1B2C3D4E5F6000000000001 /* ListeningTelemetry.swift in Sources */,
 				E20000000000000000000001 /* ListeningHistory.swift in Sources */,

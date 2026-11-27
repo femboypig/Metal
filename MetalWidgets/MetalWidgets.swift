@@ -1,244 +1,29 @@
 import SwiftUI
 import WidgetKit
 import UIKit
-
-private let originalSharedSuiteName = "group.ru.femboypig.Metal"
-private let recommendationsKey = "widget.recommendations.v1"
-private let recommendationsFilename = "widget-recommendations.json"
-
-private var sharedSuiteName: String {
-    let resignedGroups = Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String]
-    return resignedGroups?.first(where: { $0.contains(originalSharedSuiteName) })
-        ?? resignedGroups?.first
-        ?? originalSharedSuiteName
-}
-
-struct MetalWidgetRecommendation: Codable, Identifiable, Hashable {
-    let id: String
-    let title: String
-    let artist: String
-    let artworkData: Data?
-
-    var deepLinkURL: URL {
-        var components = URLComponents()
-        components.scheme = "metal"
-        components.host = "play"
-        components.queryItems = [URLQueryItem(name: "track", value: id)]
-        return components.url ?? URL(string: "metal://play")!
-    }
-}
+import ImageIO
 
 struct MetalWidgetEntry: TimelineEntry {
     let date: Date
-    let recommendations: [MetalWidgetRecommendation]
-
-    static func placeholder(at date: Date = Date()) -> MetalWidgetEntry {
-        MetalWidgetEntry(
-            date: date,
-            recommendations: [
-                MetalWidgetRecommendation(
-                    id: "mix-1",
-                    title: "Daily Mix",
-                    artist: "Made from your music taste",
-                    artworkData: nil
-                ),
-                MetalWidgetRecommendation(
-                    id: "mix-2",
-                    title: "Your next favorite",
-                    artist: "Chosen from your listening taste",
-                    artworkData: nil
-                ),
-                MetalWidgetRecommendation(
-                    id: "mix-3",
-                    title: "Picked for you",
-                    artist: "Metal",
-                    artworkData: nil
-                )
-            ]
-        )
-    }
-
-    var primary: MetalWidgetRecommendation {
-        recommendations.first ?? Self.placeholder(at: date).recommendations[0]
+    let track: MetalWidgetTrack?
+    var destination: URL { track?.deepLinkURL ?? MetalWidgetBridge.libraryURL }
+    static var preview: MetalWidgetEntry {
+        MetalWidgetEntry(date: Date(), track: nil)
     }
 }
 
 struct MetalTimelineProvider: TimelineProvider {
-    func placeholder(in context: Context) -> MetalWidgetEntry {
-        .placeholder()
-    }
-
+    func placeholder(in context: Context) -> MetalWidgetEntry { .preview }
     func getSnapshot(in context: Context, completion: @escaping (MetalWidgetEntry) -> Void) {
-        completion(context.isPreview ? .placeholder() : entry(at: Date()))
+        completion(context.isPreview ? .preview : current())
     }
-
     func getTimeline(in context: Context, completion: @escaping (Timeline<MetalWidgetEntry>) -> Void) {
-        let start = Date()
-        let entries = (0..<8).map { offset in
-            entry(at: start.addingTimeInterval(TimeInterval(offset) * 30 * 60))
-        }
-        completion(Timeline(entries: entries, policy: .after(start.addingTimeInterval(4 * 60 * 60))))
+        // The shown track is stable. Never rotate it independently of the app.
+        let entry = current()
+        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(3600))))
     }
-
-    private func entry(at date: Date) -> MetalWidgetEntry {
-        guard let encoded = recommendationsData(),
-              let stored = try? JSONDecoder().decode([MetalWidgetRecommendation].self, from: encoded),
-              !stored.isEmpty else {
-            return .placeholder(at: date)
-        }
-
-        let offset = Int(date.timeIntervalSince1970 / (30 * 60)) % stored.count
-        let rotated = Array(stored[offset...]) + Array(stored[..<offset])
-        return MetalWidgetEntry(date: date, recommendations: rotated)
-    }
-
-    private func recommendationsData() -> Data? {
-        if let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: sharedSuiteName
-        ) {
-            let fileURL = containerURL.appendingPathComponent(recommendationsFilename)
-            if let data = try? Data(contentsOf: fileURL) {
-                return data
-            }
-        }
-
-        return UserDefaults(suiteName: sharedSuiteName)?.data(forKey: recommendationsKey)
-    }
-}
-
-private struct MetalArtwork: View {
-    let data: Data?
-    var cornerRadius: CGFloat = 16
-    var seed: String = "Metal"
-
-    @ViewBuilder
-    var body: some View {
-        if let data, let uiImage = UIImage(data: data) {
-            if #available(iOS 18.0, *) {
-                styled(Image(uiImage: uiImage).resizable().widgetAccentedRenderingMode(.fullColor))
-            } else {
-                styled(Image(uiImage: uiImage).resizable())
-            }
-        } else {
-            let palette = ArtworkPlaceholderPalette(seed: seed, isDark: true)
-            GeometryReader { geometry in
-                ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
-                        .environment(\.colorScheme, .dark)
-                    LinearGradient(colors: [Color(palette.top).opacity(0.26), Color(palette.bottom).opacity(0.12)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing)
-                    Image("MetalStar")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(.white.opacity(0.64))
-                        .padding(min(geometry.size.width, geometry.size.height) * 0.17)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
-    }
-
-    private func styled<Content: View>(_ content: Content) -> some View {
-        content.scaledToFill()
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    }
-}
-
-private struct MetalWidgetBackdrop: View {
-    let artworkData: Data?
-    let seed: String
-
-    var body: some View {
-        let palette = ArtworkPlaceholderPalette(seed: seed, isDark: true)
-        ZStack {
-            LinearGradient(colors: [Color(palette.top), Color(palette.bottom)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            if let artworkData {
-                MetalArtwork(data: artworkData, cornerRadius: 0, seed: seed)
-                    .scaleEffect(1.2)
-                    .blur(radius: 32)
-                    .opacity(0.34)
-                Color.black.opacity(0.30)
-            }
-        }
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func metalWidgetBackground(artworkData: Data?, seed: String) -> some View {
-        if #available(iOS 17.0, *) {
-            containerBackground(for: .widget) { MetalWidgetBackdrop(artworkData: artworkData, seed: seed) }
-        } else {
-            background(MetalWidgetBackdrop(artworkData: artworkData, seed: seed))
-        }
-    }
-}
-
-private struct MetalRecommendationHero: View {
-    let recommendation: MetalWidgetRecommendation
-    var cornerRadius: CGFloat = 0
-    @Environment(\.widgetFamily) private var family
-
-    private var titleFont: Font {
-        family == .systemSmall
-            ? .system(size: 15, weight: .bold)
-            : .system(size: 12, weight: .bold)
-    }
-
-    var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            MetalArtwork(data: recommendation.artworkData, cornerRadius: cornerRadius, seed: recommendation.title)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.08), .black.opacity(0.9)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(recommendation.title)
-                    .font(titleFont)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.62)
-                    .allowsTightening(true)
-                Text(recommendation.artist.isEmpty ? "Metal" : recommendation.artist)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.74))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
-            .padding(13)
-        }
-        .foregroundStyle(.white)
-    }
-}
-
-private struct MetalRecommendationRow: View {
-    let recommendation: MetalWidgetRecommendation
-
-    var body: some View {
-        HStack(spacing: 9) {
-            MetalArtwork(data: recommendation.artworkData, cornerRadius: 9, seed: recommendation.title)
-                .frame(width: 52, height: 52)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(recommendation.title)
-                    .font(.caption.weight(.bold))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .allowsTightening(true)
-                Text(recommendation.artist.isEmpty ? "Metal" : recommendation.artist)
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.58))
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(.black.opacity(0.26), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+    private func current() -> MetalWidgetEntry {
+        MetalWidgetEntry(date: Date(), track: MetalWidgetBridge.load()?.tracks.first)
     }
 }
 
@@ -246,77 +31,95 @@ struct MetalSquareWidgetView: View {
     let entry: MetalWidgetEntry
 
     var body: some View {
-        MetalRecommendationHero(recommendation: entry.primary)
-            .widgetURL(entry.primary.deepLinkURL)
-            .metalWidgetBackground(artworkData: entry.primary.artworkData, seed: entry.primary.title)
+        GeometryReader { geometry in
+            let side = min(geometry.size.width, geometry.size.height)
+            let inset = max(12, side * 0.09)
+            let artworkSide = side * 0.54
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 8) {
+                    artwork
+                        .frame(width: artworkSide, height: artworkSide)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    Spacer(minLength: 0)
+                    Image("MetalStar")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: side * 0.15, height: side * 0.15)
+                        .foregroundStyle(.white)
+                        .accessibilityHidden(true)
+                }
+                Spacer(minLength: 7)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.track?.title ?? "Your music")
+                        .font(.system(size: min(18, side * 0.095), weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    Text(entry.track.map { $0.artist.isEmpty ? "Metal" : $0.artist } ?? "Open Metal")
+                        .font(.system(size: min(16, side * 0.085), weight: .regular))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(inset)
+        }
+        .widgetURL(entry.destination)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(entry.track.map { "\($0.title), \($0.artist). Open in Metal." } ?? "Open your music in Metal")
+        .accessibilityAddTraits(.isButton)
+        .metalWidgetBackground()
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if let image = thumbnail(entry.track?.artworkData) {
+            if #available(iOS 18.0, *) {
+                Image(uiImage: image).resizable().widgetAccentedRenderingMode(.fullColor).scaledToFill()
+            } else { Image(uiImage: image).resizable().scaledToFill() }
+        } else {
+            ZStack {
+                Color(white: 0.13)
+                Image("MetalStar").renderingMode(.template).resizable().scaledToFit()
+                    .foregroundStyle(.white.opacity(0.35)).padding(17)
+            }
+        }
+    }
+    private func thumbnail(_ data: Data?) -> UIImage? {
+        guard let data, data.count <= 512_000,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 300,
+                kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else { return nil }
+        return UIImage(cgImage: image)
     }
 }
 
-struct MetalWideWidgetView: View {
-    let entry: MetalWidgetEntry
-
-    private var secondaryRecommendations: [MetalWidgetRecommendation] {
-        Array(entry.recommendations.dropFirst().prefix(2))
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Link(destination: entry.primary.deepLinkURL) {
-                MetalRecommendationHero(recommendation: entry.primary, cornerRadius: 16)
-                    .frame(width: 132)
-            }
-            .buttonStyle(.plain)
-
-            VStack(spacing: 8) {
-                ForEach(secondaryRecommendations) { recommendation in
-                    Link(destination: recommendation.deepLinkURL) {
-                        MetalRecommendationRow(recommendation: recommendation)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .padding(12)
-        .foregroundStyle(.white)
-        .metalWidgetBackground(artworkData: entry.primary.artworkData, seed: entry.primary.title)
+private extension View {
+    @ViewBuilder func metalWidgetBackground() -> some View {
+        if #available(iOS 17.0, *) { containerBackground(for: .widget) { Color.black } }
+        else { background(Color.black) }
     }
 }
 
 struct MetalSquareWidget: Widget {
-    let kind = "MetalSquareWidget"
-
+    let kind = MetalWidgetBridge.kind
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
             MetalSquareWidgetView(entry: entry)
         }
-        .configurationDisplayName("Quick Pick")
-        .description("A track picked from your music taste.")
+        .configurationDisplayName("Metal")
+        .description("Your latest track, one tap away.")
         .supportedFamilies([.systemSmall])
         .contentMarginsDisabled()
         .containerBackgroundRemovable(false)
     }
 }
 
-struct MetalWideWidget: Widget {
-    let kind = "MetalWideWidget"
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: MetalTimelineProvider()) { entry in
-            MetalWideWidgetView(entry: entry)
-        }
-        .configurationDisplayName("Daily Mix")
-        .description("A rotating mix of songs picked for you.")
-        .supportedFamilies([.systemMedium])
-        .contentMarginsDisabled()
-        .containerBackgroundRemovable(false)
-    }
-}
-
-@main
-struct MetalWidgetsBundle: WidgetBundle {
-    var body: some Widget {
-        MetalSquareWidget()
-        MetalWideWidget()
-    }
+@main struct MetalWidgetsBundle: WidgetBundle {
+    var body: some Widget { MetalSquareWidget() }
 }

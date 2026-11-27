@@ -133,29 +133,29 @@ extension ViewController {
 
     // MARK: - Playback Core Engine
 
-    func playTrackFromWidget(filename: String) {
-        libraryCollection = .all
-        activeFilter = .all
-        searchBar.text = ""
-        filterTracks()
-
-        guard let index = filteredTracks.firstIndex(where: { $0.url.lastPathComponent == filename }) else {
+    func playTrackFromWidget(_ request: MetalWidgetPlaybackRequest) {
+        guard let track = tracks.first(where: { $0.url.lastPathComponent == request.filename }) else {
             showToast(message: "This song is no longer in your library", success: false)
+            scheduleWidgetRecommendationsPublish(); return
+        }
+        let signature = Track.fileSignature(for: track.url)
+        guard request.matches(fileSize: signature.fileSize, modificationDate: signature.modificationDate) else {
+            showToast(message: "This song changed. The widget will refresh.", success: false)
+            scheduleWidgetRecommendationsPublish(); return
+        }
+        if audioPlayer?.url == track.url {
+            if audioPlayer?.isPlaying != true { playOrPause() }
+            setPlayerPresented(true)
             return
         }
-
-        playbackSource = .widget
-        playbackQueue = filteredTracks
-        currentPlaybackContext = "ALL SONGS"
-        recordManualSelection(for: filteredTracks[index])
-        currentTrackIndex = index
-        if isShuffleEnabled {
-            rebuildShuffleQueue()
-        }
-        playCurrentTrack()
-        rebuildFiltersRow()
-        tableView.reloadData()
-
+        libraryCollection = .all; activeFilter = .all; searchBar.text = ""
+        filterTracks()
+        guard let index = filteredTracks.firstIndex(where: { $0.url == track.url }) else { return }
+        playbackSource = .widget; playbackQueue = filteredTracks; currentPlaybackContext = "ALL SONGS"
+        recordManualSelection(for: track); currentTrackIndex = index
+        if isShuffleEnabled { rebuildShuffleQueue() }
+        playCurrentTrack(); rebuildFiltersRow(); tableView.reloadData()
+        setPlayerPresented(true)
     }
 
     func playCurrentTrack() {

@@ -88,6 +88,10 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     var rightCoverDimOverlay: UIView!
     var isCarouselAnimating: Bool = false
 
+    let widgetPublicationQueue = DispatchQueue(label: "metal.widget-publication", qos: .utility)
+    var widgetPublicationGeneration = 0
+    var lastPublishedWidgetTracks: [MetalWidgetTrack]?
+
     var lyricsView: LyricsView!
     var lyricsVisible = false
     var lyricsTask: Task<Void, Never>?
@@ -372,6 +376,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         }
         saveListeningTelemetry()
         savePlaybackState()
+        publishWidgetRecommendations()
         if audioPlayer?.isPlaying == true { startTimer() }
     }
 

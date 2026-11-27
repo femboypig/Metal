@@ -59,11 +59,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         switch url.host?.lowercased() {
         case "play":
-            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-                  let filename = components.queryItems?.first(where: { $0.name == "track" })?.value,
-                  !filename.isEmpty else { return }
             pendingWidgetURL = nil
-            viewController.playTrackFromWidget(filename: filename)
+            guard let request = MetalWidgetBridge.request(from: url) else { return }
+            viewController.playTrackFromWidget(request)
+        case "library":
+            pendingWidgetURL = nil
+            viewController.setPlayerPresented(false)
         case "daily-mix":
             pendingWidgetURL = nil
             let autoplay = URLComponents(url: url, resolvingAgainstBaseURL: false)?

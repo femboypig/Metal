@@ -7,21 +7,18 @@ import UIKit
 import CoreImage
 import WidgetKit
 
-private struct MetalWidgetRecommendation: Codable {
-    let id: String
-    let title: String
-    let artist: String
-    let artworkData: Data?
-}
-
-private let originalMetalAppGroup = "group.ru.femboypig.Metal"
-private let widgetRecommendationsFilename = "widget-recommendations.json"
-
-private var resolvedMetalAppGroup: String {
-    let resignedGroups = Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String]
-    return resignedGroups?.first(where: { $0.contains(originalMetalAppGroup) })
-        ?? resignedGroups?.first
-        ?? originalMetalAppGroup
+private func makeWidgetArtworkData(_ artwork: UIImage?) -> Data? {
+    guard let artwork, artwork.size.width > 0, artwork.size.height > 0 else { return nil }
+    let size = CGSize(width: 300, height: 300)
+    let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = true
+    return UIGraphicsImageRenderer(size: size, format: format).image { context in
+        context.cgContext.setFillColor(UIColor.black.cgColor)
+        context.cgContext.fill(CGRect(origin: .zero, size: size))
+        let scale = max(size.width / artwork.size.width, size.height / artwork.size.height)
+        let drawn = CGSize(width: artwork.size.width * scale, height: artwork.size.height * scale)
+        artwork.draw(in: CGRect(x: (size.width - drawn.width) / 2, y: (size.height - drawn.height) / 2,
+            width: drawn.width, height: drawn.height))
+    }.jpegData(compressionQuality: 0.78)
 }
 
 struct MetalSettingsDocument: Codable {
@@ -116,6 +113,7 @@ extension ViewController {
         persistedSettings.queue = playbackQueueSnapshot()
 
         writeSettingsDocument()
+        scheduleWidgetRecommendationsPublish()
     }
 
     private func writeSettingsDocument() {
@@ -639,68 +637,41 @@ extension ViewController {
     }
 
     func publishWidgetRecommendations() {
-        guard !tracks.isEmpty else { return }
-
-        refreshDailyMixIfNeeded()
-        let recommended = recommendedTracks(from: tracks)
-        let favorites = tracks.filter { favoriteTracks.contains($0.url.lastPathComponent) }
-        let source = !dailyMixTracks.isEmpty
-            ? dailyMixTracks
-            : (!favorites.isEmpty ? favorites : (!recommended.isEmpty ? recommended : tracks))
-        let selection = Array(source.prefix(6))
-
-        let recommendations = selection.map { track in
-            MetalWidgetRecommendation(
-                id: track.url.lastPathComponent,
-                title: track.title,
-                artist: track.artist == "Unknown Artist" ? "" : track.artist,
-                artworkData: widgetArtworkData(for: track.artwork)
-            )
+        widgetPublishWorkItem?.cancel(); widgetPublishWorkItem = nil
+        widgetPublicationGeneration += 1
+        let generation = widgetPublicationGeneration
+        let playing = currentPlaybackTrack().flatMap { current in tracks.first { $0.url == current.url } }
+        let recent = persistedSettings.lastTrackFile.flatMap { name in tracks.first { $0.url.lastPathComponent == name } }
+        let candidates = [playing, recent].compactMap { $0 } + Array(dailyMixTracks.prefix(3)) + Array(tracks.prefix(3))
+        // Extract and resize only the displayed cover, off the playback/UI thread.
+        widgetPublicationQueue.async { [weak self] in
+            var records: [MetalWidgetTrack] = []
+            for track in candidates {
+                let signature = Track.fileSignature(for: track.url)
+                guard signature.fileSize >= 0 else { continue }
+                records = [MetalWidgetTrack(id: track.url.lastPathComponent, title: String(track.title.prefix(1024)),
+                    artist: track.artist == "Unknown Artist" ? "" : String(track.artist.prefix(1024)),
+                    artworkData: makeWidgetArtworkData(track.artwork),
+                    fileSize: signature.fileSize, modificationDate: signature.modificationDate)]
+                break
+            }
+            let exportedRecords = records
+            DispatchQueue.main.async {
+                guard let self, self.widgetPublicationGeneration == generation,
+                      exportedRecords != self.lastPublishedWidgetTracks else { return }
+                let snapshot = MetalWidgetSnapshot(updatedAt: Date(), tracks: exportedRecords)
+                self.widgetPublicationQueue.async { [weak self] in
+                    do {
+                        try MetalWidgetBridge.save(snapshot)
+                        DispatchQueue.main.async {
+                            guard let self, self.widgetPublicationGeneration == generation else { return }
+                            self.lastPublishedWidgetTracks = exportedRecords
+                            WidgetCenter.shared.reloadTimelines(ofKind: MetalWidgetBridge.kind)
+                        }
+                    } catch { print("Widget snapshot could not be shared: \(error.localizedDescription)") }
+                }
+            }
         }
-
-        guard let encoded = try? JSONEncoder().encode(recommendations),
-              let containerURL = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: resolvedMetalAppGroup
-              ) else {
-            print("Widget recommendations: App Group container is unavailable for \(resolvedMetalAppGroup)")
-            return
-        }
-
-        let fileURL = containerURL.appendingPathComponent(widgetRecommendationsFilename)
-        do {
-            try encoded.write(to: fileURL, options: .atomic)
-        } catch {
-            print("Widget recommendations: failed to write shared payload: \(error)")
-            return
-        }
-
-        // Keep a preferences copy for compatibility with earlier widget builds.
-        UserDefaults(suiteName: resolvedMetalAppGroup)?.set(encoded, forKey: "widget.recommendations.v1")
-        WidgetCenter.shared.reloadAllTimelines()
-    }
-
-    private func widgetArtworkData(for artwork: UIImage?) -> Data? {
-        guard let artwork else { return nil }
-
-        let targetSize = CGSize(width: 360, height: 360)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = true
-
-        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
-        let thumbnail = renderer.image { context in
-            context.cgContext.setFillColor(UIColor.black.cgColor)
-            context.cgContext.fill(CGRect(origin: .zero, size: targetSize))
-
-            let scale = max(targetSize.width / artwork.size.width, targetSize.height / artwork.size.height)
-            let drawSize = CGSize(width: artwork.size.width * scale, height: artwork.size.height * scale)
-            let drawOrigin = CGPoint(
-                x: (targetSize.width - drawSize.width) / 2,
-                y: (targetSize.height - drawSize.height) / 2
-            )
-            artwork.draw(in: CGRect(origin: drawOrigin, size: drawSize))
-        }
-        return thumbnail.jpegData(compressionQuality: 0.68)
     }
 
     private func migrateAudioFiles(from sourceDirectory: URL, to destinationDirectory: URL, extensions: [String]) {

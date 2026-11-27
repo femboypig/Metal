@@ -33,6 +33,12 @@ jobs:
           xcodebuild -version | grep -E '^Xcode 27([.[:space:]]|$)'
           xcrun --sdk iphoneos --show-sdk-version | grep -E '^27([.]|$)'
 
+      - name: Verify widget communication and SideStore group resolution
+        run: |
+          set -euo pipefail
+          xcrun swiftc -O -whole-module-optimization -swift-version 5 Metal/WidgetBridge.swift Tests/WidgetBridgeChecks.swift -o "$RUNNER_TEMP/widget-bridge-checks"
+          "$RUNNER_TEMP/widget-bridge-checks"
+
       - name: Verify Daily Mix behavior
         run: |
           set -euo pipefail
@@ -133,6 +139,12 @@ jobs:
           assert not list(app.glob("AppIcon*.png")), "stale icon family in app bundle"
           with (app / "PlugIns/MetalWidgetsExtension.appex/Info.plist").open("rb") as stream:
               assert plistlib.load(stream)["CFBundleVersion"] == info["CFBundleVersion"]
+          assert "metal" in [scheme for item in info.get("CFBundleURLTypes", []) for scheme in item.get("CFBundleURLSchemes", [])], "widget deep-link scheme missing"
+          widget = app / "PlugIns/MetalWidgetsExtension.appex"
+          assert (widget / "Assets.car").is_file(), "widget logo catalog missing"
+          main_groups = plistlib.load(open("Metal/Metal.entitlements", "rb"))["com.apple.security.application-groups"]
+          widget_groups = plistlib.load(open("MetalWidgets/MetalWidgets.entitlements", "rb"))["com.apple.security.application-groups"]
+          assert main_groups == widget_groups == ["group.ru.femboypig.Metal"], "main app and widget groups diverged"
           print("Verified icon family: MetalStarAppIcon; build:", info["CFBundleVersion"])
           print("Compatibility icons:", ", ".join(icon.name for icon in icons))
           PY
