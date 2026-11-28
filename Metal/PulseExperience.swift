@@ -42,6 +42,22 @@ enum PulseVibe: String, CaseIterable {
     }
 }
 
+/// Presentation only: playback and queue ownership stay in the existing player.
+struct PulseHeroState {
+    let hasPlayer: Bool
+    let isVibe: Bool
+    let isPlaying: Bool
+    let hasTracks: Bool
+
+    var title: String { hasPlayer && !isVibe ? "Now Playing" : "Your vibe." }
+    var accessibilityLabel: String {
+        if isPlaying { return "Pause" }
+        return hasPlayer ? "Resume" : "Play your vibe"
+    }
+    var isEnabled: Bool { hasPlayer || hasTracks }
+    var resumesPlayback: Bool { hasPlayer }
+}
+
 struct LibraryDrawerGeometry {
     static let searchOverscan = 10.0
     static let collapsedTopSpacing = 10.0 + 56.0 + searchOverscan
@@ -88,6 +104,7 @@ struct PulseAudioFrame {
     var treble: Float = 0
     var loudness: Float = 0
     var energy: Float = 0
+    var vocalPresence: Float = 0
     var bpm: Float = 120
 
     static func blend(_ values: [(PulseAudioFrame, Float)]) -> PulseAudioFrame {
@@ -100,28 +117,36 @@ struct PulseAudioFrame {
             result.treble += frame.treble * weight
             result.loudness += frame.loudness * weight
             result.energy += frame.energy * weight
+            result.vocalPresence += frame.vocalPresence * weight
             result.bpm += frame.bpm * weight
         }
         return result
     }
 }
 
-/// Two one-pole crossover filters separate low and high frequency energy.
+/// Low/high bands plus a two-stage 300–3400 Hz band-pass for vocal presence.
+/// This measures midrange energy, not isolated or recognized singing.
 /// The same processor is exercised with silence and synthetic tones in CI.
 struct PulseBandAnalyzer {
     private var bassLow = 0.0
     private var trebleLow = 0.0
-    private var squares = SIMD3<Double>.zero
+    private var vocalHigh = SIMD2<Double>.zero
+    private var vocalLow = SIMD2<Double>.zero
+    private var squares = SIMD4<Double>.zero
     private var count = 0
     private var previousRMS = 0.0
     private let bassCoefficient: Double
     private let trebleCoefficient: Double
+    private let vocalHighCoefficient: Double
+    private let vocalLowCoefficient: Double
     let hop: Int
 
     init(sampleRate: Double, hop: Int = 1024) {
         self.hop = hop
         bassCoefficient = 1 - exp(-2 * Double.pi * 180 / sampleRate)
         trebleCoefficient = 1 - exp(-2 * Double.pi * 2500 / sampleRate)
+        vocalHighCoefficient = 1 - exp(-2 * Double.pi * 300 / sampleRate)
+        vocalLowCoefficient = 1 - exp(-2 * Double.pi * 3400 / sampleRate)
     }
 
     mutating func consume(_ sample: Double) -> PulseAudioFrame? {
@@ -129,18 +154,26 @@ struct PulseBandAnalyzer {
         bassLow += bassCoefficient * (value - bassLow)
         trebleLow += trebleCoefficient * (value - trebleLow)
         let high = value - trebleLow
-        squares += SIMD3(bassLow * bassLow, high * high, value * value)
+        vocalHigh.x += vocalHighCoefficient * (value - vocalHigh.x)
+        let highPassed = value - vocalHigh.x
+        vocalHigh.y += vocalHighCoefficient * (highPassed - vocalHigh.y)
+        vocalLow.x += vocalLowCoefficient * (highPassed - vocalHigh.y - vocalLow.x)
+        vocalLow.y += vocalLowCoefficient * (vocalLow.x - vocalLow.y)
+        squares += SIMD4(bassLow * bassLow, high * high, value * value, vocalLow.y * vocalLow.y)
         count += 1
         guard count >= hop else { return nil }
         let rms = sqrt(squares.z / Double(count))
         func normalized(_ rms: Double, floor: Double, span: Double) -> Float {
             Float(min(1, max(0, (20 * log10(max(rms, 0.000001)) - floor) / span)))
         }
+        let vocalRMS = sqrt(squares.w / Double(count))
+        let presence = min(1, vocalRMS / max(rms, 0.000001) / 0.65)
         let result = PulseAudioFrame(
             bass: normalized(sqrt(squares.x / Double(count)), floor: -55, span: 45),
             treble: normalized(sqrt(squares.y / Double(count)), floor: -65, span: 50),
             loudness: normalized(rms, floor: -60, span: 55),
-            energy: Float(min(1, max(0, (rms - previousRMS) * 9 + rms * 2))))
+            energy: Float(min(1, max(0, (rms - previousRMS) * 9 + rms * 2))),
+            vocalPresence: normalized(vocalRMS, floor: -55, span: 45) * Float(presence))
         previousRMS = rms
         squares = .zero
         count = 0

@@ -102,16 +102,22 @@ extension ViewController {
     }
 
     @objc func pulsePlayTapped() {
-        if playbackSource == .pulseVibe { playOrPause() }
+        if pulseHeroState.resumesPlayback { playOrPause() }
         else { activatePulseVibe() }
         becomeFirstResponder()
     }
 
+    var pulseHeroState: PulseHeroState {
+        PulseHeroState(hasPlayer: audioPlayer != nil, isVibe: playbackSource == .pulseVibe,
+            isPlaying: audioPlayer?.isPlaying == true, hasTracks: !tracks.isEmpty)
+    }
+
     func updatePulsePlayButton() {
-        let playing = playbackSource == .pulseVibe && audioPlayer?.isPlaying == true
-        pulsePlayButton?.setImage(playing ? PlaybackIcon.pause.image(size: 24) : PulseControlArtwork.play, for: .normal)
-        pulsePlayButton?.accessibilityLabel = playing ? "Pause your vibe" : "Play your vibe"
-        pulsePlayButton?.isEnabled = !tracks.isEmpty
+        let state = pulseHeroState
+        if pulseTitleLabel?.text != state.title { pulseTitleLabel?.text = state.title }
+        pulsePlayButton?.setImage(state.isPlaying ? PlaybackIcon.pause.image(size: 24) : PulseControlArtwork.play, for: .normal)
+        pulsePlayButton?.accessibilityLabel = state.accessibilityLabel
+        pulsePlayButton?.isEnabled = state.isEnabled
     }
 
     var pulseDrawerGeometry: LibraryDrawerGeometry {

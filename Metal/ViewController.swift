@@ -172,6 +172,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
                 lastMixExtensionAttempt = nil
             }
             if playbackSource != .trackVibe { vibeSeedFilename = nil }
+            updatePulsePlayButton()
         }
     }
     var isUpdatingMixQueue = false

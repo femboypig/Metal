@@ -1175,6 +1175,7 @@ struct WaveUniforms {
     float mixShake;
     float3 themeColor;
     float4 audio; // bass, treble, loudness, energy
+    float4 vocal; // smoothed midrange presence; remaining channels reserved
     float4 dynamics; // vibe speed, deformation, detail, glow
     float3 vibeTint;
     float4 presentation; // expansion, vertical center, reduce motion, compact height
@@ -1245,6 +1246,7 @@ fragment float4 waveFragmentShader(
     float treble = uniforms.audio.y;
     float loudness = uniforms.audio.z;
     float energy = uniforms.audio.w;
+    float voice = uniforms.vocal.x;
     float sensitivity = uniforms.presentation.z > 0.5 ? 0.12 : 1.0;
     // A decaying liquid ripple reshapes the existing wave after a remix.
     float shake = uniforms.mixShake;
@@ -1283,7 +1285,10 @@ fragment float4 waveFragmentShader(
     float baseRadius = mix(0.55, 0.38, expansion) + bass * 0.065 * sensitivity;
     float fineRays = sin(angle * 34.0 + bulgeMedium * 2.0 + t * 0.7) * treble
         * expansion * uniforms.dynamics.z * 0.016 * sensitivity;
-    float targetRadius = baseRadius + fineRays
+    // Broad, soft lobes follow vocal phrasing independently of bass expansion.
+    float vocalContour = sin(angle * 3.0 + bulgeSpatial * 1.6 + t * 0.45)
+        * voice * 0.025 * sensitivity * uniforms.dynamics.y;
+    float targetRadius = baseRadius + fineRays + vocalContour
         + (bulgeLarge * 0.18 + bulgeMedium * 0.10 + bulgeSpatial * 0.06) * amp;
 
     // Signed distance to the morphing contour
@@ -1380,7 +1385,7 @@ fragment float4 waveFragmentShader(
         * uniforms.dynamics.w + loudness * 0.20 * sensitivity;
     float rayGlow = pow(0.5 + 0.5 * sin(angle * 34.0 + internalFluid2), 8.0)
         * expansion * treble * 0.08 * sensitivity;
-    bloom += rayGlow;
+    bloom += rayGlow + voice * deepCore * 0.07 * sensitivity;
     float3 finalRGB = liquidColor * bloom;
 
     // Alpha falloff blending all layers:
@@ -1460,6 +1465,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
         var mixShake: Float = 0.0
         var themeColor: SIMD3<Float> = .zero
         var audio: SIMD4<Float> = .zero
+        var vocal: SIMD4<Float> = .zero
         var dynamics: SIMD4<Float> = SIMD4(1, 1, 1, 1)
         var vibeTint: SIMD3<Float> = PulseVibe.forYou.tint
         var presentation: SIMD4<Float> = .zero
@@ -1469,6 +1475,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
     private var lastAudioSample: CFTimeInterval = 0
     private var targetAudio = PulseAudioFrame()
     private var smoothedAudio = SIMD4<Float>.zero
+    private var smoothedVocal: Float = 0
     private var currentBPM: Float = 120
     private var targetVibe = PulseVibe.forYou
     private var vibeDynamics = PulseVibe.forYou.dynamics
@@ -1629,6 +1636,9 @@ class YandexWaveView: UIView, MTKViewDelegate {
         let slowResponse = 1 - exp(-dt * 3.5)
         let audio = isPlayingState ? SIMD4(targetAudio.bass, targetAudio.treble, targetAudio.loudness, targetAudio.energy) : .zero
         smoothedAudio += (audio - smoothedAudio) * response
+        let vocalTarget = isPlayingState ? targetAudio.vocalPresence : 0
+        let vocalResponse = 1 - exp(-dt * (vocalTarget > smoothedVocal ? 7 : 3))
+        smoothedVocal += (vocalTarget - smoothedVocal) * vocalResponse
         currentBPM += ((isPlayingState ? targetAudio.bpm : 90) - currentBPM) * slowResponse
         vibeDynamics += (targetVibe.dynamics - vibeDynamics) * slowResponse
         vibeTint += (targetVibe.tint - vibeTint) * slowResponse
@@ -1661,6 +1671,7 @@ class YandexWaveView: UIView, MTKViewDelegate {
             mixShake: shakeIntensity,
             themeColor: currentThemeColor,
             audio: smoothedAudio,
+            vocal: SIMD4(smoothedVocal, 0, 0, 0),
             dynamics: vibeDynamics,
             vibeTint: vibeTint,
             presentation: presentation

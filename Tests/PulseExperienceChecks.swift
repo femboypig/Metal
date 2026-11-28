@@ -4,6 +4,18 @@ import AVFoundation
 @main
 enum PulseExperienceChecks {
     static func main() throws {
+        for isVibe in [false, true] {
+            for isPlaying in [false, true] {
+                let state = PulseHeroState(hasPlayer: true, isVibe: isVibe,
+                    isPlaying: isPlaying, hasTracks: true)
+                precondition(state.title == (isVibe ? "Your vibe." : "Now Playing"))
+                precondition(state.resumesPlayback && state.isEnabled)
+                precondition(state.accessibilityLabel == (isPlaying ? "Pause" : "Resume"))
+            }
+        }
+        let idle = PulseHeroState(hasPlayer: false, isVibe: false, isPlaying: false, hasTracks: true)
+        precondition(idle.title == "Your vibe." && !idle.resumesPlayback && idle.isEnabled)
+        precondition(!PulseHeroState(hasPlayer: false, isVibe: false, isPlaying: false, hasTracks: false).isEnabled)
         for height in [568.0, 667, 812, 844, 932, 1024] {
             for safeTop in [20.0, 47, 59] {
                 let miniTop = height - 34 - 8 - 60
@@ -60,13 +72,26 @@ enum PulseExperienceChecks {
             return PulseAudioFrame.blend(frames)
         }
         let silence = analyze(frequency: 0, amplitude: 0)
-        precondition(silence.bass == 0 && silence.treble == 0 && silence.loudness == 0)
+        precondition(silence.bass == 0 && silence.treble == 0 && silence.loudness == 0 && silence.vocalPresence == 0)
         let bass = analyze(frequency: 70, amplitude: 0.25)
         let treble = analyze(frequency: 6000, amplitude: 0.25)
+        let vocal = analyze(frequency: 1000, amplitude: 0.25)
+        precondition(vocal.vocalPresence > bass.vocalPresence + 0.25,
+            "Vocal-band energy must react independently of bass")
+        precondition(vocal.vocalPresence > analyze(frequency: 10000, amplitude: 0.25).vocalPresence + 0.2)
+        precondition(analyze(frequency: 1000, amplitude: 0.01).vocalPresence < vocal.vocalPresence)
         precondition(bass.bass > treble.bass + 0.2)
         precondition(treble.treble > bass.treble + 0.2)
         precondition(analyze(frequency: 70, amplitude: 0.01).loudness < bass.loudness)
         let blend = PulseAudioFrame.blend([(bass, 0.5), (treble, 0.5)])
+        let vocalBlend = PulseAudioFrame.blend([(vocal, 0.3), (bass, 0.7)])
+        precondition(abs(vocalBlend.vocalPresence - (vocal.vocalPresence * 0.3 + bass.vocalPresence * 0.7)) < 0.0001)
+        var invalidAnalyzer = PulseBandAnalyzer(sampleRate: 44100)
+        for _ in 0..<2048 {
+            if let frame = invalidAnalyzer.consume(.nan) {
+                precondition(frame.vocalPresence == 0 && frame.energy == 0)
+            }
+        }
         precondition(abs(blend.bass - (bass.bass + treble.bass) / 2) < 0.0001)
         precondition(PulseAudioFrame.blend([(bass, 0), (treble, 1)]).bass == treble.bass)
         for vibe in PulseVibe.allCases {
@@ -104,6 +129,6 @@ enum PulseExperienceChecks {
         precondition(decodedTreble.treble > decodedBass.treble + 0.2)
         precondition(decodedBass.bpm == 136 && decodedBass.loudness > 0.5)
         precondition(abs(sample(at: 1).bass - decodedBass.bass) < 0.01, "Seeking should recover the original spectrum")
-        print("Pulse: layout, snapping, frequency bands, loudness, crossfade, stereo decoding and seeking passed")
+        print("Pulse: layout, snapping, shared playback state, vocal presence, frequency bands, loudness, crossfade, stereo decoding and seeking passed")
     }
 }
